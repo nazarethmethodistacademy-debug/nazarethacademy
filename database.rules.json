@@ -1,0 +1,62 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "nazareth_academy": {
+      "$yearKey": {
+
+        // "Known system user" = an Auth account carrying a `role` custom
+        // claim. That claim is ONLY ever set by this app's own login /
+        // createUser Cloud Functions (see functions/index.js), and only
+        // after createUser's own role whitelist check. So checking for the
+        // claim's mere existence — not a specific role name — already means
+        // "this account was created through this system." Anyone else
+        // (not signed in, or an Auth account that exists for some other
+        // reason without ever going through this app's user management)
+        // has no role claim and is denied by this same check, automatically.
+        ".read": "auth != null && auth.token.role != null",
+
+        // Shape guard: a write must still look like a plausible year-node,
+        // so a bug or compromised client can't silently replace the whole
+        // node with something malformed or empty. Applies to every write
+        // under this node in addition to whatever rule below granted it.
+        ".validate": "newData.hasChildren(['admissions', 'payments'])",
+
+        // ── Payroll stays Cloud-Function-only, even under "all users can
+        // write" ──
+        // IMPORTANT: Firebase .write rules only ever GRANT permission as you
+        // go deeper into the tree — a deeper rule can never REVOKE access an
+        // ancestor already granted. That's why $yearKey itself has no
+        // blanket ".write" — if it did, these four ".write": false entries
+        // would be silently ignored (the parent's grant would cascade
+        // straight through them) and payroll would be writable by everyone
+        // too. Instead, write access is granted ONLY via the $key wildcard
+        // below, which explicitly excludes these four field names — that's
+        // what actually keeps them reachable only through saveEmployee /
+        // deleteEmployee / runPayroll / deletePayrollRunLine / editPayrollRunLine.
+        "employees":   { ".write": false },
+        "nextEmpId":   { ".write": false },
+        "payrollRuns": { ".write": false },
+        "nextPrId":    { ".write": false },
+
+        // Every other field in this year — any account created through the
+        // system (any role) can read and write. This is the "all users"
+        // access you asked for; the four payroll fields above are the only
+        // exception, and an account with no role claim at all still can't
+        // touch anything, per the same check repeated here.
+        "$key": {
+          ".write": "$key !== 'employees' && $key !== 'nextEmpId' && $key !== 'payrollRuns' && $key !== 'nextPrId' && auth != null && auth.token.role != null"
+        }
+      }
+    },
+
+    // Everything else is denied by the top-level ".read"/".write": false
+    // above — there should be nothing else at the database root for this
+    // app, so an explicit deny-all default is the safest baseline.
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}

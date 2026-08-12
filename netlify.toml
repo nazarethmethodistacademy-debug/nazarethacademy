@@ -1,0 +1,11 @@
+[build]
+  # Change "publish" below if your index.html lives in a subfolder (e.g. "public")
+  # instead of directly in the folder you drag onto Netlify.
+  publish = "."
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+[build.environment]
+  NODE_VERSION = "20"
