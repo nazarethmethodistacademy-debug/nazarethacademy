@@ -20,6 +20,7 @@
   "build": {
     "appId": "com.ecolesystems.app",
     "productName": "Ecole Systems",
+    "publish": null,
     "directories": {
       "output": "release",
       "buildResources": "build"
