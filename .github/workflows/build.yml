@@ -48,6 +48,11 @@ jobs:
       - name: Build installer
         uses: nick-fields/retry@v3
         with:
+          # electron-builder downloads several large binaries from GitHub's
+          # release hosting (Electron itself, NSIS, codesigning tools). That
+          # hosting occasionally drops the connection mid-download ("EOF")
+          # on GitHub's own runners — a network blip, not a real build
+          # error — so retry a few times before actually giving up.
           timeout_minutes: 15
           max_attempts: 3
           retry_wait_seconds: 30
@@ -58,4 +63,52 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.path }}
+          if-no-files-found: error
+
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-app
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Sync web assets into the native project
+        run: npx cap sync android
+
+      - name: Build APK
+        uses: nick-fields/retry@v3
+        with:
+          # Same reasoning as the desktop job — Gradle downloads several large
+          # SDK/build-tool components on first run, which can hit a flaky
+          # network blip on shared runners. Retry before giving up.
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: cd android && chmod +x gradlew && ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: android-app/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

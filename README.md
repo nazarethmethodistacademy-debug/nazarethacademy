@@ -13,6 +13,10 @@ the device. Nothing about how it works day-to-day is different.
 Just replace `app/index.html` with the newer version and rebuild. Nothing
 else needs to change.
 
+**If you also use the Android app**, copy the same updated file into
+`android-app/www/index.html` too (both copies need to match — see the
+Android section below).
+
 ## Building the installers
 
 You need Node.js 18+ installed. Then, from this folder:
@@ -70,3 +74,44 @@ runs the installer:
 
 This is normal for internally-distributed apps and doesn't affect how the
 app runs — it's just a first-run warning.
+
+## Android
+
+The `android-app/` folder wraps the same `app/index.html` in a native
+Android shell using [Capacitor](https://capacitorjs.com/) instead of
+Electron. The GitHub Actions workflow builds this automatically alongside
+the desktop installers — check the same Actions run's **Artifacts** section
+for `android-apk`.
+
+**This produces a debug APK** (unsigned, for direct install/testing —
+not a Play Store release build). To install it on a phone:
+1. Download `android-apk` from the Actions run, unzip to get `app-debug.apk`.
+2. Transfer it to the phone (email, USB, cloud drive — any method).
+3. On the phone, tap the file to install. Android will warn about
+   "installing from unknown sources" the first time — this is expected for
+   an app not from the Play Store; allow it for this install.
+
+### Keeping the Android app in sync with the web/desktop app
+`android-app/www/index.html` is a **separate copy** of `app/index.html` —
+Capacitor bundles it into the APK at build time, it doesn't read the file
+live. Whenever `app/index.html` is updated, copy the same file into
+`android-app/www/index.html` too, then commit and push both. The next CI
+run rebuilds the APK with the update baked in.
+
+### Building it yourself instead of via CI
+Requires Android Studio (or just the Android SDK + Java 17) installed
+locally:
+```
+cd android-app
+npm install
+npx cap sync android
+cd android
+./gradlew assembleDebug
+```
+Output: `android/app/build/outputs/apk/debug/app-debug.apk`
+
+### Publishing to the Play Store later
+This debug build isn't Play-Store-ready — that needs a signed release
+build (a keystore + `assembleRelease`) and a Google Play Developer account
+($25 one-time). Say the word if you want that set up once you're ready to
+publish there.
