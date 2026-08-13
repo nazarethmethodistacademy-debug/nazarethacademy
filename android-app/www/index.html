@@ -2844,6 +2844,28 @@
   </div>
 </div>
 
+<!-- ══ ABOUT MODAL ══ -->
+<div class="modal-overlay" id="about-modal">
+  <div class="modal" style="width:420px">
+    <div class="modal-header">
+      <span class="modal-title">ℹ️ About</span>
+      <button class="modal-close" onclick="closeModal('about-modal')">✕</button>
+    </div>
+    <div style="padding:20px;text-align:center">
+      <div style="font-size:15px;font-weight:600;margin-bottom:6px">Nazareth Academy Finance</div>
+      <div style="font-size:12.5px;color:var(--muted);line-height:1.6">
+        Built with love and support for<br>Nazareth Methodist Academy, Nkotompo.
+      </div>
+      <div style="margin-top:14px;font-size:12.5px;color:var(--muted)">
+        Developed by <strong>Ebenezer Anderson</strong>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeModal('about-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ BACKUP ENCRYPTION MODAL (used for both encrypting on export and decrypting on restore) ══ -->
 <div class="modal-overlay" id="bk-pwd-modal">
   <div class="modal" style="width:460px">
@@ -7184,10 +7206,15 @@ const MODULE_DEFS = {
       { icon:'🔒', label: () => isYearLocked() ? '🔓 Unlock Academic Year' : '🔒 Lock Academic Year', action:'toggleYearLock', adminOnly:true },
       { icon:'🎟️', label:'Fee Discounts & Exemptions', action:'openFeeDiscountsModal', adminOnly:true },
       { icon:'↩',  label:'Reset to Demo',      action:'resetAllData', adminOnly:true, danger:true },
+      { icon:'ℹ️', label:'About',             action:'openAboutModal' },
       { icon:'⏻',  label:'Sign Out',           action:'logoutUser', danger:true },
     ]
   }
 };
+
+function openAboutModal() {
+  document.getElementById('about-modal').classList.add('open');
+}
 
 function openModuleLauncher(key) {
   const mod = MODULE_DEFS[key];
@@ -15244,6 +15271,121 @@ function canEditCurrentPage(page) {
   return getEffectivePermission(currentUser.role, page) === 'edit';
 }
 
+// ══════════════ TERMS & CONDITIONS (mandatory, per-account, first login) ══════════════
+// Bump TERMS_VERSION any time the wording changes meaningfully — that alone
+// is what makes every account see the acceptance screen again, since the
+// stored acceptance record is checked against this exact version string.
+const TERMS_VERSION = '1.0';
+const TERMS_FB_PATH = 'user_terms_acceptance'; // year-independent, like schoolInfo — acceptance isn't tied to any one academic year
+
+const TERMS_TEXT_HTML = `
+  <p><strong>Last updated:</strong> August 2026</p>
+  <p>By signing in and using this system, you agree to the following terms. If you do not agree, do not use the system — contact your administrator instead.</p>
+
+  <p><strong>1. Purpose &amp; scope</strong><br>
+  This system is provided for authorized staff to manage student records, fees, payroll, and related school administration. It is intended for official school use only.</p>
+
+  <p><strong>2. Confidentiality</strong><br>
+  Student, financial, and staff records accessible here are confidential. You must not share, export, screenshot, or disclose this information to anyone outside their authorized role, except as required for your official duties.</p>
+
+  <p><strong>3. Account security</strong><br>
+  You are responsible for keeping your login credentials private and for all actions taken under your account. Notify an administrator immediately if you suspect unauthorized access.</p>
+
+  <p><strong>4. Accuracy of records</strong><br>
+  Enter and update information honestly and accurately. Do not alter financial or academic records except through the system's normal workflows, and only within your assigned role and permissions.</p>
+
+  <p><strong>5. Acceptable use</strong><br>
+  Use the system only for legitimate school business. Do not attempt to bypass access controls, access data outside your role, or use the system in any way that could disrupt its operation or compromise other users' data.</p>
+
+  <p><strong>6. Data storage</strong><br>
+  Records are stored and synchronized through a secure cloud database. While reasonable safeguards are in place, no system is completely immune to error or disruption — regular backups are recommended for critical records.</p>
+
+  <p><strong>7. Monitoring</strong><br>
+  Actions taken in this system (such as edits, approvals, and record changes) may be logged for audit and accountability purposes.</p>
+
+  <p><strong>8. Changes to these terms</strong><br>
+  These terms may be updated from time to time. Continued use of the system after an update constitutes acceptance of the revised terms.</p>
+
+  <p><strong>9. Liability</strong><br>
+  This system is provided as an internal administrative tool. The school is not liable for indirect or incidental issues arising from its use, including data entry errors made by users.</p>
+`;
+
+function checkTermsThenProceed(user) {
+  if (!fbDb) { showApp(user); return; } // no Firebase available — can't check/record acceptance, don't block access
+  fbDb.ref(TERMS_FB_PATH + '/' + sanitizeFirebaseKey(user.username)).once('value')
+    .then(snap => {
+      const data = snap.val();
+      if (data && data.version === TERMS_VERSION) {
+        showApp(user); // already accepted this exact version — proceed straight in
+      } else {
+        showTermsModal(user);
+      }
+    })
+    .catch(err => {
+      console.warn('Could not check Terms & Conditions acceptance:', err);
+      // Couldn't confirm prior acceptance — show the modal rather than silently
+      // skip it, since failing open here would mean an offline/error moment
+      // could let someone through without ever having agreed.
+      showTermsModal(user);
+    });
+}
+
+function showTermsModal(user) {
+  const existing = document.getElementById('terms-modal');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'terms-modal';
+  // Deliberately no close button and no backdrop-click-to-dismiss (unlike
+  // every other modal in the app) — accepting is the only way past this screen.
+  overlay.innerHTML = `
+    <div class="modal" style="width:600px;max-height:85vh;display:flex;flex-direction:column">
+      <div class="modal-header">
+        <span class="modal-title">📜 Terms &amp; Conditions</span>
+      </div>
+      <div style="padding:16px 20px;overflow-y:auto;font-size:12.5px;line-height:1.65;color:var(--text);flex:1">
+        ${TERMS_TEXT_HTML}
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid var(--border)">
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:12.5px;cursor:pointer;user-select:none">
+          <input type="checkbox" id="terms-accept-checkbox" style="margin-top:2px" onchange="document.getElementById('terms-accept-btn').disabled = !this.checked">
+          <span>I have read and agree to the Terms &amp; Conditions above.</span>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="checkTermsLogoutInstead()">Sign Out Instead</button>
+        <button class="btn btn-primary" id="terms-accept-btn" disabled onclick="acceptTermsAndContinue()">✅ Accept &amp; Continue</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  window._pendingTermsUser = user;
+}
+
+function checkTermsLogoutInstead() {
+  const overlay = document.getElementById('terms-modal');
+  if (overlay) overlay.remove();
+  window._pendingTermsUser = null;
+  logoutUser();
+}
+
+function acceptTermsAndContinue() {
+  const user = window._pendingTermsUser;
+  if (!user) return;
+  const overlay = document.getElementById('terms-modal');
+  if (overlay) overlay.remove();
+  window._pendingTermsUser = null;
+
+  if (fbDb) {
+    fbDb.ref(TERMS_FB_PATH + '/' + sanitizeFirebaseKey(user.username)).set({
+      version: TERMS_VERSION,
+      acceptedAt: new Date().toISOString(),
+      username: user.username
+    }).catch(err => console.warn('Could not record Terms & Conditions acceptance:', err));
+  }
+  showApp(user);
+}
+
 // ── Show / hide app ──
 function showApp(user) {
   currentUser = user;
@@ -15377,7 +15519,7 @@ async function attemptLogin() {
     setBtnState('🔐', 'Sign In', false);
     errEl.classList.remove('visible');
     saveSession(user);
-    showApp(user);
+    checkTermsThenProceed(user);
   } catch (e) {
     setBtnState('🔐', 'Sign In', false);
     errEl.textContent = '⚠ ' + (e.message || 'Something went wrong — please try again.');
@@ -16040,7 +16182,7 @@ if (fbAuth) {
           class: idTokenResult.claims.class || null
         };
         saveSession(user);
-        showApp(user);
+        checkTermsThenProceed(user);
       } catch (e) {
         clearSession();
         showLoginScreen('Your session could not be verified. Please sign in again.');
