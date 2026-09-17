@@ -5806,25 +5806,27 @@ function buildNewYearOptions() {
 }
 
 function openYearModal() {
-  if (!requireRole('Admin', 'Bursar', 'Secretary', 'Headteacher')) return;
-  // Only Admin can actually switch/create/close a year — see switchYear(),
-  // createNewYear(), openCloseYearWizard(). Other roles get a view-only list
-  // so they can see which year is active without being able to change it for
-  // everyone else.
+  if (!requireRole('Admin', 'Bursar', 'Secretary', 'Headteacher', 'Class Teacher', 'Teacher')) return;
+  // Admin and Teacher can switch between already-created years — see
+  // switchYear(). Creating a brand-new year or closing/locking one stays
+  // Admin-only (createNewYear(), openCloseYearWizard()). Other roles get a
+  // view-only list so they can see which year is active without being able
+  // to change it for everyone else.
   const isAdmin = currentUser && currentUser.role === 'Admin';
+  const canSwitchYear = currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Class Teacher' || currentUser.role === 'Teacher');
   const registry = loadYearsRegistry();
   const container = document.getElementById('year-list-container');
 
   container.innerHTML = registry.map(key => {
     const disp = yearKeyToDisplay(key);
     const isActive = key === ACTIVE_YEAR;
-    const clickable = isAdmin && !isActive;
+    const clickable = canSwitchYear && !isActive;
     return `<div class="year-item ${isActive ? 'active' : ''}" ${clickable ? `onclick="switchYear('${key}')"` : ''} style="${clickable ? '' : 'cursor:default'}">
       <div>
         <div class="year-item-label">📅 Academic Year ${disp.long}</div>
         <div class="year-item-meta">Firebase path: nazareth_academy/${key}</div>
       </div>
-      ${isActive ? '<span class="year-item-badge">Active</span>' : (isAdmin ? '<span style="font-size:12px;color:var(--muted)">Switch →</span>' : '<span style="font-size:12px;color:var(--muted)">View only</span>')}
+      ${isActive ? '<span class="year-item-badge">Active</span>' : (canSwitchYear ? '<span style="font-size:12px;color:var(--muted)">Switch →</span>' : '<span style="font-size:12px;color:var(--muted)">View only</span>')}
     </div>`;
   }).join('');
 
@@ -6417,10 +6419,11 @@ async function executeCloseYear() {
 
 function switchYear(key) {
   // Switching the shared active year affects every user (see setActiveYear()
-  // broadcast + watchActiveYearForChanges() below), so only an Admin may do it.
-  // Other roles can still open the modal to see which year is active (see
-  // openYearModal()), they just can't change it.
-  if (!requireRole('Admin')) return;
+  // broadcast + watchActiveYearForChanges() below). Admin and Teacher may
+  // switch between already-created years; other roles can still open the
+  // modal to see which year is active (see openYearModal()), they just
+  // can't change it.
+  if (!requireRole('Admin', 'Class Teacher', 'Teacher')) return;
   if (key === ACTIVE_YEAR) { closeModal('year-modal'); return; }
   closeModal('year-modal');
   _doSwitchYear(key);
@@ -7049,6 +7052,7 @@ function initDb(callback) {
           compliance: renderCompliance,
           schoolstructure: renderSchoolStructure,
           staffdatabase: renderStaffDatabase,
+          parentdatabase: renderParentDatabase,
           appraisals: renderAppraisals,
           training: renderTraining,
           workflow: renderWorkflow
@@ -7216,7 +7220,7 @@ const pageTitles = {
   expenses:'Expense Tracker', pettycash:'Petty Cash', bankaccount:'Bank Account', groupaccounts:'Group Accounts', income:'Statement of Comprehensive Income',
   chartofaccounts:'Chart of Accounts', generalledger:'General Ledger', trialbalance:'Trial Balance', budgeting:'Budgeting', schoolshop:'School Shop', compliance:'Compliance',
   expenseledgers:'Expense Ledgers',
-  schoolstructure:'School Structure', staffdatabase:'Teachers & Staff Database', appraisals:'Performance Appraisal', training:'Training & Development',
+  schoolstructure:'School Structure', staffdatabase:'Teachers & Staff Database', parentdatabase:'Parent Database', appraisals:'Performance Appraisal', training:'Training & Development',
   feeschedule:'Fee Schedule', stats:'Statistical Report', myappraisal:'My Appraisal', myworkspace:'My Workspace', staffdirectory:'Staff Directory', accesscontrol:'Access Control',
   export:'Export to Excel', backup:'Backup & Restore',
   balancesheet:'Balance Sheet', assetmanagement:'Asset Management', cashflow:'Statement of Cash Flows', reportcard:'Report Cards', classanalytics:'Class Analytics',
@@ -7305,6 +7309,7 @@ const MODULE_DEFS = {
     items: [
       { icon:'🏛️', label:'School Structure',              page:'schoolstructure' },
       { icon:'🗂️', label:'Teachers & Staff Database',      page:'staffdatabase' },
+      { icon:'👪', label:'Parent Database',                page:'parentdatabase' },
       { icon:'⭐', label:'Performance Appraisal',          page:'appraisals', hideFromTeacher:true },
       { icon:'🎓', label:'Training & Development',         page:'training' },
       { icon:'🔐', label:'Access Control',                 page:'accesscontrol', adminOnly:true },
@@ -7407,6 +7412,7 @@ const _dynamicPages = {
   compliance:       'comp-inner',
   schoolstructure:  'ss-inner',
   staffdatabase:    'sd-inner',
+  parentdatabase:   'pdb-inner',
   appraisals:       'ap-inner',
   training:         'tr-inner',
   cashflow:         'cf-inner',
@@ -7499,6 +7505,7 @@ function navigate(page) {
   if (page === 'compliance') renderCompliance();
   if (page === 'schoolstructure') renderSchoolStructure();
   if (page === 'staffdatabase') renderStaffDatabase();
+  if (page === 'parentdatabase') renderParentDatabase();
   if (page === 'appraisals') renderAppraisals();
   if (page === 'training') renderTraining();
   if (page === 'cashflow') renderCashFlow();
@@ -15527,7 +15534,7 @@ function requireRole(...roles) {
 const TEACHER_DEFAULT_PAGES = [
   'grades','skillsassessment','promotion','academiccalendar','reportcard','classanalytics',
   'attendance','attendancereport','staffattendance','timetable','subjects','myappraisal','myworkspace','staffdirectory',
-  'schoolstructure','staffdatabase','training'
+  'schoolstructure','staffdatabase','training','parentdatabase'
 ];
 // Pages the built-in role guard already fully blocks for non-Admins regardless of
 // Access Control (e.g. Settings, Backup & Restore) — kept off the configurable
@@ -17272,10 +17279,24 @@ const SKILLS_LIST = [
 const SKILL_RATING_LABELS = { 1:'Need Urgent Attention', 2:'Need Improvement', 3:'Good', 4:'Excellent' };
 const SKILL_RATING_CLASS  = { 1:'skill-r1', 2:'skill-r2', 3:'skill-r3', 4:'skill-r5' };
 
-function skillKey(studentId, term) { return studentId + '|' + term; }
+// Skills Assessment is entered monthly (for every role/user — teachers, class
+// teachers, etc.), not per term. Build 12 month labels spanning the academic
+// year, e.g. '2025_2026' → Sep 2025 ... Aug 2026, so the tabs always line up
+// with whichever year is currently active.
+function skillMonths() {
+  const parts = ACTIVE_YEAR.split('_');
+  const startYear = parseInt(parts[0]) || new Date().getFullYear();
+  const monthNames = ['Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug'];
+  return monthNames.map((m, i) => {
+    const yr = i < 4 ? startYear : startYear + 1; // Sep–Dec = start year, Jan–Aug = following year
+    return `${m} ${yr}`;
+  });
+}
 
-function getSkillRatings(studentId, term) {
-  const raw = (db.skillsAssessments || {})[skillKey(studentId, term)] || {};
+function skillKey(studentId, month) { return studentId + '|' + month; }
+
+function getSkillRatings(studentId, month) {
+  const raw = (db.skillsAssessments || {})[skillKey(studentId, month)] || {};
   // Defensive clamp: ratings saved under the old 1–5 scale (before the 4-tier
   // Need Urgent Attention/Need Improvement/Good/Excellent scale) may still have
   // a stored 5 — treat that as the new top tier (4 = Excellent) rather than
@@ -17285,20 +17306,44 @@ function getSkillRatings(studentId, term) {
   return clamped;
 }
 
-function setSkillRating(studentId, term, skillKey2, value) {
+function setSkillRating(studentId, month, skillKey2, value) {
   if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_','/') + ' is locked — ask an admin to unlock it first', 'error'); return; }
   if (!db.skillsAssessments) db.skillsAssessments = {};
-  const k = skillKey(studentId, term);
+  const k = skillKey(studentId, month);
   if (!db.skillsAssessments[k]) db.skillsAssessments[k] = {};
   if (value === '') delete db.skillsAssessments[k][skillKey2];
   else db.skillsAssessments[k][skillKey2] = parseInt(value);
   saveDb();
 }
 
-function skillAverage(studentId, term) {
-  const ratings = getSkillRatings(studentId, term);
+function skillAverage(studentId, month) {
+  const ratings = getSkillRatings(studentId, month);
   const vals = Object.values(ratings).filter(v => v > 0);
   return vals.length ? (vals.reduce((a,b)=>a+b,0) / vals.length) : null;
+}
+
+// Average across every month on record for this student (used on the report
+// card, which is organised by Term for grades — skills are monthly, so this
+// rolls all months up into one figure rather than tying it to a single term).
+function skillAverageAllMonths(studentId) {
+  const all = db.skillsAssessments || {};
+  const vals = [];
+  skillMonths().forEach(m => {
+    const raw = all[skillKey(studentId, m)] || {};
+    Object.values(raw).forEach(v => { if (v > 0) vals.push(Math.min(v, 4)); });
+  });
+  return vals.length ? (vals.reduce((a,b)=>a+b,0) / vals.length) : null;
+}
+
+// Most recent month (in academic-year order) that has any skill rating on
+// file for this student — used for the report card's per-skill breakdown,
+// since that view shows one month's ratings rather than every month at once.
+function latestSkillMonth(studentId) {
+  const months = skillMonths();
+  for (let i = months.length - 1; i >= 0; i--) {
+    if (Object.keys(getSkillRatings(studentId, months[i])).length > 0) return months[i];
+  }
+  return null;
 }
 
 function renderSkillsAssessment() {
@@ -17307,7 +17352,8 @@ function renderSkillsAssessment() {
   const admitted = db.admissions || [];
   const lockedClass = lockedClassFor();
   let selClass = lockedClass || CLASSES[0] || '';
-  let selTerm  = TERMS[0];
+  const MONTHS = skillMonths();
+  let selMonth = MONTHS[0];
 
   function draw() {
     const students = admitted.filter(s => s.cls === selClass);
@@ -17324,7 +17370,7 @@ function renderSkillsAssessment() {
     ).join('');
 
     const rows = students.map(s => {
-      const ratings = getSkillRatings(s.id, selTerm);
+      const ratings = getSkillRatings(s.id, selMonth);
       const cells = SKILLS_LIST.map(sk => {
         const v = ratings[sk.key] || '';
         return `<td style="text-align:center;padding:4px 3px">
@@ -17335,7 +17381,7 @@ function renderSkillsAssessment() {
         </td>`;
       }).join('');
 
-      const avg = skillAverage(s.id, selTerm);
+      const avg = skillAverage(s.id, selMonth);
       const avgChip = avg !== null
         ? `<span class="ge-avg-chip" style="background:${avg>=3.5?'var(--green-light)':avg>=2.5?'#fef9c3':avg>=1.5?'#f3e8ff':'var(--red-light)'};color:${avg>=3.5?'var(--green)':avg>=2.5?'#854d0e':avg>=1.5?'#6d28d9':'var(--red)'}">${avg.toFixed(1)}</span>`
         : `<span style="color:var(--muted);font-size:12px">—</span>`;
@@ -17350,13 +17396,13 @@ function renderSkillsAssessment() {
       </tr>`;
     }).join('');
 
-    const termTabs = TERMS.map(t =>
-      `<button class="ge-subject-tab ${t===selTerm?'active':''}" onclick="saSetTerm('${t}')">${t}</button>`
+    const monthTabs = MONTHS.map(m =>
+      `<button class="ge-subject-tab ${m===selMonth?'active':''}" onclick="saSetMonth('${m}')">${m}</button>`
     ).join('');
 
     // Class-wide average per skill, for a quick "where does this class need help" view
     const classAvgRow = SKILLS_LIST.map(sk => {
-      const vals = students.map(s => (getSkillRatings(s.id, selTerm)[sk.key])).filter(v => v > 0);
+      const vals = students.map(s => (getSkillRatings(s.id, selMonth)[sk.key])).filter(v => v > 0);
       const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length) : null;
       const avgColor = avg === null ? 'var(--muted)' : (avg >= 3.5 ? 'var(--green)' : avg >= 2.5 ? '#854d0e' : avg >= 1.5 ? '#6d28d9' : 'var(--red)');
       return `<td style="text-align:center;font-size:11px;font-weight:600;color:${avgColor}">${avg===null?'—':avg.toFixed(1)}</td>`;
@@ -17366,7 +17412,7 @@ function renderSkillsAssessment() {
       <div class="section-header">
         <div>
           <div class="section-title">🌟 Skills Assessment</div>
-          <div class="section-sub">Rate reading, writing, and attitude/effort skills — ${ACTIVE_YEAR}</div>
+          <div class="section-sub">Rate reading, writing, and attitude/effort skills — monthly — ${ACTIVE_YEAR}</div>
         </div>
         <button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ Print</button>
       </div>
@@ -17376,13 +17422,13 @@ function renderSkillsAssessment() {
         ${lockedClass ? `<span style="font-size:12px;color:var(--muted);padding:6px 10px;background:var(--cream);border-radius:20px">🔒 ${lockedClass} only</span>` : ''}
       </div>
 
-      <div style="display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:16px;overflow-x:auto">${termTabs}</div>
+      <div style="display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:16px;overflow-x:auto">${monthTabs}</div>
 
       ${students.length === 0
         ? `<div class="empty-state"><div class="icon">📭</div>No students in ${selClass}</div>`
         : `<div class="card">
             <div class="card-header">
-              <span class="card-title">🌟 ${selClass} — ${selTerm} Skills</span>
+              <span class="card-title">🌟 ${selClass} — ${selMonth} Skills</span>
               <span style="font-size:11px;color:var(--muted)">${students.length} student${students.length!==1?'s':''} · rated 1 (need urgent attention) – 4 (excellent)</span>
             </div>
             <div style="overflow-x:auto">
@@ -17412,9 +17458,9 @@ function renderSkillsAssessment() {
       </div>`;
 
     window.saSetClass = c => { if (lockedClass) return; selClass = c; draw(); };
-    window.saSetTerm  = t => { selTerm = t; draw(); };
+    window.saSetMonth = m => { selMonth = m; draw(); };
     window.saSetRating = (sid, sk, val, sel) => {
-      setSkillRating(sid, selTerm, sk, val);
+      setSkillRating(sid, selMonth, sk, val);
       sel.className = 'skill-select' + (val ? ' ' + SKILL_RATING_CLASS[val] : '');
       toast('✅ Rating saved');
     };
@@ -20172,8 +20218,9 @@ function renderStudentRecords() {
   function renderPerformanceTab(s) {
     const term = _srPerfTerm || TERMS[0];
     const p = performanceSummary(s, term);
-    const ratings = getSkillRatings(s.id, term);
-    const skillAvg = skillAverage(s.id, term);
+    const skillMonth = latestSkillMonth(s.id);
+    const ratings = skillMonth ? getSkillRatings(s.id, skillMonth) : {};
+    const skillAvg = skillAverageAllMonths(s.id);
     return `
       <div class="sr-filter-row" style="margin-bottom:14px">
         <select onchange="srPerfTerm(this.value)">
@@ -20198,7 +20245,7 @@ function renderStudentRecords() {
         </tbody>
       </table>
 
-      <div class="sr-chart-title" style="margin-top:18px">🌟 Skills Assessment (${esc(term)})</div>
+      <div class="sr-chart-title" style="margin-top:18px">🌟 Skills Assessment${skillMonth ? ' (' + esc(skillMonth) + ')' : ''}</div>
       <table class="sr-table">
         <thead><tr><th>Skill</th><th>Rating</th></tr></thead>
         <tbody>
@@ -23880,6 +23927,106 @@ function aprPercentColor(pct) {
 function renderStars(rating) {
   const full = Math.round(rating);
   return '<span class="rating-stars">' + '★★★★★'.slice(0,full) + '☆☆☆☆☆'.slice(0, 5-full) + '</span>';
+}
+
+// ══════════════ PARENT DATABASE (read-only, every role) ══════════════
+// Cached username→class map for whichever user is the Class Teacher of each
+// class — fetched once per session from the same listUsers Cloud Function
+// Manage Users uses. Teachers/Class Teachers may not have permission to call
+// it (it's normally an Admin tool), so a failure here is caught and simply
+// leaves the "Class Teacher" column blank rather than breaking the page.
+let _pdClassTeacherByClass = null;
+let _pdClassTeacherLoading = false;
+
+async function pdLoadClassTeachers() {
+  if (_pdClassTeacherByClass || _pdClassTeacherLoading || !cfListUsers) return;
+  _pdClassTeacherLoading = true;
+  try {
+    const { data: users } = await cfListUsers();
+    const map = {};
+    (users || []).forEach(u => {
+      if (u.role === 'Class Teacher' && u.class) map[u.class] = u.username;
+    });
+    _pdClassTeacherByClass = map;
+  } catch (e) {
+    // Likely a permissions restriction for non-Admin roles — degrade quietly.
+    _pdClassTeacherByClass = {};
+  } finally {
+    _pdClassTeacherLoading = false;
+    renderParentDatabase();
+  }
+}
+
+function renderParentDatabase() {
+  const el = document.getElementById('pdb-inner');
+  if (!el) return;
+
+  // Kick off the class-teacher lookup once; renderParentDatabase() re-runs
+  // itself when it resolves (see pdLoadClassTeachers above).
+  if (_pdClassTeacherByClass === null) pdLoadClassTeachers();
+
+  const search   = (document.getElementById('pd-search') || {value:''}).value.toLowerCase();
+  const clsFilter = (document.getElementById('pd-class-filter') || {value:''}).value;
+  const admitted = (db.admissions || []).filter(s => ['Admitted','Continuing','Scholarship'].includes(s.status));
+
+  const filtered = admitted.filter(s =>
+    (!clsFilter || s.cls === clsFilter) &&
+    (!search ||
+      (s.parent || '').toLowerCase().includes(search) ||
+      (s.name   || '').toLowerCase().includes(search) ||
+      (s.phone1 || '').toLowerCase().includes(search) ||
+      (s.phone2 || '').toLowerCase().includes(search))
+  ).sort((a,b) => (a.parent||'').localeCompare(b.parent||''));
+
+  const rows = filtered.map(s => {
+    const contact = [s.phone1, s.phone2].filter(Boolean).join(' / ') || '—';
+    const teacher = _pdClassTeacherByClass ? (_pdClassTeacherByClass[s.cls] || '—') : '…';
+    return `<tr>
+      <td style="font-weight:500">${esc(s.parent) || '—'}</td>
+      <td>${contact}</td>
+      <td>${esc(s.name)}</td>
+      <td>${esc(s.cls)}</td>
+      <td>${esc(teacher)}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" class="empty-state">No matching records</td></tr>';
+
+  el.innerHTML = `
+    <div class="section-header">
+      <div>
+        <div class="section-title">👪 Parent Database</div>
+        <div class="section-sub">Read-only directory — parent/guardian, contact, ward, class &amp; assigned class teacher</div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ Print</button>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <input type="text" id="pd-search" placeholder="🔍  Search parent, ward, or phone…" oninput="renderParentDatabase()" style="width:240px">
+        <select id="pd-class-filter" onchange="renderParentDatabase()">
+          <option value="">All classes</option>
+          ${CLASSES.map(c => `<option value="${c}" ${c===clsFilter?'selected':''}>${c}</option>`).join('')}
+        </select>
+        <div class="spacer"></div>
+        <span style="font-size:12px;color:var(--muted)">${filtered.length} record${filtered.length!==1?'s':''}</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th style="padding-left:14px">Parent / Guardian</th>
+              <th>Contact</th>
+              <th>Ward</th>
+              <th>Class</th>
+              <th>Class Teacher</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--muted)">
+      ℹ This directory is read-only for every role — no records can be added, edited, or removed here. Manage parent/guardian details from Admissions; manage class teacher assignments from Settings → Manage Users.
+    </div>`;
 }
 
 function renderAppraisals() {
