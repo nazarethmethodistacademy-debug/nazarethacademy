@@ -446,6 +446,33 @@
   .sticky-header thead th:first-child { border-top-left-radius: 10px; }
   .sticky-header thead th:last-child { border-top-right-radius: 10px; }
 
+  /* Frozen first column — opt-in via class="att-name-col" on the Student <th>/<td> in
+     a horizontally-scrolling table (e.g. the Attendance Register's weekly grid, where
+     Mon–Fri are columns). Keeps the student's name visible while the rest of the row
+     scrolls underneath it — the same idea as .sticky-header above, just sideways.
+     Needs an explicit opaque background since sticky cells paint in their own layer;
+     without it, the scrolling day-columns would show through as they pass beneath.
+     The right-edge shadow is what actually signals to the eye that the column is
+     floating above content sliding past, not just sitting still by coincidence. */
+  .att-name-col {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--white);
+    box-shadow: 2px 0 4px rgba(0,0,0,0.08);
+  }
+  thead .att-name-col { background: var(--navy); z-index: 3; }
+  /* position:sticky on a <td>/<th> inside a border-collapse:collapse table renders
+     shifted/duplicated on several mobile browsers (WebKit/Blink) — the collapsed-
+     border algorithm doesn't reposition correctly when a cell sticks mid-scroll,
+     leaving a visible gap where content briefly doesn't line up. Sticky columns
+     need border-collapse:separate to render correctly; scoped to att-grid-table
+     only, so the other ~84 tables in the app (none of which use sticky columns)
+     keep their normal collapsed borders. */
+  .att-grid-table { border-collapse: separate; border-spacing: 0; }
+  .att-grid-table td, .att-grid-table th { border-bottom: 1px solid var(--border); }
+  .att-grid-table tbody tr:last-child td { border-bottom: none; }
+
   tbody tr { border-bottom: 1px solid var(--border); transition: background 0.12s; }
   tbody tr:last-child { border-bottom: none; }
   tbody tr:hover { background: var(--cream); }
@@ -704,6 +731,30 @@
   }
   .pr-tab:hover { color: var(--navy); }
   .pr-tab.active { color: var(--navy); border-bottom-color: var(--gold); font-weight: 600; }
+
+  /* ── STUDENT SEARCH (typeahead, replaces plain <select> student pickers) ── */
+  .ss-wrap { position: relative; }
+  .ss-list {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 220px;
+    overflow-y: auto;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(15,31,61,0.15);
+    z-index: 50;
+  }
+  .ss-list.open { display: block; }
+  .ss-item { padding: 9px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid var(--border); }
+  .ss-item:last-child { border-bottom: none; }
+  .ss-item:hover, .ss-item.hi { background: var(--cream); }
+  .ss-item .ss-name { font-weight: 500; color: var(--navy); }
+  .ss-item .ss-meta { font-size: 11px; color: var(--muted); }
+  .ss-empty { padding: 10px 12px; font-size: 12.5px; color: var(--muted); }
 
   /* ── MODAL ── */
   .modal-overlay {
@@ -4122,6 +4173,16 @@
       <div class="form-group"><label>Phone 2</label><input id="adm-phone2"></div>
       <div class="form-group"><label>Email</label><input type="email" id="adm-email"></div>
       <div class="form-group" id="adm-fee-wrap"><label>Admission Fee Paid (GHS)</label><input type="number" id="adm-fee" placeholder="580"></div>
+      <div class="form-group" id="adm-fee-mode-wrap"><label>Admission Fee Payment Mode</label>
+        <select id="adm-fee-mode" onchange="toggleBankAcctField('adm-fee-mode','adm-fee-bankacct-wrap','adm-fee-bankacct-sel')">
+          <option value="Cash">💵 Cash</option>
+          <option value="Bank">🏦 Bank</option>
+          <option value="MoMo">📱 MoMo</option>
+        </select>
+      </div>
+      <div class="form-group" id="adm-fee-bankacct-wrap" style="display:none"><label>Bank Account</label>
+        <select id="adm-fee-bankacct-sel"></select>
+      </div>
       <div class="form-group" id="adm-fee-term-wrap"><label>Admission Fee Term Paid</label>
         <select id="adm-fee-term"><option>Term 1</option><option>Term 2</option><option>Term 3</option></select>
       </div>
@@ -4158,8 +4219,11 @@
       <button class="modal-close" onclick="closeModal('payment-modal')">✕</button>
     </div>
     <div class="form-grid" style="padding:20px">
-      <div class="form-group"><label>Student *</label>
-        <select id="pay-student-sel"><option value="">Select student…</option></select>
+      <div class="form-group ss-wrap"><label>Student *</label>
+        <input type="text" id="pay-student-search" placeholder="Type a student's name or ID to search…" autocomplete="off"
+          oninput="ssFilter('pay')" onfocus="ssFilter('pay')" onblur="setTimeout(()=>ssClose('pay'),150)">
+        <input type="hidden" id="pay-student-sel">
+        <div class="ss-list" id="pay-student-list"></div>
       </div>
       <div class="form-group"><label>Term *</label>
         <select id="pay-term-sel"><option>Term 1</option><option>Term 2</option><option>Term 3</option></select>
@@ -4167,11 +4231,14 @@
       <div class="form-group"><label>Amount Paid (GHS) *</label><input type="number" id="pay-amount" placeholder="0.00"></div>
       <div class="form-group"><label>Date</label><input type="date" id="pay-date"></div>
       <div class="form-group"><label>Payment Method *</label>
-        <select id="pay-method">
+        <select id="pay-method" onchange="toggleBankAcctField('pay-method','pay-bankacct-wrap','pay-bankacct-sel')">
           <option value="">— Select method —</option>
           <option value="Cash">Cash</option>
           <option value="Bank">Bank</option>
         </select>
+      </div>
+      <div class="form-group" id="pay-bankacct-wrap" style="display:none"><label>Bank Account</label>
+        <select id="pay-bankacct-sel"></select>
       </div>
       <div class="form-group"><label>Notes / Ref</label><input id="pay-notes" placeholder="Receipt number, remarks…"></div>
     </div>
@@ -4302,11 +4369,15 @@
         </div>
         <div class="form-group">
           <label>Payment Method *</label>
-          <select id="tx-method">
+          <select id="tx-method" onchange="toggleBankAcctField('tx-method','tx-bankacct-wrap','tx-bankacct-sel')">
             <option value="">— Select method —</option>
             <option value="Cash">Cash</option>
             <option value="Bank">Bank</option>
           </select>
+        </div>
+        <div class="form-group" id="tx-bankacct-wrap" style="display:none">
+          <label>Bank Account</label>
+          <select id="tx-bankacct-sel"></select>
         </div>
         <div class="form-group">
           <label>Notes</label>
@@ -4346,11 +4417,14 @@
       </div>
       <div class="form-group"><label>Amount (GHS) *</label><input type="number" id="rev-amount" placeholder="0.00"></div>
       <div class="form-group"><label>Payment Mode *</label>
-        <select id="rev-mode-sel">
+        <select id="rev-mode-sel" onchange="toggleBankAcctField('rev-mode-sel','rev-bankacct-wrap','rev-bankacct-sel')">
           <option value="Cash">💵 Cash</option>
           <option value="Bank">🏦 Bank</option>
           <option value="MoMo">📱 MoMo</option>
         </select>
+      </div>
+      <div class="form-group" id="rev-bankacct-wrap" style="display:none"><label>Bank Account</label>
+        <select id="rev-bankacct-sel"></select>
       </div>
       <div class="form-group full"><label>Notes</label><input id="rev-notes"></div>
     </div>
@@ -5000,6 +5074,12 @@
     </div>
 
     <div style="padding:16px 20px 4px;border-top:1px solid var(--border);margin-top:10px">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">🌟 Skills Assessment</div>
+      <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">Teachers submit each class's monthly skills assessment for review. Roles allowed to approve it or return it for revision (they are all notified when one is submitted):</div>
+      <div id="awf-skills-approvers" class="awf-role-checks"></div>
+    </div>
+
+    <div style="padding:16px 20px 4px;border-top:1px solid var(--border);margin-top:10px">
       <div style="font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">📱 SMS Fee Alerts</div>
       <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">Every tuition fee payment SMS to a parent waits for approval from one of these roles before it actually sends:</div>
       <div id="awf-sms-approvers" class="awf-role-checks"></div>
@@ -5231,11 +5311,14 @@
       </div>
       <div class="form-group"><label>Amount (GHS) *</label><input type="number" id="exp-amount" placeholder="0.00"></div>
       <div class="form-group"><label>Payment Mode *</label>
-        <select id="exp-mode-sel">
+        <select id="exp-mode-sel" onchange="toggleBankAcctField('exp-mode-sel','exp-bankacct-wrap','exp-bankacct-sel')">
           <option value="Cash">💵 Cash</option>
           <option value="Bank">🏦 Bank</option>
           <option value="MoMo">📱 MoMo</option>
         </select>
+      </div>
+      <div class="form-group" id="exp-bankacct-wrap" style="display:none"><label>Bank Account</label>
+        <select id="exp-bankacct-sel"></select>
       </div>
       <div class="form-group full"><label>Notes</label><input id="exp-notes"></div>
     </div>
@@ -5673,6 +5756,8 @@ const DB_SEED = {
   nextTrainingId: 1,
   // ── STUDENT SKILLS ASSESSMENT — keyed studentId|term, each a {skillKey: 1-5} rating ──
   skillsAssessments: {},
+  skillSubmissions: [], // [{id, cls, month, status:'pending'|'approved'|'returned', version, submittedBy, submittedAt, ratings:{studentId:{skill:1-4}}, students:{studentId:name}, reviewedBy, reviewedAt, decisionNote, history:[…]}] — see submitSkillAssessment()
+  nextSkillSubId: 1,
   // ── PROMOTION MANAGEMENT — class teacher proposes, headmistress approves ──
   promotionLists: [], // [{id, cls, status:'draft'|'pending'|'approved'|'rejected', decisions:{studentId:{decision,toClass,notes}}, submittedBy, submittedAt, reviewedBy, reviewedAt, rejectionReason}]
   nextPromotionListId: 1,
@@ -5681,6 +5766,7 @@ const DB_SEED = {
     pettyCash: { needsApprovalRoles: ['Headteacher'], approverRoles: ['Admin'] },
     finance: { needsApprovalRoles: [], approverRoles: ['Admin'] },
     promotion: { approverRoles: ['Admin', 'Headteacher'] },
+    skillsAssessment: { approverRoles: ['Admin', 'Headteacher'] },
     smsFeeAlerts: { approverRoles: ['Admin'] }
   },
   // ── CUSTOM CHART OF ACCOUNTS — user-added Revenue/Expense categories, on top of the
@@ -6565,6 +6651,15 @@ function watchActiveYearForChanges() {
       toast('📅 The academic year was switched to ' + sharedYear.replace('_','/') + ' by an admin — reloading…', 'info');
       setTimeout(() => location.reload(), 2500);
     }
+  }, err => {
+    // Previously this had no error callback, so a Security-Rules "permission denied"
+    // on /active_year failed SILENTLY — the user simply never learned the year had
+    // changed and stayed on their cached year indefinitely. That looks identical to
+    // "the app is ignoring the year switch". Surface it loudly instead.
+    console.error('[active-year] Cannot read ' + ACTIVE_YEAR_FB_PATH + ':', err && err.code, err && err.message);
+    window._activeYearSyncBlocked = true;
+    toast('⚠ Cannot sync the school-wide academic year (' + ((err && err.code) || 'error') +
+          '). You may be viewing an out-of-date year — tell your administrator.', 'error');
   });
 }
 
@@ -6807,7 +6902,7 @@ function saveDb(bypassLock) {
   const changedKeys = [];
   const serialized = {};
   Object.keys(db).forEach(key => {
-    if (FB_LOCKED_KEYS.includes(key)) return;
+    if (FB_LOCKED_KEYS.includes(key) || key === 'usageLog') return; // usageLog is written by flushUsageLog(), never by saveDb
     const json = JSON.stringify(db[key]);
     serialized[key] = json;
     if (json !== _lastSavedSnapshot[key]) changedKeys.push(key);
@@ -6882,6 +6977,7 @@ function initDb(callback) {
       db.grades     = data.grades     || {};
       db.attendance = data.attendance || {};
       db.staffAttendance = data.staffAttendance || {};
+      db.usageLog = data.usageLog || {};  // {usernameKey: {date: {skills, attendance, login}}} — see logUsage()
       db.subjects   = data.subjects   || DB_SEED.subjects;
       db.timetable  = data.timetable  || {};
       db.nextSubId  = data.nextSubId  ?? DB_SEED.nextSubId;
@@ -6923,6 +7019,8 @@ function initDb(callback) {
       db.trainings     = data.trainings     || [];
       db.nextTrainingId = data.nextTrainingId ?? 1;
       db.skillsAssessments = data.skillsAssessments || {};
+      db.skillSubmissions = data.skillSubmissions || [];
+      db.nextSkillSubId = data.nextSkillSubId ?? 1;
       db.promotionLists = data.promotionLists || [];
       db.nextPromotionListId = data.nextPromotionListId ?? 1;
       db.approvalConfig = data.approvalConfig || JSON.parse(JSON.stringify(DB_SEED.approvalConfig));
@@ -6930,6 +7028,7 @@ function initDb(callback) {
       if (!db.approvalConfig.finance) db.approvalConfig.finance = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.finance));
       if (!db.approvalConfig.promotion) db.approvalConfig.promotion = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.promotion));
       if (!db.approvalConfig.smsFeeAlerts) db.approvalConfig.smsFeeAlerts = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.smsFeeAlerts));
+      if (!db.approvalConfig.skillsAssessment) db.approvalConfig.skillsAssessment = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.skillsAssessment));
       db.customRevCats = data.customRevCats || [];
       db.customExpCats = data.customExpCats || [];
       db.customAssetLiabAccounts = data.customAssetLiabAccounts || [];
@@ -7030,6 +7129,7 @@ function initDb(callback) {
           export:      renderExportPortal,
           grades:      renderGradeEntry,
           skillsassessment: renderSkillsAssessment,
+          skillsreport: renderSkillsReport,
           promotion: renderPromotionManagement,
           academiccalendar: renderAcademicCalendar,
           attendance:  renderAttendance,
@@ -7052,6 +7152,8 @@ function initDb(callback) {
           compliance: renderCompliance,
           schoolstructure: renderSchoolStructure,
           staffdatabase: renderStaffDatabase,
+          parentdatabase: renderParentDatabase,
+          weeklyreport: renderWeeklyReport,
           appraisals: renderAppraisals,
           training: renderTraining,
           workflow: renderWorkflow
@@ -7062,6 +7164,7 @@ function initDb(callback) {
       // Notifications live in the topbar, not tied to any one page — always refresh them
       renderNotifBell();
       checkUrgentNotifToast();
+      updateWorkflowNavBadge();
     }
   });
 }
@@ -7216,13 +7319,13 @@ function calcStudentStatus(studentId) {
 const pageTitles = {
   dashboard:'Dashboard', admission:'Admission Registration',
   payment:'Payment Tracker', revenue:'Revenue Tracker',
-  expenses:'Expense Tracker', pettycash:'Petty Cash', bankaccount:'Bank Account', groupaccounts:'Group Accounts', income:'Statement of Comprehensive Income',
+  expenses:'Expense Tracker', pettycash:'Petty Cash', bankaccount:'Bank Account', groupaccounts:'Group Accounts', income:'Statement of Comprehensive Income', weeklyreport:'Weekly Report',
   chartofaccounts:'Chart of Accounts', generalledger:'General Ledger', trialbalance:'Trial Balance', budgeting:'Budgeting', schoolshop:'School Shop', compliance:'Compliance',
   expenseledgers:'Expense Ledgers',
-  schoolstructure:'School Structure', staffdatabase:'Teachers & Staff Database', appraisals:'Performance Appraisal', training:'Training & Development',
+  schoolstructure:'School Structure', staffdatabase:'Teachers & Staff Database', parentdatabase:'Parent Database', appraisals:'Performance Appraisal', training:'Training & Development',
   feeschedule:'Fee Schedule', stats:'Statistical Report', myappraisal:'My Appraisal', myworkspace:'My Workspace', staffdirectory:'Staff Directory', accesscontrol:'Access Control',
   export:'Export to Excel', backup:'Backup & Restore',
-  balancesheet:'Balance Sheet', assetmanagement:'Asset Management', cashflow:'Statement of Cash Flows', reportcard:'Report Cards', classanalytics:'Class Analytics',
+  balancesheet:'Balance Sheet', assetmanagement:'Asset Management', cashflow:'Statement of Cash Flows', reportcard:'Report Cards', classanalytics:'Class Analytics', skillsreport:'Student Assessment Report',
   grades:'Grade Entry', skillsassessment:'Skills Assessment', promotion:'Promotion Management', academiccalendar:'Academic Calendar', attendance:'Attendance Register', attendancereport:'Attendance Report', staffattendance:'Staff Attendance', timetable:'Class Timetable', subjects:'Subject Management',
   announce_pta:'Announcements — PTA', announce_graduation:'Announcements — Graduation',
   announce_midterms:'Announcements — Mid Terms', announce_events:'Announcements — Events',
@@ -7270,6 +7373,7 @@ const MODULE_DEFS = {
     items: [
       { icon:'✏️', label:'Grade Entry',          page:'grades' },
       { icon:'🌟', label:'Skills Assessment',     page:'skillsassessment' },
+      { icon:'📊', label:'Student Assessment Report', page:'skillsreport' },
       { icon:'🎓', label:'Promotion Management',  page:'promotion' },
       { icon:'🗓️', label:'Academic Calendar',      page:'academiccalendar' },
       { icon:'📝', label:'Report Cards',         page:'reportcard' },
@@ -7287,6 +7391,7 @@ const MODULE_DEFS = {
     title: 'Analytics and Reports',
     items: [
       { icon:'🧑‍🎓', label:'Student Records',             page:'studentrecords' },
+      { icon:'📊', label:'Student Assessment Report',     page:'skillsreport' },
       { icon:'🧠', label:'Academic Intelligence Dashboard', page:'academicintelligence' },
       { icon:'🤖', label:'AI Assistant',                  page:'aiassistant' },
       { icon:'🚨', label:'Anomaly Detection',              page:'anomalydetection' },
@@ -7294,6 +7399,7 @@ const MODULE_DEFS = {
       { icon:'🍽️', label:'Feeding Report',                page:'feedingreport' },
       { icon:'📊', label:'Management Account Report',     page:'report_management' },
       { icon:'🏛️', label:'Board Report',                  page:'boardreport' },
+      { icon:'🗓️', label:'Weekly Report',                 page:'weeklyreport' },
     ]
   },
   exportmod: {
@@ -7308,6 +7414,7 @@ const MODULE_DEFS = {
     items: [
       { icon:'🏛️', label:'School Structure',              page:'schoolstructure' },
       { icon:'🗂️', label:'Teachers & Staff Database',      page:'staffdatabase' },
+      { icon:'👪', label:'Parent Database',                page:'parentdatabase' },
       { icon:'⭐', label:'Performance Appraisal',          page:'appraisals', hideFromTeacher:true },
       { icon:'🎓', label:'Training & Development',         page:'training' },
       { icon:'🔐', label:'Access Control',                 page:'accesscontrol', adminOnly:true },
@@ -7410,6 +7517,8 @@ const _dynamicPages = {
   compliance:       'comp-inner',
   schoolstructure:  'ss-inner',
   staffdatabase:    'sd-inner',
+  parentdatabase:   'pdb-inner',
+  weeklyreport:     'wr-inner',
   appraisals:       'ap-inner',
   training:         'tr-inner',
   cashflow:         'cf-inner',
@@ -7417,6 +7526,7 @@ const _dynamicPages = {
   classanalytics:   'ca-inner',
   grades:           'ge-inner',
   skillsassessment: 'sa-inner',
+  skillsreport:     'skr-inner',
   promotion:        'pr-inner',
   academiccalendar: 'ac-inner',
   attendance:       'att-inner',
@@ -7502,6 +7612,8 @@ function navigate(page) {
   if (page === 'compliance') renderCompliance();
   if (page === 'schoolstructure') renderSchoolStructure();
   if (page === 'staffdatabase') renderStaffDatabase();
+  if (page === 'parentdatabase') renderParentDatabase();
+  if (page === 'weeklyreport') renderWeeklyReport();
   if (page === 'appraisals') renderAppraisals();
   if (page === 'training') renderTraining();
   if (page === 'cashflow') renderCashFlow();
@@ -7510,6 +7622,7 @@ function navigate(page) {
   if (page === 'feedingreport') renderFeedingReport();
   if (page === 'grades') renderGradeEntry();
   if (page === 'skillsassessment') renderSkillsAssessment();
+  if (page === 'skillsreport') renderSkillsReport();
   if (page === 'promotion') renderPromotionManagement();
   if (page === 'academiccalendar') renderAcademicCalendar();
   if (page === 'attendance') renderAttendance();
@@ -7535,13 +7648,13 @@ function navigate(page) {
 
 // ══════════════ TRANSACTION HISTORY ══════════════
 
-function pushTxEntry({studentId, term, amount, date, ref, notes, type, method}) {
+function pushTxEntry({studentId, term, amount, date, ref, notes, type, method, bankAccountId}) {
   if (!db.txHistory) db.txHistory = [];
   if (!db.nextTxId) db.nextTxId = 1;
   const entry = {
     id: db.nextTxId++,
     studentId, term, amount, date, ref: ref||'', notes: notes||'',
-    method: method||'',
+    method: method||'', bankAccountId: bankAccountId||null,
     type, // 'payment' | 'adjustment_add' | 'adjustment_sub' | 'clear' | 'manual'
     recordedBy: currentUser ? currentUser.username : 'system',
     timestamp: Date.now()
@@ -7566,6 +7679,7 @@ function openTxHistoryModal(sid) {
   document.getElementById('tx-amount').value = '';
   document.getElementById('tx-ref').value = '';
   document.getElementById('tx-method').value = '';
+  document.getElementById('tx-bankacct-wrap').style.display = 'none';
   document.getElementById('tx-notes').value = '';
   renderTxHistory(sid);
   document.getElementById('tx-history-modal').classList.add('open');
@@ -7723,6 +7837,7 @@ function saveTxEntry() {
   const date   = document.getElementById('tx-date').value || today();
   const ref    = document.getElementById('tx-ref').value.trim();
   const method = document.getElementById('tx-method').value;
+  const bankAccountId = method === 'Bank' ? document.getElementById('tx-bankacct-sel').value : null;
   const notes  = document.getElementById('tx-notes').value.trim();
   if (!amount) { toast('⚠ Enter a payment amount'); return; }
   if (!method) { toast('⚠ Select a payment method (Cash or Bank)'); return; }
@@ -7732,7 +7847,7 @@ function saveTxEntry() {
   db.payments[key].paid += amount;
   if (notes) db.payments[key].notes = notes;
   // Push tx entry
-  const _txEntry1 = pushTxEntry({studentId: sid, term, amount, date, ref, notes, method, type: 'payment'});
+  const _txEntry1 = pushTxEntry({studentId: sid, term, amount, date, ref, notes, method, bankAccountId, type: 'payment'});
   postJournalEntry(date, 'Fee payment: ' + sid + ' (' + term + ')', [
     { account: cashAccountForMode(method), debit: amount, credit: 0 },
     { account: '4010', debit: 0, credit: amount }
@@ -7742,6 +7857,7 @@ function saveTxEntry() {
   document.getElementById('tx-amount').value = '';
   document.getElementById('tx-ref').value = '';
   document.getElementById('tx-method').value = '';
+  document.getElementById('tx-bankacct-wrap').style.display = 'none';
   document.getElementById('tx-notes').value = '';
   document.getElementById('tx-date').value = today();
   renderTxHistory(sid);
@@ -8142,6 +8258,11 @@ function getSchoolConcerns() {
 
   const pendingPromo = (db.promotionLists || []).filter(p => p.status === 'pending').length;
   if (pendingPromo > 0) push('🎓', `${pendingPromo} promotion list${pendingPromo!==1?'s':''} awaiting approval`, 'workflow', 'medium');
+
+  if (isSkillsApprover()) {
+    const pendingSkills = (db.skillSubmissions || []).filter(x => x.status === 'pending').length;
+    if (pendingSkills > 0) push('🌟', `${pendingSkills} skills assessment${pendingSkills!==1?'s':''} awaiting review`, 'workflow', 'medium');
+  }
 
   const pendingSms = (db.pendingSmsQueue || []).filter(x => x.status === 'pending').length;
   if (pendingSms > 0) push('📱', `${pendingSms} SMS message${pendingSms!==1?'s':''} awaiting approval`, 'workflow', 'low');
@@ -8961,16 +9082,23 @@ function toggleAdmFeeFields() {
   const isScholarship = status === 'Scholarship';
   const isContinuing  = status === 'Continuing';
   const feeWrap     = document.getElementById('adm-fee-wrap');
+  const feeModeWrap = document.getElementById('adm-fee-mode-wrap');
+  const feeBankWrap = document.getElementById('adm-fee-bankacct-wrap');
   const feeTermWrap = document.getElementById('adm-fee-term-wrap');
   if (isScholarship || isContinuing) {
     feeWrap.style.opacity = '0.4';
     feeWrap.style.pointerEvents = 'none';
+    feeModeWrap.style.opacity = '0.4';
+    feeModeWrap.style.pointerEvents = 'none';
+    feeBankWrap.style.display = 'none';
     feeTermWrap.style.opacity = '0.4';
     feeTermWrap.style.pointerEvents = 'none';
     document.getElementById('adm-fee').value = '0';
   } else {
     feeWrap.style.opacity = '';
     feeWrap.style.pointerEvents = '';
+    feeModeWrap.style.opacity = '';
+    feeModeWrap.style.pointerEvents = '';
     feeTermWrap.style.opacity = '';
     feeTermWrap.style.pointerEvents = '';
     autofillAdmissionFee(); // status just became billable — make sure the fee reflects the current class right away
@@ -9009,6 +9137,8 @@ function openAdmissionModal() {
   document.getElementById('adm-class-sel').value = 'Creche';
   document.getElementById('adm-status-sel').value = 'Admitted';
   document.getElementById('adm-fee-term').value = TERMS[0];
+  document.getElementById('adm-fee-mode').value = 'Cash';
+  document.getElementById('adm-fee-bankacct-wrap').style.display = 'none';
   document.getElementById('adm-appdate').value = today();
   clearAdmPhoto();
   toggleAdmFeeFields();
@@ -9037,6 +9167,14 @@ function openEditAdmissionModal(id) {
   document.getElementById('adm-phone2').value  = s.phone2  || '';
   document.getElementById('adm-email').value   = s.email   || '';
   document.getElementById('adm-fee').value     = s.fee     || '';
+  document.getElementById('adm-fee-mode').value = s.feeMode || 'Cash'; // older records predate this field
+  if (s.feeMode === 'Bank') {
+    document.getElementById('adm-fee-bankacct-wrap').style.display = '';
+    populateBankAcctSelect('adm-fee-bankacct-sel');
+    if (s.feeBankAccountId) document.getElementById('adm-fee-bankacct-sel').value = s.feeBankAccountId;
+  } else {
+    document.getElementById('adm-fee-bankacct-wrap').style.display = 'none';
+  }
   document.getElementById('adm-fee-term').value = s.feeTerm || TERMS[0];
   document.getElementById('adm-address').value = s.address || '';
   document.getElementById('adm-notes').value   = s.notes   || '';
@@ -9093,6 +9231,13 @@ function saveAdmission() {
     const idx = db.admissions.findIndex(a => a.id === _editAdmId);
     if (idx === -1) { toast('⚠ Student not found'); return; }
     const prev = db.admissions[idx];
+    const newStatus = document.getElementById('adm-status-sel').value;
+    // Track exactly when a student became Withdrawn (for the Weekly Report's
+    // "Withdrawn this week" count) — stamped only on the transition itself,
+    // cleared if the status is later reversed.
+    let withdrawnDate = prev.withdrawnDate;
+    if (newStatus === 'Withdrawn' && prev.status !== 'Withdrawn') withdrawnDate = today();
+    else if (newStatus !== 'Withdrawn') withdrawnDate = null;
     db.admissions[idx] = {
       ...prev,
       name,
@@ -9102,13 +9247,16 @@ function saveAdmission() {
       cls:     document.getElementById('adm-class-sel').value,
       year:    document.getElementById('adm-year').value,
       appdate: document.getElementById('adm-appdate').value,
-      status:  document.getElementById('adm-status-sel').value,
+      status:  newStatus,
+      withdrawnDate,
       parent:  document.getElementById('adm-parent').value,
       rel:     document.getElementById('adm-rel').value,
       phone1:  document.getElementById('adm-phone1').value,
       phone2:  document.getElementById('adm-phone2').value,
       email:   document.getElementById('adm-email').value,
       fee:     parseFloat(document.getElementById('adm-fee').value) || 0,
+      feeMode: document.getElementById('adm-fee-mode').value,
+      feeBankAccountId: document.getElementById('adm-fee-mode').value === 'Bank' ? document.getElementById('adm-fee-bankacct-sel').value : null,
       feeTerm: document.getElementById('adm-fee-term').value,
       address: document.getElementById('adm-address').value,
       notes:   document.getElementById('adm-notes').value,
@@ -9119,6 +9267,7 @@ function saveAdmission() {
       const key = _editAdmId + '|' + t;
       if (!db.payments[key]) db.payments[key] = {paid:0, notes:''};
     });
+    postAdmissionFeeJournal(db.admissions[idx]); // reflects any fee correction in the GL/cash position
     saveDb();
     closeModal('admission-modal');
     renderAdmissions();
@@ -9145,12 +9294,16 @@ function saveAdmission() {
       address: document.getElementById('adm-address').value,
       status:  document.getElementById('adm-status-sel').value,
       fee:     parseFloat(document.getElementById('adm-fee').value) || 0,
+      feeMode: document.getElementById('adm-fee-mode').value,
+      feeBankAccountId: document.getElementById('adm-fee-mode').value === 'Bank' ? document.getElementById('adm-fee-bankacct-sel').value : null,
       feeTerm: document.getElementById('adm-fee-term').value,
       notes:   document.getElementById('adm-notes').value,
-      photo:   _admPhotoData || null
+      photo:   _admPhotoData || null,
+      createdDate: today(),
     };
     db.admissions.push(s);
     TERMS.forEach(t => { db.payments[id+'|'+t] = {paid:0, notes:''}; });
+    postAdmissionFeeJournal(s);
     saveDb();
     closeModal('admission-modal');
     renderAdmissions();
@@ -9163,6 +9316,7 @@ function deleteAdmission(id) {
   if (!confirm('Remove this student record?')) return;
   db.admissions = db.admissions.filter(a => a.id !== id);
   TERMS.forEach(t => delete db.payments[id+'|'+t]);
+  removeJournalEntriesFor('admissionfee', id);
   saveDb();
   renderAdmissions();
   toast('🗑 Student removed');
@@ -9253,11 +9407,61 @@ function renderPayments() {
 
 function openPaymentModal() {
   if (!canEditCurrentPage('payment')) { toast('⛔ You have view-only access to Payment Tracker'); return; }
-  const sel = document.getElementById('pay-student-sel');
-  sel.innerHTML = '<option value="">Select student…</option>' +
-    db.admissions.filter(a=>a.status==='Admitted'||a.status==='Continuing'||a.status==='Scholarship').map(a=>`<option value="${a.id}">${a.id} – ${esc(a.name)} (${a.cls})</option>`).join('');
+  document.getElementById('pay-student-search').value = '';
+  document.getElementById('pay-student-sel').value = '';
   document.getElementById('pay-date').value = today();
+  document.getElementById('pay-method').value = '';
+  document.getElementById('pay-bankacct-wrap').style.display = 'none';
   document.getElementById('payment-modal').classList.add('open');
+}
+
+// ══════════════════════════════════════════════
+// STUDENT SEARCH (typeahead) — replaces plain <select> student pickers.
+// Usage per instance: an <input id="{prefix}-student-search">, a
+// <input type="hidden" id="{prefix}-student-sel"> that holds the chosen
+// student ID (read exactly like the old <select>'s .value), and a
+// <div id="{prefix}-student-list"> the suggestions render into.
+// ══════════════════════════════════════════════
+function ssActiveStudents() {
+  return (db.admissions || []).filter(a => ['Admitted','Continuing','Scholarship'].includes(a.status));
+}
+
+function ssFilter(prefix) {
+  const input = document.getElementById(prefix + '-student-search');
+  const list  = document.getElementById(prefix + '-student-list');
+  if (!input || !list) return;
+  const q = input.value.trim().toLowerCase();
+
+  // Typing again after a student was already picked means they're searching
+  // for someone else — clear the previous selection until they pick again.
+  document.getElementById(prefix + '-student-sel').value = '';
+
+  const matches = q
+    ? ssActiveStudents().filter(a =>
+        a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q) || (a.cls||'').toLowerCase().includes(q)
+      ).slice(0, 30)
+    : ssActiveStudents().slice(0, 30);
+
+  list.innerHTML = matches.length
+    ? matches.map(a => `<div class="ss-item" onmousedown="ssPick('${prefix}','${a.id}')">
+         <div class="ss-name">${esc(a.name)}</div>
+         <div class="ss-meta">${a.id} · ${esc(a.cls)}</div>
+       </div>`).join('')
+    : `<div class="ss-empty">No matching students</div>`;
+  list.classList.add('open');
+}
+
+function ssPick(prefix, studentId) {
+  const s = (db.admissions || []).find(a => a.id === studentId);
+  if (!s) return;
+  document.getElementById(prefix + '-student-sel').value = s.id;
+  document.getElementById(prefix + '-student-search').value = `${s.name} (${s.cls})`;
+  ssClose(prefix);
+}
+
+function ssClose(prefix) {
+  const list = document.getElementById(prefix + '-student-list');
+  if (list) list.classList.remove('open');
 }
 
 // ══════════════════════════════════════════════
@@ -9600,13 +9804,14 @@ function getWorkflowQueue() {
   const pcPending    = (db.pettyCash || []).filter(r => r.status === 'pending');
   const promoPending = (db.promotionLists || []).filter(p => p.status === 'pending');
   const smsPending   = (db.pendingSmsQueue || []).filter(x => x.status === 'pending');
+  const skillsPending = (db.skillSubmissions || []).filter(x => x.status === 'pending');
   const revPending   = (db.revenue  || []).filter(r => r.status === 'pending');
   const expPending   = (db.expenses || []).filter(r => r.status === 'pending');
   const finPending   = [
     ...revPending.map(r => ({...r, _kind:'revenue'})),
     ...expPending.map(r => ({...r, _kind:'expense'}))
   ];
-  return { pcPending, promoPending, smsPending, finPending, total: pcPending.length + promoPending.length + smsPending.length + finPending.length };
+  return { pcPending, promoPending, smsPending, skillsPending, finPending, total: pcPending.length + promoPending.length + smsPending.length + finPending.length + skillsPending.length };
 }
 
 function updateWorkflowNavBadge() {
@@ -9621,7 +9826,8 @@ function renderWorkflow() {
   const el = document.getElementById('wf-inner');
   if (!el) return;
   updateWorkflowNavBadge();
-  const { pcPending, promoPending, smsPending, finPending, total } = getWorkflowQueue();
+  const { pcPending, promoPending, smsPending, skillsPending, finPending, total } = getWorkflowQueue();
+  const canSkills = isSkillsApprover();
 
   const canPc    = isPcApprover();
   const canPromo = isPromoApprover();
@@ -9641,7 +9847,9 @@ function renderWorkflow() {
     ...(db.expenses||[]).filter(r => r.status==='approved'||r.status==='rejected').slice(-3).reverse()
       .map(r => ({ icon:'🧾', kind:'Expense', title: esc(r.desc), meta: `GHS ${fmt(r.amount)} · ${r.cat||''} · reviewed by ${r.approvedBy||'—'}`, status: r.status }))
   ].slice(0, 4);
-  const recent = [...pcReviewed, ...promoReviewed, ...smsReviewed, ...finReviewed].slice(0, 10);
+  const skillsReviewed = (db.skillSubmissions || []).filter(x => x.status === 'approved' || x.status === 'returned').slice(-4).reverse()
+    .map(x => ({ icon:'🌟', kind:'Skills Assessment', title: `${x.cls} — ${x.month} skills assessment`, meta: `Reviewed by ${x.reviewedBy||'—'}${x.decisionNote?' · '+x.decisionNote:''}`, status: x.status === 'returned' ? 'rejected' : x.status }));
+  const recent = [...pcReviewed, ...promoReviewed, ...smsReviewed, ...skillsReviewed, ...finReviewed].slice(0, 10);
 
   const wfRow = (icon, title, meta, actionsHtml) => `
     <div class="wf-row">
@@ -9660,6 +9868,7 @@ function renderWorkflow() {
       <div class="wf-summary-box"><div class="wf-sum-label">💵 Petty Cash</div><div class="wf-sum-val">${pcPending.length}</div></div>
       <div class="wf-summary-box"><div class="wf-sum-label">💰 Finance (Rev/Exp)</div><div class="wf-sum-val">${finPending.length}</div></div>
       <div class="wf-summary-box"><div class="wf-sum-label">🎓 Promotion Lists</div><div class="wf-sum-val">${promoPending.length}</div></div>
+      <div class="wf-summary-box"><div class="wf-sum-label">🌟 Skills Assessments</div><div class="wf-sum-val">${skillsPending.length}</div></div>
       <div class="wf-summary-box"><div class="wf-sum-label">📱 SMS Messages</div><div class="wf-sum-val">${smsPending.length}</div></div>
     </div>
 
@@ -9710,6 +9919,18 @@ function renderWorkflow() {
         canPromo ? `<button class="btn btn-sm btn-outline" onclick="navigate('promotion')">👁 Review</button>
                     <button class="btn btn-sm btn-primary" onclick="promoApprove('${p.cls}'); renderWorkflow();">✔ Approve</button>
                     <button class="btn btn-sm btn-danger" onclick="promoReject('${p.cls}'); renderWorkflow();">✕ Reject</button>` : awaiting
+      )).join('')}</div>
+    </div>` : ''}
+
+    ${skillsPending.length ? `
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><span class="card-title">🌟 Skills Assessments — ${skillsPending.length} awaiting your decision</span></div>
+      <div>${skillsPending.map(x => wfRow('🌟',
+        `${esc(x.cls)} — ${esc(x.month)} skills assessment`,
+        `${Object.keys(x.ratings||{}).length} student(s) rated · submitted by ${esc(x.submittedBy||'—')} · ${skWhen(x.submittedAt)}${(x.version||1) > 1 ? ' · resubmission (v' + x.version + ')' : ''}`,
+        canSkills ? `<button class="btn btn-sm btn-outline" onclick="openSkillReview('${x.id}')">👁 Review</button>
+                     <button class="btn btn-sm btn-primary" onclick="skillSubApprove('${x.id}')">✔ Approve</button>
+                     <button class="btn btn-sm btn-danger" onclick="skillSubReturn('${x.id}')">↩ Return</button>` : awaiting
       )).join('')}</div>
     </div>` : ''}
 
@@ -9814,6 +10035,7 @@ function savePayment() {
   const amount = parseFloat(document.getElementById('pay-amount').value)||0;
   const date   = document.getElementById('pay-date').value;
   const method = document.getElementById('pay-method').value;
+  const bankAccountId = method === 'Bank' ? document.getElementById('pay-bankacct-sel').value : null;
   const notes  = document.getElementById('pay-notes').value;
   const sendSms = document.getElementById('pay-send-sms') ? document.getElementById('pay-send-sms').checked : true;
   if (!sid)    { toast('⚠ Select a student'); return; }
@@ -9828,13 +10050,14 @@ function savePayment() {
   db.payments[key].notes = notes;
 
   // Log transaction
-  const _txEntry2 = pushTxEntry({studentId: sid, term, amount, date: date || today(), ref: '', notes, method, type: 'payment'});
+  const _txEntry2 = pushTxEntry({studentId: sid, term, amount, date: date || today(), ref: '', notes, method, bankAccountId, type: 'payment'});
   postJournalEntry(date || today(), 'Fee payment: ' + (s ? s.name : sid) + ' (' + term + ')', [
     { account: cashAccountForMode(method), debit: amount, credit: 0 },
     { account: '4010', debit: 0, credit: amount }
   ], 'fee', _txEntry2.id);
   saveDb();
   document.getElementById('pay-method').value = '';
+  document.getElementById('pay-bankacct-wrap').style.display = 'none';
   closeModal('payment-modal');
   renderPayments();
   toast('✅ ' + method + ' payment recorded: GHS ' + fmt(amount));
@@ -10087,6 +10310,8 @@ function openRevenueModal() {
   if (!canEditCurrentPage('revenue')) { toast('⛔ You have view-only access to Revenue Tracker'); return; }
   document.getElementById('rev-date').value = today();
   document.getElementById('rev-cat-sel').innerHTML = getRevCats().map(c => `<option>${c}</option>`).join('');
+  document.getElementById('rev-mode-sel').value = 'Cash';
+  document.getElementById('rev-bankacct-wrap').style.display = 'none';
   document.getElementById('revenue-modal').classList.add('open');
 }
 
@@ -10097,6 +10322,7 @@ function saveRevenue() {
   if (!desc || !amount) { toast('⚠ Description and amount required'); return; }
   const cat  = document.getElementById('rev-cat-sel').value;
   const mode = document.getElementById('rev-mode-sel').value;
+  const bankAccountId = mode === 'Bank' ? document.getElementById('rev-bankacct-sel').value : null;
   const date = document.getElementById('rev-date').value;
   const newId = db.nextRevId++;
   const isPending = (db.approvalConfig?.finance?.needsApprovalRoles || []).includes(currentUser.role);
@@ -10104,7 +10330,7 @@ function saveRevenue() {
     id: newId,
     date, desc, ref: document.getElementById('rev-ref').value,
     term: document.getElementById('rev-term-sel').value,
-    cat, mode,
+    cat, mode, bankAccountId,
     amount, notes: document.getElementById('rev-notes').value,
     status: isPending ? 'pending' : 'approved',
     submittedBy: currentUser.username
@@ -10249,6 +10475,8 @@ function openExpenseModal() {
   if (!canEditCurrentPage('expenses')) { toast('⛔ You have view-only access to Expense Tracker'); return; }
   document.getElementById('exp-date').value = today();
   document.getElementById('exp-cat-sel').innerHTML = getExpCats().map(c => `<option>${c}</option>`).join('');
+  document.getElementById('exp-mode-sel').value = 'Cash';
+  document.getElementById('exp-bankacct-wrap').style.display = 'none';
   document.getElementById('expense-modal').classList.add('open');
 }
 
@@ -10259,6 +10487,7 @@ function saveExpense() {
   if (!desc || !amount) { toast('⚠ Description and amount required'); return; }
   const cat  = document.getElementById('exp-cat-sel').value;
   const mode = document.getElementById('exp-mode-sel').value;
+  const bankAccountId = mode === 'Bank' ? document.getElementById('exp-bankacct-sel').value : null;
   const date = document.getElementById('exp-date').value;
   const newId = db.nextExpId++;
   const isPending = (db.approvalConfig?.finance?.needsApprovalRoles || []).includes(currentUser.role);
@@ -10266,7 +10495,7 @@ function saveExpense() {
     id: newId,
     date, desc, ref: document.getElementById('exp-ref').value,
     term: document.getElementById('exp-term-sel').value,
-    cat, mode,
+    cat, mode, bankAccountId,
     amount, notes: document.getElementById('exp-notes').value,
     status: isPending ? 'pending' : 'approved',
     submittedBy: currentUser.username
@@ -10620,6 +10849,328 @@ function deletePcEntry(id) {
 }
 
 // ══════════════ INCOME STATEMENT ══════════════
+// ══════════════ WEEKLY REPORT ══════════════
+// All revenue received (tuition fee payments from Payment Tracker + Other
+// Revenue) and all expenses recorded, for one Monday–Sunday week at a time.
+let _wrWeekOffset = 0;
+let _wrShowNames = false; // Off by default — student names in Admitted/Withdrawn lists are opt-in
+
+function wrToggleNames(checked) { _wrShowNames = checked; renderWeeklyReport(); }
+
+function wrMondayOf(d) {
+  const day = d.getDay(); // 0=Sun..6=Sat
+  const m = new Date(d);
+  m.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  m.setHours(0,0,0,0);
+  return m;
+}
+
+function wrWeekDates(offset) {
+  const monday = wrMondayOf(new Date());
+  monday.setDate(monday.getDate() + offset * 7);
+  return [0,1,2,3,4,5,6].map(i => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d.toISOString().slice(0,10);
+  });
+}
+
+function wrChangeWeek(delta) { _wrWeekOffset += delta; renderWeeklyReport(); }
+function wrGoToday() { _wrWeekOffset = 0; renderWeeklyReport(); }
+function wrJumpToDate(dateStr) {
+  if (!dateStr) return;
+  const target = new Date(dateStr + 'T00:00:00');
+  const targetMonday = wrMondayOf(target);
+  const nowMonday = wrMondayOf(new Date());
+  _wrWeekOffset = Math.round((targetMonday - nowMonday) / (7*24*60*60*1000));
+  renderWeeklyReport();
+}
+
+function renderWeeklyReport() {
+  const el = document.getElementById('wr-inner');
+  if (!el) return;
+
+  const days = wrWeekDates(_wrWeekOffset);
+  const wkStart = days[0], wkEnd = days[6];
+  const inWeek = d => d && d >= wkStart && d <= wkEnd;
+  const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const fmtDisplay = iso => {
+    const [y,m,d] = iso.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${parseInt(d)} ${months[parseInt(m)-1]} ${y}`;
+  };
+
+  // Revenue received: tuition fee payments (Payment Tracker log) + Other Revenue
+  const tuitionEntries = (db.txHistory || []).filter(t => t.type === 'payment' && inWeek(t.date));
+  const otherRevEntries = (db.revenue || []).filter(r => isPostedFin(r) && inWeek(r.date));
+  const tuitionTotal  = tuitionEntries.reduce((a,t) => a + (t.amount||0), 0);
+  const otherRevTotal = otherRevEntries.reduce((a,r) => a + (r.amount||0), 0);
+
+  // ── Revenue breakdown: Tuition · Admission · Feeding · Arrears · Others ──
+  // Fee payments land in txHistory as a single lump per student/term, with no
+  // marker saying which part settles last year's carried-forward balance. We
+  // split it the way the debt is actually owed: oldest first. Walking every
+  // payment in date order and tracking each student's running total lets us say
+  // exactly how much of THIS week's money went to clearing db.carryForwards
+  // (arrears) before any of it counted as current-year tuition.
+  const _allPayments = (db.txHistory || [])
+    .filter(t => t.type === 'payment')
+    .slice()
+    .sort((a,b) => (a.date||'').localeCompare(b.date||'') || (a.timestamp||0) - (b.timestamp||0));
+  const _paidSoFar = {};
+  let arrearsTotal = 0;
+  _allPayments.forEach(t => {
+    const sid = t.studentId;
+    const cf  = (db.carryForwards && db.carryForwards[sid]) || 0;
+    const before = _paidSoFar[sid] || 0;
+    const after  = before + (t.amount || 0);
+    if (cf > 0 && inWeek(t.date)) {
+      // Portion of THIS payment that fell inside the still-unpaid arrears band
+      arrearsTotal += Math.max(0, Math.min(cf, after) - Math.min(cf, before));
+    }
+    _paidSoFar[sid] = after;
+  });
+  const tuitionOnlyTotal = Math.max(0, tuitionTotal - arrearsTotal);
+
+  // One-time admission fees (Admission Registration → "Admission Fee Paid"),
+  // counted on the week the student was registered. Same basis the Statement of
+  // Comprehensive Income uses for its "Admissions" line, so the two agree.
+  const admittedForFee = (db.admissions || []).filter(a => inWeek(a.createdDate || a.appdate));
+  const admissionTotal = admittedForFee.reduce((a,s) => a + (s.fee || 0), 0);
+
+  // Feeding money that reached the General Ledger (Revenue Tracker → 'Feeding Fees').
+  const FEEDING_CATS = ['Feeding Fees'];
+  const feedingEntries = otherRevEntries.filter(r => FEEDING_CATS.includes(r.cat));
+  const feedingTotal   = feedingEntries.reduce((a,r) => a + (r.amount||0), 0);
+  const othersTotal    = otherRevTotal - feedingTotal;
+
+  const totalRevenue = tuitionTotal + otherRevTotal + admissionTotal;
+
+  const revBreakdown = [
+    { label: 'Tuition Fees',            amount: tuitionOnlyTotal, note: 'Current-year fee payments received' },
+    { label: 'Admission Fees',          amount: admissionTotal,   note: 'One-time fees from students registered this week' },
+    { label: 'Feeding Fees',            amount: feedingTotal,     note: 'Posted to Revenue Tracker → Feeding Fees' },
+    { label: 'Fees in Arrears Received',amount: arrearsTotal,     note: 'Payments clearing prior-year balances' },
+    { label: 'Others',                  amount: othersTotal,      note: 'All other revenue categories' }
+  ];
+
+  // Expenses recorded
+  const expEntries = (db.expenses || []).filter(r => isPostedFin(r) && inWeek(r.date));
+  const totalExpenses = expEntries.reduce((a,r) => a + (r.amount||0), 0);
+
+  const net = totalRevenue - totalExpenses;
+
+  // Other-revenue-by-category and expense-by-category breakdowns
+  const revCats = getRevCats().filter(c => !FEEDING_CATS.includes(c)).map(c => ({ label: c, amount: otherRevEntries.filter(r=>r.cat===c).reduce((a,r)=>a+r.amount,0) })).filter(x=>x.amount>0);
+  const expCats = getExpCats().map(c => ({ label: c, amount: expEntries.filter(r=>r.cat===c).reduce((a,r)=>a+r.amount,0) })).filter(x=>x.amount>0);
+
+  // Daily breakdown
+  const dailyRows = days.map((d,i) => {
+    const dayRev = tuitionEntries.filter(t=>t.date===d).reduce((a,t)=>a+t.amount,0)
+                 + otherRevEntries.filter(r=>r.date===d).reduce((a,r)=>a+r.amount,0)
+                 + admittedForFee.filter(s=>(s.createdDate || s.appdate)===d).reduce((a,s)=>a+(s.fee||0),0);
+    const dayExp = expEntries.filter(r=>r.date===d).reduce((a,r)=>a+r.amount,0);
+    return `<tr>
+      <td>${dayNames[i]} · ${fmtDisplay(d)}</td>
+      <td style="text-align:right;color:var(--green)">${dayRev ? fmt(dayRev) : '—'}</td>
+      <td style="text-align:right;color:var(--red)">${dayExp ? fmt(dayExp) : '—'}</td>
+      <td style="text-align:right;font-weight:600">${fmt(dayRev-dayExp)}</td>
+    </tr>`;
+  }).join('');
+
+  // Detailed transaction lists
+  const revRows = [
+    ...tuitionEntries.map(t => {
+      const s = db.admissions.find(a=>a.id===t.studentId);
+      return { date: t.date, desc: `Tuition — ${_wrShowNames ? (s ? s.name : t.studentId) : (s ? s.cls : '')} (${t.term})`, method: t.method||'—', amount: t.amount };
+    }),
+    ...admittedForFee.filter(s => (s.fee||0) > 0).map(s => ({
+      date: s.createdDate || s.appdate,
+      desc: `Admission Fee — ${_wrShowNames ? s.name : s.cls}`,
+      method: s.feeMode || 'Cash',
+      amount: s.fee
+    })),
+    ...otherRevEntries.map(r => ({ date: r.date, desc: `${r.cat}${r.notes ? ' — ' + r.notes : ''}`, method: r.mode||'—', amount: r.amount }))
+  ].sort((a,b) => a.date.localeCompare(b.date));
+
+  const expRows = expEntries.map(r => ({ date: r.date, desc: `${r.cat}${r.notes ? ' — ' + r.notes : ''}`, method: r.mode||'—', amount: r.amount }))
+    .sort((a,b) => a.date.localeCompare(b.date));
+
+  const txTable = (rows, colorVar) => rows.length
+    ? `<table><thead><tr><th>Date</th><th>Description</th><th>Method</th><th style="text-align:right">Amount</th></tr></thead><tbody>
+        ${rows.map(r => `<tr><td style="white-space:nowrap">${fmtDisplay(r.date)}</td><td>${esc(r.desc)}</td><td>${esc(r.method)}</td><td style="text-align:right;color:${colorVar}">${fmt(r.amount)}</td></tr>`).join('')}
+      </tbody></table>`
+    : `<div class="empty-state" style="padding:24px"><div class="icon">📭</div>No entries this week</div>`;
+
+  // Fee status per class — Fully Paid vs Owing, based on the same status
+  // calcStudentStatus() uses everywhere else (Payment Tracker, dashboard, etc.)
+  const activeStudents = (db.admissions || []).filter(s => ['Admitted','Continuing','Scholarship'].includes(s.status));
+  const feeStatusRows = CLASSES.map(cls => {
+    const inCls = activeStudents.filter(s => s.cls === cls);
+    let fullyPaid = 0, owing = 0;
+    inCls.forEach(s => {
+      const c = calcStudentStatus(s.id);
+      if (c.status === 'Paid' || c.status === 'Overpayment') fullyPaid++;
+      else owing++;
+    });
+    return { cls, total: inCls.length, fullyPaid, owing };
+  }).filter(r => r.total > 0);
+
+  // Admissions / Withdrawals this week
+  const admittedThisWeek  = (db.admissions || []).filter(a => inWeek(a.createdDate || a.appdate));
+  const withdrawnThisWeek = (db.admissions || []).filter(a => a.status === 'Withdrawn' && inWeek(a.withdrawnDate));
+
+  // Teacher system-usage — among staff whose Role/Position mentions "Teacher"
+  // and who have a login username linked (Payroll → Employee → System Login
+  // Username), split by computeSystemUsageScore() (used identically in
+  // Performance Appraisal's auto-scored System Usage criterion).
+  const teacherEmployees = (db.employees || []).filter(e => (e.role||'').toLowerCase().includes('teacher') && e.username);
+  const teacherUsage = teacherEmployees.map(e => ({ emp: e, usage: computeSystemUsageScore(e.username) }));
+  const usingEffectively = teacherUsage.filter(t => t.usage.score >= 3);
+  const notUsing         = teacherUsage.filter(t => t.usage.score < 3);
+  const teachersNoAccount = (db.employees || []).filter(e => (e.role||'').toLowerCase().includes('teacher') && !e.username);
+  const wkRanking = computeWeeklyTeacherRanking(wkStart, wkEnd);
+
+  el.innerHTML = `
+    <div class="section-header">
+      <div>
+        <div class="section-title">🗓️ Weekly Report</div>
+        <div class="section-sub">${esc(schoolName())} · Week of ${fmtDisplay(wkStart)} – ${fmtDisplay(wkEnd)}</div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ Print</button>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+      <button class="btn btn-outline btn-sm" onclick="wrChangeWeek(-1)">← Previous Week</button>
+      <button class="btn btn-outline btn-sm" onclick="wrGoToday()">This Week</button>
+      <button class="btn btn-outline btn-sm" onclick="wrChangeWeek(1)">Next Week →</button>
+      <input type="date" onchange="wrJumpToDate(this.value)" title="Jump to a date's week" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);margin-left:8px;cursor:pointer">
+        <input type="checkbox" id="wr-show-names" ${_wrShowNames?'checked':''} onchange="wrToggleNames(this.checked)" style="width:15px;height:15px;accent-color:var(--gold);cursor:pointer">
+        Show student names
+      </label>
+    </div>
+
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px">
+      <div class="sr-stat-card" style="min-width:160px"><div class="sr-stat-value" style="color:var(--green)">${fmt(totalRevenue)}</div><div class="sr-stat-label">Total Revenue Received</div></div>
+      <div class="sr-stat-card" style="min-width:160px"><div class="sr-stat-value" style="color:var(--red)">${fmt(totalExpenses)}</div><div class="sr-stat-label">Total Expenses Recorded</div></div>
+      <div class="sr-stat-card" style="min-width:160px"><div class="sr-stat-value" style="${net>=0?'color:var(--green)':'color:var(--red)'}">${fmt(net)}</div><div class="sr-stat-label">Net for the Week</div></div>
+      <div class="sr-stat-card" style="min-width:160px"><div class="sr-stat-value">${fmt(tuitionOnlyTotal)}</div><div class="sr-stat-label">Tuition</div></div>
+      <div class="sr-stat-card" style="min-width:160px"><div class="sr-stat-value">${fmt(admissionTotal)}</div><div class="sr-stat-label">Admission</div></div>
+      <div class="sr-stat-card" style="min-width:160px"><div class="sr-stat-value">${fmt(feedingTotal)}</div><div class="sr-stat-label">Feeding</div></div>
+      <div class="sr-stat-card" style="min-width:160px"><div class="sr-stat-value">${fmt(arrearsTotal)}</div><div class="sr-stat-label">Fees in Arrears Received</div></div>
+      <div class="sr-stat-card" style="min-width:160px"><div class="sr-stat-value">${fmt(othersTotal)}</div><div class="sr-stat-label">Others</div></div>
+      <div class="sr-stat-card" style="min-width:160px"><div class="sr-stat-value" style="color:var(--green)">${admittedThisWeek.length}</div><div class="sr-stat-label">Students Admitted This Week</div></div>
+      <div class="sr-stat-card" style="min-width:160px"><div class="sr-stat-value" style="color:var(--red)">${withdrawnThisWeek.length}</div><div class="sr-stat-label">Students Withdrawn This Week</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><span class="card-title">🎒 Fee Status by Class</span><span style="font-size:11px;color:var(--muted)">Fully Paid vs Owing — all terms, current standing</span></div>
+      <div style="overflow-x:auto"><table><thead><tr><th>Class</th><th style="text-align:right">Fully Paid</th><th style="text-align:right">Owing</th><th style="text-align:right">Total</th></tr></thead><tbody>
+        ${feeStatusRows.map(r => `<tr><td>${esc(r.cls)}</td><td style="text-align:right;color:var(--green);font-weight:600">${r.fullyPaid}</td><td style="text-align:right;color:var(--red);font-weight:600">${r.owing}</td><td style="text-align:right;color:var(--muted)">${r.total}</td></tr>`).join('') || '<tr><td colspan="4" class="empty-state">No enrolled students</td></tr>'}
+      </tbody></table></div>
+    </div>
+
+    ${(admittedThisWeek.length || withdrawnThisWeek.length) ? `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+      ${admittedThisWeek.length ? `<div class="card" style="flex:1;min-width:260px">
+        <div class="card-header"><span class="card-title">🟢 Admitted This Week</span></div>
+        <div style="padding:6px 20px 14px">${_wrShowNames
+          ? admittedThisWeek.map(a=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span>${esc(a.name)}</span><span style="color:var(--muted)">${esc(a.cls)}</span></div>`).join('')
+          : Object.entries(admittedThisWeek.reduce((m,a)=>{m[a.cls]=(m[a.cls]||0)+1;return m;},{})).map(([cls,n])=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span>${esc(cls)}</span><span style="color:var(--muted)">${n}</span></div>`).join('')}</div>
+      </div>` : ''}
+      ${withdrawnThisWeek.length ? `<div class="card" style="flex:1;min-width:260px">
+        <div class="card-header"><span class="card-title">🔴 Withdrawn This Week</span></div>
+        <div style="padding:6px 20px 14px">${_wrShowNames
+          ? withdrawnThisWeek.map(a=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span>${esc(a.name)}</span><span style="color:var(--muted)">${esc(a.cls)}</span></div>`).join('')
+          : Object.entries(withdrawnThisWeek.reduce((m,a)=>{m[a.cls]=(m[a.cls]||0)+1;return m;},{})).map(([cls,n])=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span>${esc(cls)}</span><span style="color:var(--muted)">${n}</span></div>`).join('')}</div>
+      </div>` : ''}
+    </div>` : ''}
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><span class="card-title">💻 Teacher System Usage</span><span style="font-size:11px;color:var(--muted)">Based on grade/skills entries logged in the last 30 days</span></div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;padding:14px 20px">
+        <div style="flex:1;min-width:240px">
+          <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:8px">✅ Using Effectively (${usingEffectively.length})</div>
+          ${usingEffectively.length ? usingEffectively.map(t=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span>${esc(t.emp.name)}</span><span style="color:var(--muted)">${t.usage.entries} entr${t.usage.entries!==1?'ies':'y'}/30d · last ${t.usage.daysSinceLast===0?'today':t.usage.daysSinceLast+'d ago'}</span></div>`).join('') : '<div style="font-size:12px;color:var(--muted)">None yet</div>'}
+        </div>
+        <div style="flex:1;min-width:240px">
+          <div style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:8px">⚠ Not Using Effectively (${notUsing.length})</div>
+          ${notUsing.length ? notUsing.map(t=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span>${esc(t.emp.name)}</span><span style="color:var(--muted)">${t.usage.entries===0?'No entries yet':t.usage.entries+' entr'+(t.usage.entries!==1?'ies':'y')+'/30d · last '+(t.usage.daysSinceLast===0?'today':t.usage.daysSinceLast+'d ago')}</span></div>`).join('') : '<div style="font-size:12px;color:var(--muted)">None — everyone with an account is active</div>'}
+        </div>
+      </div>
+      ${teachersNoAccount.length ? `<div style="padding:0 20px 14px;font-size:11px;color:var(--muted)">🔗 ${teachersNoAccount.length} teacher${teachersNoAccount.length!==1?'s':''} have no login username linked yet (Payroll → Employee → System Login Username): ${teachersNoAccount.map(e=>esc(e.name)).join(', ')}</div>` : ''}
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><span class="card-title">🏆 Weekly Teacher System Ranking</span><span style="font-size:11px;color:var(--muted)">${fmtDisplay(wkStart)} – ${fmtDisplay(wkEnd)} · Total = grades + skills + attendance + clock in/out + login days · ties broken by active days</span></div>
+      ${wkRanking.top.length ? `<div style="margin:14px 20px 0;padding:12px 16px;background:var(--amber-light);border:1px solid var(--gold);border-radius:10px;font-size:13.5px;color:var(--navy)">
+        🏆 <b>Top User of the Week${wkRanking.top.length > 1 ? ' (tie)' : ''}:</b> ${wkRanking.top.map(t => esc(t.emp.name)).join(' &amp; ')}
+        <span style="color:var(--muted)"> — ${wkRanking.top[0].total} activit${wkRanking.top[0].total!==1?'ies':'y'} across ${wkRanking.top[0].activeDays} day${wkRanking.top[0].activeDays!==1?'s':''}</span>
+      </div>` : ''}
+      ${wkRanking.rows.length ? `<div style="overflow-x:auto"><table><thead><tr><th style="width:60px">Rank</th><th>Teacher</th><th style="text-align:right">Total</th><th style="text-align:right">Grades</th><th style="text-align:right">Skills</th><th style="text-align:right">Attendance</th><th style="text-align:right">Clock In</th><th style="text-align:right">Clock Out</th><th style="text-align:right">Logins</th><th style="text-align:right">Active Days</th><th style="text-align:right">Last Active</th></tr></thead><tbody>
+        ${wkRanking.rows.map(r => `<tr>
+          <td style="font-weight:600">${r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : (r.rank ? '#' + r.rank : '—')}</td>
+          <td>${esc(r.emp.name)}</td>
+          <td style="text-align:right;font-weight:700;color:${r.total ? 'var(--green)' : 'var(--muted)'}">${r.total}</td>
+          <td style="text-align:right">${r.grades}</td>
+          <td style="text-align:right">${r.skills}</td>
+          <td style="text-align:right">${r.attendance}</td>
+          <td style="text-align:right">${r.clockIns}</td>
+          <td style="text-align:right">${r.clockOuts}</td>
+          <td style="text-align:right">${r.logins}</td>
+          <td style="text-align:right">${r.activeDays}</td>
+          <td style="text-align:right;color:var(--muted)">${r.lastDate ? fmtDisplay(r.lastDate) : 'No activity'}</td>
+        </tr>`).join('')}
+      </tbody></table></div>` : `<div class="empty-state" style="padding:24px"><div class="icon">👩‍🏫</div>No teachers have a login username linked yet (Payroll → Employee → System Login Username)</div>`}
+      ${(wkRanking.rows.length && !wkRanking.top.length) ? `<div style="padding:0 20px 14px;font-size:11px;color:var(--muted)">No teacher used the system this week, so there is no top user.</div>` : ''}
+      <div style="padding:0 20px 14px;font-size:11px;color:var(--muted)">Skills, student-attendance and login counts are tracked from the day this feature went live; grades and clock in/out include earlier history.</div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><span class="card-title">💰 Revenue Breakdown</span><span style="font-size:11px;color:var(--muted)">Total received this week: ${fmt(totalRevenue)}</span></div>
+      <div style="overflow-x:auto"><table><thead><tr><th>Revenue Type</th><th style="text-align:right">Amount</th><th style="text-align:right">% of Total</th></tr></thead><tbody>
+        ${revBreakdown.map(r => `<tr>
+          <td><div style="font-weight:500">${esc(r.label)}</div><div style="font-size:11px;color:var(--muted)">${esc(r.note)}</div></td>
+          <td style="text-align:right;color:var(--green);font-weight:600">${r.amount ? fmt(r.amount) : '—'}</td>
+          <td style="text-align:right;color:var(--muted)">${totalRevenue > 0 ? (r.amount/totalRevenue*100).toFixed(1) + '%' : '—'}</td>
+        </tr>`).join('')}
+        <tr style="border-top:2px solid var(--border)">
+          <td style="font-weight:700">Total Revenue Received</td>
+          <td style="text-align:right;font-weight:700;color:var(--green)">${fmt(totalRevenue)}</td>
+          <td style="text-align:right;color:var(--muted)">${totalRevenue > 0 ? '100.0%' : '—'}</td>
+        </tr>
+      </tbody></table></div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><span class="card-title">📅 Daily Breakdown</span></div>
+      <div style="overflow-x:auto"><table><thead><tr><th>Day</th><th style="text-align:right">Revenue</th><th style="text-align:right">Expenses</th><th style="text-align:right">Net</th></tr></thead><tbody>${dailyRows}</tbody></table></div>
+    </div>
+
+    ${(revCats.length || expCats.length) ? `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+      ${revCats.length ? `<div class="card" style="flex:1;min-width:260px">
+        <div class="card-header"><span class="card-title">💹 Other Revenue by Category</span><span style="font-size:11px;color:var(--muted)">Feeding shown separately above</span></div>
+        <div style="padding:6px 20px 14px">${revCats.map(c=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span>${esc(c.label)}</span><span style="color:var(--green);font-weight:500">${fmt(c.amount)}</span></div>`).join('')}</div>
+      </div>` : ''}
+      ${expCats.length ? `<div class="card" style="flex:1;min-width:260px">
+        <div class="card-header"><span class="card-title">📉 Expenses by Category</span></div>
+        <div style="padding:6px 20px 14px">${expCats.map(c=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span>${esc(c.label)}</span><span style="color:var(--red);font-weight:500">${fmt(c.amount)}</span></div>`).join('')}</div>
+      </div>` : ''}
+    </div>` : ''}
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><span class="card-title">💹 Revenue Received This Week</span><span style="font-size:11px;color:var(--muted)">${revRows.length} entr${revRows.length!==1?'ies':'y'}</span></div>
+      <div style="overflow-x:auto">${txTable(revRows, 'var(--green)')}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">📉 Expenses Recorded This Week</span><span style="font-size:11px;color:var(--muted)">${expRows.length} entr${expRows.length!==1?'ies':'y'}</span></div>
+      <div style="overflow-x:auto">${txTable(expRows, 'var(--red)')}</div>
+    </div>`;
+}
+
 function renderIncomeStatement() {
   const dateFrom = document.getElementById('is-date-from')?.value || '';
   const dateTo   = document.getElementById('is-date-to')?.value   || '';
@@ -15530,7 +16081,7 @@ function requireRole(...roles) {
 const TEACHER_DEFAULT_PAGES = [
   'grades','skillsassessment','promotion','academiccalendar','reportcard','classanalytics',
   'attendance','attendancereport','staffattendance','timetable','subjects','myappraisal','myworkspace','staffdirectory',
-  'schoolstructure','staffdatabase','training'
+  'schoolstructure','staffdatabase','training','parentdatabase'
 ];
 // Pages the built-in role guard already fully blocks for non-Admins regardless of
 // Access Control (e.g. Settings, Backup & Restore) — kept off the configurable
@@ -15538,6 +16089,9 @@ const TEACHER_DEFAULT_PAGES = [
 const ACCESS_CONTROL_EXEMPT_PAGES = ['appraisals'];
 
 function defaultPagePermission(role, page) {
+  // Student Assessment Report holds every class's submitted skills data for decision-making —
+  // Headteacher by default (Admin always has access); Admin can open it to other roles in Access Control.
+  if (page === 'skillsreport') return role === 'Headteacher' ? 'edit' : 'none';
   if (role === 'Teacher' || role === 'Class Teacher') {
     return TEACHER_DEFAULT_PAGES.includes(page) ? 'edit' : 'none';
   }
@@ -15611,6 +16165,7 @@ function showApp(user) {
       renderFeeSchedule();
       renderNotifBell();
       checkUrgentNotifToast();
+      logLoginOnce();
       applyYearLockUI();
       if (!window._notifIntervalStarted) {
         window._notifIntervalStarted = true;
@@ -15643,7 +16198,18 @@ function showApp(user) {
         fbDb.ref(ACTIVE_YEAR_FB_PATH).set(ACTIVE_YEAR).catch(() => {});
       }
       _proceedIntoApp();
-    }).catch(() => _proceedIntoApp());
+    }).catch(err => {
+      // This used to swallow the error entirely and carry on with whatever year was
+      // cached in localStorage. If Security Rules deny this read for a role (e.g.
+      // Teacher / Class Teacher), that role would silently log straight into the OLD
+      // academic year every single time, with no clue anything was wrong.
+      console.error('[active-year] Login-time read of ' + ACTIVE_YEAR_FB_PATH + ' failed:',
+                    err && err.code, err && err.message);
+      window._activeYearSyncBlocked = true;
+      toast('⚠ Could not confirm the current academic year with the server — showing ' +
+            ACTIVE_YEAR.replace('_','/') + ' from this device\'s cache. Tell your administrator.', 'error');
+      _proceedIntoApp();
+    });
   } else {
     _proceedIntoApp();
   }
@@ -15972,6 +16538,7 @@ function openApprovalWorkflowModal() {
   awfRenderRoleChecks('awf-fin-approvers', db.approvalConfig.finance?.approverRoles || ['Admin']);
   awfRenderRoleChecks('awf-promo-approvers', db.approvalConfig.promotion?.approverRoles || ['Admin','Headteacher']);
   awfRenderRoleChecks('awf-sms-approvers', db.approvalConfig.smsFeeAlerts?.approverRoles || ['Admin']);
+  awfRenderRoleChecks('awf-skills-approvers', db.approvalConfig.skillsAssessment?.approverRoles || ['Admin','Headteacher']);
   document.getElementById('approval-workflow-modal').classList.add('open');
 }
 
@@ -15982,17 +16549,20 @@ function saveApprovalWorkflow() {
   const finApprovers   = awfGetChecked('awf-fin-approvers');
   const promoApprovers = awfGetChecked('awf-promo-approvers');
   const smsApprovers   = awfGetChecked('awf-sms-approvers');
+  const skillsApprovers = awfGetChecked('awf-skills-approvers');
 
   if (pcApprovers.length === 0) { toast('⚠ Petty Cash needs at least one approver role'); return; }
   if (finApprovers.length === 0) { toast('⚠ Finance Transactions needs at least one approver role'); return; }
   if (promoApprovers.length === 0) { toast('⚠ Promotion Management needs at least one approver role'); return; }
   if (smsApprovers.length === 0) { toast('⚠ SMS Fee Alerts needs at least one approver role'); return; }
+  if (skillsApprovers.length === 0) { toast('⚠ Skills Assessment needs at least one approver role'); return; }
 
   db.approvalConfig = {
     pettyCash: { needsApprovalRoles: needsApproval, approverRoles: pcApprovers },
     finance: { needsApprovalRoles: finNeeds, approverRoles: finApprovers },
     promotion: { approverRoles: promoApprovers },
-    smsFeeAlerts: { approverRoles: smsApprovers }
+    smsFeeAlerts: { approverRoles: smsApprovers },
+    skillsAssessment: { approverRoles: skillsApprovers }
   };
   saveDb();
   closeModal('approval-workflow-modal');
@@ -17275,10 +17845,24 @@ const SKILLS_LIST = [
 const SKILL_RATING_LABELS = { 1:'Need Urgent Attention', 2:'Need Improvement', 3:'Good', 4:'Excellent' };
 const SKILL_RATING_CLASS  = { 1:'skill-r1', 2:'skill-r2', 3:'skill-r3', 4:'skill-r5' };
 
-function skillKey(studentId, term) { return studentId + '|' + term; }
+// Skills Assessment is entered monthly (for every role/user — teachers, class
+// teachers, etc.), not per term. Build 12 month labels spanning the academic
+// year, e.g. '2025_2026' → Sep 2025 ... Aug 2026, so the tabs always line up
+// with whichever year is currently active.
+function skillMonths() {
+  const parts = ACTIVE_YEAR.split('_');
+  const startYear = parseInt(parts[0]) || new Date().getFullYear();
+  const monthNames = ['Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug'];
+  return monthNames.map((m, i) => {
+    const yr = i < 4 ? startYear : startYear + 1; // Sep–Dec = start year, Jan–Aug = following year
+    return `${m} ${yr}`;
+  });
+}
 
-function getSkillRatings(studentId, term) {
-  const raw = (db.skillsAssessments || {})[skillKey(studentId, term)] || {};
+function skillKey(studentId, month) { return studentId + '|' + month; }
+
+function getSkillRatings(studentId, month) {
+  const raw = (db.skillsAssessments || {})[skillKey(studentId, month)] || {};
   // Defensive clamp: ratings saved under the old 1–5 scale (before the 4-tier
   // Need Urgent Attention/Need Improvement/Good/Excellent scale) may still have
   // a stored 5 — treat that as the new top tier (4 = Excellent) rather than
@@ -17288,20 +17872,48 @@ function getSkillRatings(studentId, term) {
   return clamped;
 }
 
-function setSkillRating(studentId, term, skillKey2, value) {
-  if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_','/') + ' is locked — ask an admin to unlock it first', 'error'); return; }
+function setSkillRating(studentId, month, skillKey2, value) {
+  if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_','/') + ' is locked — ask an admin to unlock it first', 'error'); return false; }
+  const _stu = (db.admissions || []).find(a => a.id === studentId);
+  if (_stu && skillSubLocked(_stu.cls, month)) { toast('🔒 This assessment has been submitted — ratings are locked until it is returned for revision', 'error'); return false; }
   if (!db.skillsAssessments) db.skillsAssessments = {};
-  const k = skillKey(studentId, term);
+  const k = skillKey(studentId, month);
   if (!db.skillsAssessments[k]) db.skillsAssessments[k] = {};
   if (value === '') delete db.skillsAssessments[k][skillKey2];
   else db.skillsAssessments[k][skillKey2] = parseInt(value);
+  if (value !== '') logUsage('skills', k + '|' + skillKey2);
   saveDb();
+  return true;
 }
 
-function skillAverage(studentId, term) {
-  const ratings = getSkillRatings(studentId, term);
+function skillAverage(studentId, month) {
+  const ratings = getSkillRatings(studentId, month);
   const vals = Object.values(ratings).filter(v => v > 0);
   return vals.length ? (vals.reduce((a,b)=>a+b,0) / vals.length) : null;
+}
+
+// Average across every month on record for this student (used on the report
+// card, which is organised by Term for grades — skills are monthly, so this
+// rolls all months up into one figure rather than tying it to a single term).
+function skillAverageAllMonths(studentId) {
+  const all = db.skillsAssessments || {};
+  const vals = [];
+  skillMonths().forEach(m => {
+    const raw = all[skillKey(studentId, m)] || {};
+    Object.values(raw).forEach(v => { if (v > 0) vals.push(Math.min(v, 4)); });
+  });
+  return vals.length ? (vals.reduce((a,b)=>a+b,0) / vals.length) : null;
+}
+
+// Most recent month (in academic-year order) that has any skill rating on
+// file for this student — used for the report card's per-skill breakdown,
+// since that view shows one month's ratings rather than every month at once.
+function latestSkillMonth(studentId) {
+  const months = skillMonths();
+  for (let i = months.length - 1; i >= 0; i--) {
+    if (Object.keys(getSkillRatings(studentId, months[i])).length > 0) return months[i];
+  }
+  return null;
 }
 
 function renderSkillsAssessment() {
@@ -17309,11 +17921,18 @@ function renderSkillsAssessment() {
   if (!el) return;
   const admitted = db.admissions || [];
   const lockedClass = lockedClassFor();
-  let selClass = lockedClass || CLASSES[0] || '';
-  let selTerm  = TERMS[0];
+  const MONTHS = skillMonths();
+  const _sa = window._saSel || {}; // keep the teacher's place when the page refreshes after someone else's change
+  let selClass = lockedClass || (CLASSES.includes(_sa.cls) ? _sa.cls : (CLASSES[0] || ''));
+  let selMonth = MONTHS.includes(_sa.month) ? _sa.month : MONTHS[0];
 
   function draw() {
     const students = admitted.filter(s => s.cls === selClass);
+    window._saSel = { cls: selClass, month: selMonth };
+    const sub = getSkillSubmission(selClass, selMonth);
+    const locked = !!(sub && (sub.status === 'pending' || sub.status === 'approved'));
+    const canSubmit = canEditCurrentPage('skillsassessment') && !locked && students.length > 0;
+    const submitBtn = canSubmit ? `<button class="btn btn-primary btn-sm" onclick="saSubmit()">📤 ${sub && sub.status === 'returned' ? 'Resubmit' : 'Submit'} to ${esc(skillsApproverLabel())}</button>` : '';
 
     const pills = lockedClass ? '' : CLASSES.map(c => {
       const cnt = admitted.filter(s => s.cls === c).length;
@@ -17327,18 +17946,18 @@ function renderSkillsAssessment() {
     ).join('');
 
     const rows = students.map(s => {
-      const ratings = getSkillRatings(s.id, selTerm);
+      const ratings = getSkillRatings(s.id, selMonth);
       const cells = SKILLS_LIST.map(sk => {
         const v = ratings[sk.key] || '';
         return `<td style="text-align:center;padding:4px 3px">
-          <select class="skill-select ${v ? SKILL_RATING_CLASS[v] : ''}" onchange="saSetRating('${s.id}','${sk.key}',this.value,this)" title="${sk.label}">
+          <select class="skill-select ${v ? SKILL_RATING_CLASS[v] : ''}" onchange="saSetRating('${s.id}','${sk.key}',this.value,this)" title="${sk.label}" ${locked ? 'disabled' : ''}>
             <option value="">—</option>
             ${[1,2,3,4].map(n => `<option value="${n}" ${String(v)===String(n)?'selected':''}>${n} · ${SKILL_RATING_LABELS[n]}</option>`).join('')}
           </select>
         </td>`;
       }).join('');
 
-      const avg = skillAverage(s.id, selTerm);
+      const avg = skillAverage(s.id, selMonth);
       const avgChip = avg !== null
         ? `<span class="ge-avg-chip" style="background:${avg>=3.5?'var(--green-light)':avg>=2.5?'#fef9c3':avg>=1.5?'#f3e8ff':'var(--red-light)'};color:${avg>=3.5?'var(--green)':avg>=2.5?'#854d0e':avg>=1.5?'#6d28d9':'var(--red)'}">${avg.toFixed(1)}</span>`
         : `<span style="color:var(--muted);font-size:12px">—</span>`;
@@ -17353,13 +17972,13 @@ function renderSkillsAssessment() {
       </tr>`;
     }).join('');
 
-    const termTabs = TERMS.map(t =>
-      `<button class="ge-subject-tab ${t===selTerm?'active':''}" onclick="saSetTerm('${t}')">${t}</button>`
+    const monthTabs = MONTHS.map(m =>
+      `<button class="ge-subject-tab ${m===selMonth?'active':''}" onclick="saSetMonth('${m}')">${m}${skTabIcon(selClass, m)}</button>`
     ).join('');
 
     // Class-wide average per skill, for a quick "where does this class need help" view
     const classAvgRow = SKILLS_LIST.map(sk => {
-      const vals = students.map(s => (getSkillRatings(s.id, selTerm)[sk.key])).filter(v => v > 0);
+      const vals = students.map(s => (getSkillRatings(s.id, selMonth)[sk.key])).filter(v => v > 0);
       const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length) : null;
       const avgColor = avg === null ? 'var(--muted)' : (avg >= 3.5 ? 'var(--green)' : avg >= 2.5 ? '#854d0e' : avg >= 1.5 ? '#6d28d9' : 'var(--red)');
       return `<td style="text-align:center;font-size:11px;font-weight:600;color:${avgColor}">${avg===null?'—':avg.toFixed(1)}</td>`;
@@ -17369,9 +17988,9 @@ function renderSkillsAssessment() {
       <div class="section-header">
         <div>
           <div class="section-title">🌟 Skills Assessment</div>
-          <div class="section-sub">Rate reading, writing, and attitude/effort skills — ${ACTIVE_YEAR}</div>
+          <div class="section-sub">Rate reading, writing, and attitude/effort skills — monthly — ${ACTIVE_YEAR}</div>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ Print</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">${submitBtn}<button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ Print</button></div>
       </div>
 
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
@@ -17379,13 +17998,15 @@ function renderSkillsAssessment() {
         ${lockedClass ? `<span style="font-size:12px;color:var(--muted);padding:6px 10px;background:var(--cream);border-radius:20px">🔒 ${lockedClass} only</span>` : ''}
       </div>
 
-      <div style="display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:16px;overflow-x:auto">${termTabs}</div>
+      <div style="display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:16px;overflow-x:auto">${monthTabs}</div>
+
+      ${skPageBanner(sub, selClass, selMonth)}
 
       ${students.length === 0
         ? `<div class="empty-state"><div class="icon">📭</div>No students in ${selClass}</div>`
         : `<div class="card">
             <div class="card-header">
-              <span class="card-title">🌟 ${selClass} — ${selTerm} Skills</span>
+              <span class="card-title">🌟 ${selClass} — ${selMonth} Skills</span>
               <span style="font-size:11px;color:var(--muted)">${students.length} student${students.length!==1?'s':''} · rated 1 (need urgent attention) – 4 (excellent)</span>
             </div>
             <div style="overflow-x:auto">
@@ -17415,15 +18036,621 @@ function renderSkillsAssessment() {
       </div>`;
 
     window.saSetClass = c => { if (lockedClass) return; selClass = c; draw(); };
-    window.saSetTerm  = t => { selTerm = t; draw(); };
+    window.saSetMonth = m => { selMonth = m; draw(); };
+    window.saSubmit = () => submitSkillAssessment(selClass, selMonth);
     window.saSetRating = (sid, sk, val, sel) => {
-      setSkillRating(sid, selTerm, sk, val);
+      if (setSkillRating(sid, selMonth, sk, val) === false) { draw(); return; }
       sel.className = 'skill-select' + (val ? ' ' + SKILL_RATING_CLASS[val] : '');
       toast('✅ Rating saved');
     };
   }
 
   draw();
+}
+
+// ══════════════ SKILLS ASSESSMENT — SUBMISSION, REVIEW & REPORT ══════════════
+// A teacher finishes a class's monthly skills ratings and SUBMITS them to the
+// Headteacher and Admin. The submission is a frozen snapshot (db.skillSubmissions),
+// so what gets reviewed can't silently change afterwards. While it is pending or
+// approved the ratings for that class+month are locked. The approver either
+// APPROVES it (optionally with a decision note) or RETURNS it with a reason, which
+// unlocks the ratings for the teacher to fix and resubmit. Pending and approved
+// snapshots feed the Student Assessment Report for comparison and analysis.
+//   status: 'pending' | 'approved' | 'returned'   (no record = still a draft)
+const SKILL_SUB_LABELS = { pending: 'Pending Review', approved: 'Approved', returned: 'Returned — Revise' };
+const SKILL_SUB_BADGE  = { pending: 'badge-promo-pending', approved: 'badge-promo-approved', returned: 'badge-promo-rejected' };
+const SKILL_SUB_ICON   = { pending: '⏳', approved: '✅', returned: '↩' };
+
+function skApprovers() {
+  return (db.approvalConfig && db.approvalConfig.skillsAssessment && db.approvalConfig.skillsAssessment.approverRoles) || ['Admin', 'Headteacher'];
+}
+function isSkillsApprover() { return !!(currentUser && skApprovers().includes(currentUser.role)); }
+function skillsApproverLabel() {
+  const order = ['Headteacher', 'Admin'];
+  const roles = skApprovers().slice().sort((a, b) => {
+    const ia = order.indexOf(a), ib = order.indexOf(b);
+    return (ia < 0 ? 9 : ia) - (ib < 0 ? 9 : ib);
+  });
+  return roles.length ? roles.join(' & ') : 'Headteacher & Admin';
+}
+
+function getSkillSubmission(cls, month) {
+  return (db.skillSubmissions || []).find(s => s.cls === cls && s.month === month) || null;
+}
+function skillSubLocked(cls, month) {
+  const s = getSkillSubmission(cls, month);
+  return !!(s && (s.status === 'pending' || s.status === 'approved'));
+}
+function skTabIcon(cls, month) {
+  const s = getSkillSubmission(cls, month);
+  return s ? ' ' + SKILL_SUB_ICON[s.status] : '';
+}
+
+function skWhen(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return String(iso);
+  const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return d.getDate() + ' ' + mo[d.getMonth()] + ' ' + d.getFullYear() + ' ' +
+    String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+function skMean(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null; }
+// Same colour bands the Skills Assessment page already uses for averages.
+function skColor(avg) {
+  if (avg === null || avg === undefined) return { bg: 'transparent', fg: 'var(--muted)', hex: '#94a3b8' };
+  if (avg >= 3.5) return { bg: 'var(--green-light)', fg: 'var(--green)', hex: '#16a34a' };
+  if (avg >= 2.5) return { bg: '#fef9c3', fg: '#854d0e', hex: '#ca8a04' };
+  if (avg >= 1.5) return { bg: '#f3e8ff', fg: '#6d28d9', hex: '#7c3aed' };
+  return { bg: 'var(--red-light)', fg: 'var(--red)', hex: '#dc2626' };
+}
+
+// One row per student in a submission snapshot.
+function skRows(sub) {
+  const names = sub.students || {};
+  return Object.keys(sub.ratings || {}).map(id => {
+    const r = sub.ratings[id] || {};
+    const vals = SKILLS_LIST.map(sk => r[sk.key]).filter(v => v > 0);
+    return { id, name: names[id] || id, cls: sub.cls, month: sub.month, ratings: r, avg: skMean(vals), status: sub.status, subId: sub.id };
+  });
+}
+function skNeedsAttention(r) {
+  return r.avg !== null && (r.avg < 2.5 || SKILLS_LIST.some(sk => r.ratings[sk.key] === 1));
+}
+function skClassAverages(sub) {
+  const rows = skRows(sub);
+  const out = { overall: null, bySkill: {} };
+  const all = [];
+  SKILLS_LIST.forEach(sk => {
+    const vals = rows.map(r => r.ratings[sk.key]).filter(v => v > 0);
+    out.bySkill[sk.key] = skMean(vals);
+    vals.forEach(v => all.push(v));
+  });
+  out.overall = skMean(all);
+  return out;
+}
+// Average of every rating (optionally one skill) across a set of submissions.
+function skPool(subs, key) {
+  const vals = [];
+  subs.forEach(s => skRows(s).forEach(r => {
+    SKILLS_LIST.forEach(sk => { if ((!key || sk.key === key) && r.ratings[sk.key] > 0) vals.push(r.ratings[sk.key]); });
+  }));
+  return skMean(vals);
+}
+// The same class's most recent EARLIER month on record (pending or approved), for comparison.
+function skPrevSubmission(sub) {
+  const months = skillMonths();
+  const idx = months.indexOf(sub.month);
+  return (db.skillSubmissions || [])
+    .filter(s => s.cls === sub.cls && s.id !== sub.id && s.status !== 'returned' && months.indexOf(s.month) >= 0 && months.indexOf(s.month) < idx)
+    .sort((a, b) => months.indexOf(b.month) - months.indexOf(a.month))[0] || null;
+}
+
+// Freeze what the teacher currently sees for this class + month.
+function skSnapshot(cls, month) {
+  const students = (db.admissions || []).filter(s => s.cls === cls);
+  const ratings = {}, names = {};
+  let rated = 0;
+  students.forEach(s => {
+    names[s.id] = s.name || s.id;
+    const r = getSkillRatings(s.id, month);
+    const keys = SKILLS_LIST.map(sk => sk.key).filter(k => r[k] > 0);
+    if (keys.length) {
+      ratings[s.id] = {};
+      keys.forEach(k => { ratings[s.id][k] = r[k]; });
+      rated += keys.length;
+    }
+  });
+  return { students, names, ratings, rated, expected: students.length * SKILLS_LIST.length };
+}
+
+function submitSkillAssessment(cls, month) {
+  if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_', '/') + ' is locked — ask an admin to unlock it first', 'error'); return; }
+  if (!canEditCurrentPage('skillsassessment')) { toast('⛔ You have view-only access to Skills Assessment'); return; }
+  const lc = lockedClassFor();
+  if (lc && cls !== lc) { toast('⛔ You can only submit assessments for ' + lc); return; }
+  const existing = getSkillSubmission(cls, month);
+  if (existing && (existing.status === 'pending' || existing.status === 'approved')) { toast('ℹ️ This assessment has already been submitted'); return; }
+
+  const snap = skSnapshot(cls, month);
+  if (!snap.rated) { toast('⚠ Rate at least one skill before submitting', 'error'); return; }
+  const missing = snap.expected - snap.rated;
+  const msg = `Submit the ${cls} — ${month} skills assessment (${snap.students.length} students) to the ${skillsApproverLabel()} for review?` +
+    (missing > 0 ? `\n\n⚠ ${missing} rating${missing !== 1 ? 's are' : ' is'} still blank. You can submit anyway, or cancel and finish them first.` : '') +
+    `\n\nThe ratings are locked while it is under review.`;
+  if (!confirm(msg)) return;
+
+  const now = new Date().toISOString();
+  const who = currentUser ? currentUser.username : 'system';
+  let sub = existing;
+  if (!sub) {
+    if (!db.skillSubmissions) db.skillSubmissions = [];
+    if (!db.nextSkillSubId) db.nextSkillSubId = 1;
+    sub = { id: 'SKS-' + String(db.nextSkillSubId++).padStart(3, '0'), cls, month, version: 0, history: [] };
+    db.skillSubmissions.push(sub);
+  }
+  sub.status = 'pending';
+  sub.version = (sub.version || 0) + 1;
+  sub.submittedBy = who;
+  sub.submittedAt = now;
+  sub.ratings = snap.ratings;
+  sub.students = snap.names;
+  sub.ratedCount = snap.rated;
+  sub.expectedCount = snap.expected;
+  sub.reviewedBy = '';
+  sub.reviewedAt = '';
+  sub.decisionNote = '';
+  sub.history = (sub.history || []).concat([{ action: 'submitted', by: who, at: now, note: '' }]);
+  saveDb();
+  skRefreshViews();
+  toast(`📤 Submitted to the ${skillsApproverLabel()}`);
+}
+
+// Re-draw whatever screen is showing and refresh badges after any status change.
+function skRefreshViews() {
+  const m = document.getElementById('sk-review-modal');
+  if (m) m.classList.remove('open');
+  renderNotifBell();
+  updateWorkflowNavBadge();
+  const pg = document.querySelector('.page.active');
+  if (!pg) return;
+  const fns = { skillsassessment: renderSkillsAssessment, skillsreport: renderSkillsReport, workflow: renderWorkflow };
+  const fn = fns[pg.id.replace('page-', '')];
+  if (fn) fn();
+}
+
+function skSetDecision(sub, status, note, action) {
+  const now = new Date().toISOString();
+  const who = currentUser ? currentUser.username : 'system';
+  sub.status = status;
+  sub.reviewedBy = who;
+  sub.reviewedAt = now;
+  sub.decisionNote = note || '';
+  sub.history = (sub.history || []).concat([{ action, by: who, at: now, note: note || '' }]);
+  saveDb();
+  skRefreshViews();
+}
+
+function skGetPending(id) {
+  const sub = (db.skillSubmissions || []).find(s => s.id === id);
+  if (!sub || sub.status !== 'pending') { toast('ℹ️ That submission is no longer pending'); skRefreshViews(); return null; }
+  return sub;
+}
+
+function skillSubApprove(id, note) {
+  if (!isSkillsApprover()) { toast('⛔ You do not have permission to approve skills assessments'); return; }
+  if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_', '/') + ' is locked — ask an admin to unlock it first', 'error'); return; }
+  const sub = skGetPending(id);
+  if (!sub) return;
+  if (note === undefined) {
+    note = prompt(`Approve the ${sub.cls} — ${sub.month} skills assessment?\n\nOptional decision note (recommendations or actions to take):`, '');
+    if (note === null) return;
+  }
+  skSetDecision(sub, 'approved', String(note).trim(), 'approved');
+  toast('✅ Approved — now in the Student Assessment Report');
+}
+
+function skillSubReturn(id, note) {
+  if (!isSkillsApprover()) { toast('⛔ You do not have permission to return skills assessments'); return; }
+  if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_', '/') + ' is locked — ask an admin to unlock it first', 'error'); return; }
+  const sub = skGetPending(id);
+  if (!sub) return;
+  if (note === undefined) {
+    note = prompt(`Reason for returning the ${sub.cls} — ${sub.month} assessment (the teacher will see this):`, '');
+    if (note === null) return;
+  }
+  note = String(note).trim();
+  if (!note) { toast('⚠ Give a reason so the teacher knows what to revise', 'error'); return; }
+  skSetDecision(sub, 'returned', note, 'returned');
+  toast('↩ Returned to the teacher for revision');
+}
+
+function skillSubReopen(id) {
+  if (!isSkillsApprover()) { toast('⛔ You do not have permission to reopen skills assessments'); return; }
+  if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_', '/') + ' is locked — ask an admin to unlock it first', 'error'); return; }
+  const sub = (db.skillSubmissions || []).find(s => s.id === id);
+  if (!sub || sub.status !== 'approved') return;
+  const note = prompt(`Reopen the approved ${sub.cls} — ${sub.month} assessment so the teacher can correct it?\n\nReason:`, '');
+  if (note === null) return;
+  skSetDecision(sub, 'returned', String(note).trim() || 'Reopened for correction', 'reopened');
+  toast('↩ Reopened — the teacher can edit and resubmit');
+}
+
+// Status banner + Submit button shown on the Skills Assessment page.
+function skPageBanner(sub, cls, month) {
+  const box = (bg, border, inner) => `<div style="margin-bottom:14px;padding:12px 16px;border-radius:10px;background:${bg};border:1px solid ${border};font-size:12.5px;color:var(--navy);display:flex;gap:12px;align-items:center;flex-wrap:wrap">${inner}</div>`;
+  const approver = isSkillsApprover();
+  if (!sub) {
+    return box('var(--cream2)', 'var(--border)', `<span>📝 <b>Draft</b> — not yet submitted. When the ratings for ${esc(cls)} are complete, use <b>Submit to ${esc(skillsApproverLabel())}</b> so they can review and decide.</span>`);
+  }
+  if (sub.status === 'pending') {
+    return box('var(--amber-light)', 'var(--gold)', `<span>⏳ <b>Pending review</b> — submitted by ${esc(sub.submittedBy || '—')} on ${skWhen(sub.submittedAt)}. Ratings are locked while it is under review.</span>` +
+      (approver ? `<button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="openSkillReview('${sub.id}')">👁 Review &amp; decide</button>` : ''));
+  }
+  if (sub.status === 'approved') {
+    return box('var(--green-light)', 'var(--green)', `<span>✅ <b>Approved</b> by ${esc(sub.reviewedBy || '—')} on ${skWhen(sub.reviewedAt)}${sub.decisionNote ? ` — “${esc(sub.decisionNote)}”` : ''}. Ratings are locked and included in the Student Assessment Report.</span>` +
+      (approver ? `<button class="btn btn-sm btn-outline" style="margin-left:auto" onclick="skillSubReopen('${sub.id}')">↩ Reopen</button>` : ''));
+  }
+  return box('var(--red-light)', 'var(--red)', `<span>↩ <b>Returned for revision</b> by ${esc(sub.reviewedBy || '—')} on ${skWhen(sub.reviewedAt)} — “${esc(sub.decisionNote || 'please revise')}”. Update the ratings, then submit again.</span>`);
+}
+
+// Colour-coded snapshot grid used in the review dialog.
+function skGridHtml(sub, prevAvgs) {
+  const rows = skRows(sub).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  const avgs = skClassAverages(sub);
+  const head = SKILLS_LIST.map(sk => `<th style="min-width:60px;padding:8px 4px;font-size:10px;text-align:center">${esc(sk.label)}</th>`).join('');
+  const body = rows.map(r => {
+    const cells = SKILLS_LIST.map(sk => {
+      const v = r.ratings[sk.key];
+      const c = v ? skColor(v) : null;
+      return `<td style="text-align:center;padding:5px 3px;font-size:12px;font-weight:600;${c ? `background:${c.bg};color:${c.fg}` : 'color:var(--muted)'}" title="${v ? esc(SKILL_RATING_LABELS[v]) : 'Not rated'}">${v || '—'}</td>`;
+    }).join('');
+    const c = skColor(r.avg);
+    return `<tr><td style="padding:6px 12px;white-space:nowrap;font-size:12.5px">${esc(r.name)}${skNeedsAttention(r) ? ' <span title="Needs attention" style="color:var(--red)">⚠</span>' : ''}</td>${cells}<td style="text-align:center;font-weight:700;font-size:12px;background:${c.bg};color:${c.fg}">${r.avg === null ? '—' : r.avg.toFixed(1)}</td></tr>`;
+  }).join('');
+  const deltaHtml = (cur, prev) => {
+    if (cur === null || prev === null || prev === undefined) return '';
+    const d = cur - prev;
+    const up = d > 0.049, down = d < -0.049;
+    return `<div style="font-size:9.5px;font-weight:600;color:${up ? 'var(--green)' : down ? 'var(--red)' : 'var(--muted)'}">${up ? '▲' : down ? '▼' : '•'} ${Math.abs(d).toFixed(1)}</div>`;
+  };
+  const foot = SKILLS_LIST.map(sk => {
+    const a = avgs.bySkill[sk.key];
+    const c = skColor(a);
+    return `<td style="text-align:center;padding:5px 3px;font-size:12px;font-weight:700;background:${c.bg};color:${c.fg}">${a === null ? '—' : a.toFixed(1)}${prevAvgs ? deltaHtml(a, prevAvgs.bySkill[sk.key]) : ''}</td>`;
+  }).join('');
+  const oc = skColor(avgs.overall);
+  return `<div style="overflow-x:auto"><table>
+    <thead><tr><th style="padding-left:12px;min-width:150px">Student</th>${head}<th style="min-width:56px;text-align:center">Avg</th></tr></thead>
+    <tbody>${body}</tbody>
+    <tfoot><tr style="background:var(--cream2)"><td style="padding:6px 12px;font-weight:600;font-size:11px">Class average${prevAvgs ? ' <span style="font-weight:400;color:var(--muted)">(▲▼ vs previous month)</span>' : ''}</td>${foot}<td style="text-align:center;font-weight:700;font-size:12px;background:${oc.bg};color:${oc.fg}">${avgs.overall === null ? '—' : avgs.overall.toFixed(1)}${prevAvgs ? deltaHtml(avgs.overall, prevAvgs.overall) : ''}</td></tr></tfoot>
+  </table></div>`;
+}
+
+// Review dialog — everything the Headteacher / Admin needs to make the decision.
+function openSkillReview(id) {
+  const sub = (db.skillSubmissions || []).find(s => s.id === id);
+  if (!sub) { toast('Submission not found'); return; }
+  let ov = document.getElementById('sk-review-modal');
+  if (!ov) { ov = document.createElement('div'); ov.className = 'modal-overlay'; ov.id = 'sk-review-modal'; document.body.appendChild(ov); }
+
+  const prev = skPrevSubmission(sub);
+  const prevAvgs = prev ? skClassAverages(prev) : null;
+  const avgs = skClassAverages(sub);
+  const rows = skRows(sub);
+  const flagged = rows.filter(skNeedsAttention).sort((a, b) => a.avg - b.avg);
+  const skillList = SKILLS_LIST.map(sk => ({ label: sk.label, avg: avgs.bySkill[sk.key] })).filter(x => x.avg !== null).sort((a, b) => a.avg - b.avg);
+  const weakest = skillList[0], strongest = skillList[skillList.length - 1];
+  const canDecide = isSkillsApprover() && sub.status === 'pending';
+  const canReopen = isSkillsApprover() && sub.status === 'approved';
+  const chip = (label, value, sub2) => `<div style="flex:1;min-width:130px;background:var(--cream2);border-radius:10px;padding:10px 14px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)">${label}</div><div style="font-size:18px;font-weight:700;color:var(--navy)">${value}</div>${sub2 ? `<div style="font-size:11px;color:var(--muted)">${sub2}</div>` : ''}</div>`;
+  const oc = skColor(avgs.overall);
+  const overallDelta = (prevAvgs && avgs.overall !== null && prevAvgs.overall !== null) ? avgs.overall - prevAvgs.overall : null;
+
+  ov.innerHTML = `
+    <div class="modal" style="width:min(1000px,96vw)">
+      <div class="modal-header">
+        <span class="modal-title">🌟 ${esc(sub.cls)} — ${esc(sub.month)} Skills Assessment</span>
+        <button class="modal-close" onclick="closeModal('sk-review-modal')">✕</button>
+      </div>
+      <div style="padding:16px 22px">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--muted);margin-bottom:14px">
+          <span class="badge ${SKILL_SUB_BADGE[sub.status]}">${SKILL_SUB_LABELS[sub.status]}</span>
+          <span>Submitted by <b style="color:var(--navy)">${esc(sub.submittedBy || '—')}</b> · ${skWhen(sub.submittedAt)}</span>
+          <span>Version ${sub.version || 1}</span>
+          <span>${rows.length} student${rows.length !== 1 ? 's' : ''} · ${sub.ratedCount || 0} of ${sub.expectedCount || 0} ratings filled</span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+          ${chip('Overall average', `<span style="color:${oc.fg}">${avgs.overall === null ? '—' : avgs.overall.toFixed(2)}</span> <span style="font-size:11px;font-weight:400;color:var(--muted)">/ 4</span>`,
+              overallDelta === null ? 'No earlier month to compare' : `${overallDelta > 0.049 ? '▲' : overallDelta < -0.049 ? '▼' : '•'} ${Math.abs(overallDelta).toFixed(2)} vs ${esc(prev.month)}`)}
+          ${chip('Need attention', `<span style="color:${flagged.length ? 'var(--red)' : 'var(--green)'}">${flagged.length}</span>`, 'avg below 2.5 or any skill rated 1')}
+          ${chip('Weakest skill', weakest ? esc(weakest.label) : '—', weakest ? 'avg ' + weakest.avg.toFixed(1) : '')}
+          ${chip('Strongest skill', strongest ? esc(strongest.label) : '—', strongest ? 'avg ' + strongest.avg.toFixed(1) : '')}
+        </div>
+        ${skGridHtml(sub, prevAvgs)}
+        ${flagged.length ? `<div style="margin-top:14px;font-size:12.5px"><b style="color:var(--red)">⚠ Students needing attention:</b> ${flagged.map(r => esc(r.name) + ' <span style="color:var(--muted)">(' + r.avg.toFixed(1) + ')</span>').join(' · ')}</div>` : ''}
+        ${(sub.history || []).length ? `<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);font-size:11.5px;color:var(--muted)"><b style="color:var(--navy)">History</b><br>${(sub.history || []).map(h => `${skWhen(h.at)} — <b>${esc(h.action)}</b> by ${esc(h.by || '—')}${h.note ? ` — “${esc(h.note)}”` : ''}`).join('<br>')}</div>` : ''}
+        ${canDecide ? `<div style="margin-top:16px"><label style="font-size:12px;font-weight:600;color:var(--navy)">Decision note <span style="font-weight:400;color:var(--muted)">(optional when approving — required when returning)</span></label>
+          <textarea id="sk-review-note" rows="3" style="width:100%;margin-top:6px" placeholder="e.g. Approved — arrange reading support for the flagged students. / Returned — Neatness ratings missing for 6 students."></textarea></div>` : ''}
+        ${!canDecide && sub.status !== 'pending' && sub.decisionNote ? `<div style="margin-top:14px;font-size:12.5px"><b>Decision note:</b> ${esc(sub.decisionNote)}</div>` : ''}
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('sk-review-modal')">Close</button>
+        ${canReopen ? `<button class="btn btn-outline" onclick="skillSubReopen('${sub.id}')">↩ Reopen</button>` : ''}
+        ${canDecide ? `<button class="btn btn-danger" onclick="skillSubReturn('${sub.id}', document.getElementById('sk-review-note').value)">↩ Return for revision</button>
+        <button class="btn btn-primary" onclick="skillSubApprove('${sub.id}', document.getElementById('sk-review-note').value)">✔ Approve</button>` : ''}
+      </div>
+    </div>`;
+  ov.classList.add('open');
+}
+
+// ── Bell notifications: approvers see what's waiting; submitters see the outcome ──
+function getSkillSubmissionNotifications() {
+  const out = [];
+  if (!currentUser) return out;
+  const subs = db.skillSubmissions || [];
+  if (isSkillsApprover()) {
+    const n = subs.filter(s => s.status === 'pending').length;
+    if (n) {
+      const plain = n + ' skills assessment' + (n !== 1 ? 's' : '') + ' awaiting your review';
+      out.push({ icon: '🌟', title: esc(plain), plainTitle: plain, date: today(), daysUntil: 0, whenText: 'Workflow · needs your decision', urgent: true, page: 'workflow' });
+    }
+  }
+  const me = (currentUser.username || '').toLowerCase();
+  subs.forEach(s => {
+    if ((s.submittedBy || '').toLowerCase() !== me) return;
+    if (s.status === 'returned') {
+      const plain = `${s.cls} — ${s.month} skills assessment was returned: ${s.decisionNote || 'please revise'}`;
+      out.push({ icon: '↩️', title: esc(plain), plainTitle: plain, date: today(), daysUntil: 0, whenText: 'Skills Assessment · needs your revision', urgent: true, page: 'skillsassessment' });
+    } else if (s.status === 'approved' && s.reviewedAt && (Date.now() - new Date(s.reviewedAt).getTime()) < 3 * 86400000) {
+      const plain = `${s.cls} — ${s.month} skills assessment was approved${s.decisionNote ? ': ' + s.decisionNote : ''}`;
+      out.push({ icon: '✅', title: esc(plain), plainTitle: plain, date: today(), daysUntil: 0, whenText: 'Skills Assessment · approved', urgent: false, page: 'skillsassessment' });
+    }
+  });
+  return out;
+}
+
+// ══════════════ STUDENT ASSESSMENT REPORT ══════════════
+// Reads the submitted snapshots (not the live ratings) so the numbers are exactly
+// what teachers submitted and the Headteacher / Admin reviewed. Returned
+// submissions are left out of the analysis (they're being revised) but stay listed
+// in the submissions log.
+window._skrCharts = window._skrCharts || {};
+
+function skrSet(key, value) {
+  const S = window._skrState || (window._skrState = { month: null, cls: 'all', status: 'active' });
+  S[key] = value;
+  renderSkillsReport();
+}
+
+function skrData() {
+  const S = window._skrState || (window._skrState = { month: null, cls: 'all', status: 'active' });
+  const MONTHS = skillMonths();
+  const all = db.skillSubmissions || [];
+  const okStatus = s => S.status === 'approved' ? s.status === 'approved'
+                      : S.status === 'pending'  ? s.status === 'pending'
+                      : (s.status === 'approved' || s.status === 'pending');
+  if (S.month === null || (S.month !== 'all' && !MONTHS.includes(S.month))) {
+    const withData = MONTHS.filter(m => all.some(s => s.month === m && okStatus(s)));
+    S.month = withData.length ? withData[withData.length - 1] : 'all';
+  }
+  const inCls = s => S.cls === 'all' || s.cls === S.cls;
+  const scoped = all.filter(s => okStatus(s) && inCls(s));
+  const cur = scoped.filter(s => S.month === 'all' || s.month === S.month);
+  return { S, MONTHS, all, okStatus, inCls, scoped, cur, curRows: cur.flatMap(skRows) };
+}
+
+function skrExportCsv() {
+  const { curRows } = skrData();
+  if (!curRows.length) { toast('Nothing to export for this selection'); return; }
+  const q = v => '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"';
+  const lines = [['Class', 'Month', 'Student ID', 'Student', ...SKILLS_LIST.map(sk => sk.label), 'Average', 'Status'].map(q).join(',')];
+  curRows.forEach(r => {
+    lines.push([r.cls, r.month, r.id, r.name, ...SKILLS_LIST.map(sk => r.ratings[sk.key] || ''), r.avg === null ? '' : r.avg.toFixed(2), SKILL_SUB_LABELS[r.status] || r.status].map(q).join(','));
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'student-assessment-report.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function renderSkillsReport() {
+  const el = document.getElementById('skr-inner');
+  if (!el) return;
+  const { S, MONTHS, all, inCls, scoped, cur, curRows } = skrData();
+  const canReview = isSkillsApprover();
+  const monthIdx = m => MONTHS.indexOf(m);
+
+  // ── KPIs ──
+  const inScopeAll = all.filter(s => inCls(s) && (S.month === 'all' || s.month === S.month));
+  const cnt = st => inScopeAll.filter(s => s.status === st).length;
+  const allVals = curRows.flatMap(r => SKILLS_LIST.map(sk => r.ratings[sk.key]).filter(v => v > 0));
+  const overall = skMean(allVals);
+  const goodPct = allVals.length ? Math.round(allVals.filter(v => v >= 3).length / allVals.length * 100) : null;
+  const uniqueStudents = new Set(curRows.map(r => r.id)).size;
+  const attentionRows = curRows.filter(skNeedsAttention);
+  const oc = skColor(overall);
+
+  // ── Class comparison heatmap ──
+  const classes = [...new Set(cur.map(s => s.cls))].sort((a, b) => CLASSES.indexOf(a) - CLASSES.indexOf(b));
+  const cell = (avg, extra) => { const c = skColor(avg); return `<td style="text-align:center;padding:7px 4px;font-size:12px;font-weight:600;background:${c.bg};color:${c.fg};${extra || ''}">${avg === null ? '—' : avg.toFixed(1)}</td>`; };
+  const classData = classes.map(c => {
+    const subs = cur.filter(s => s.cls === c);
+    const bySkill = SKILLS_LIST.map(sk => skPool(subs, sk.key));
+    const valid = bySkill.filter(v => v !== null);
+    const lowest = valid.length ? Math.min(...valid) : null;
+    return { cls: c, subs, bySkill, lowest, overall: skPool(subs), students: new Set(subs.flatMap(skRows).map(r => r.id)).size };
+  });
+  const classHead = SKILLS_LIST.map(sk => `<th style="min-width:64px;padding:8px 4px;font-size:10px;text-align:center">${esc(sk.label)}</th>`).join('');
+  const classBody = classData.map(d => `<tr>
+      <td style="padding:7px 12px;font-weight:600;white-space:nowrap">${esc(d.cls)}</td>
+      <td style="text-align:center;font-size:12px;color:var(--muted)">${d.students}</td>
+      ${d.bySkill.map(v => cell(v, v !== null && v === d.lowest && d.bySkill.filter(x => x === d.lowest).length === 1 ? 'box-shadow:inset 0 0 0 2px var(--navy)' : '')).join('')}
+      ${cell(d.overall, 'border-left:2px solid var(--border);font-weight:700')}
+    </tr>`).join('');
+  const allRow = classData.length > 1 ? `<tr style="background:var(--cream2)"><td style="padding:7px 12px;font-weight:700">All classes</td><td style="text-align:center;font-size:12px;color:var(--muted)">${uniqueStudents}</td>${SKILLS_LIST.map(sk => cell(skPool(cur, sk.key))).join('')}${cell(overall, 'border-left:2px solid var(--border);font-weight:700')}</tr>` : '';
+
+  // ── Trend across months ──
+  const trendMonths = MONTHS.filter(m => scoped.some(s => s.month === m));
+  const arrow = (first, last) => {
+    if (first === null || last === null || first === last) return '<td style="text-align:center;color:var(--muted)">—</td>';
+    const d = last - first;
+    if (Math.abs(d) < 0.05) return '<td style="text-align:center;color:var(--muted);font-size:12px">• steady</td>';
+    return `<td style="text-align:center;font-size:12px;font-weight:700;color:${d > 0 ? 'var(--green)' : 'var(--red)'}">${d > 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(1)}</td>`;
+  };
+  const skillMonthRows = SKILLS_LIST.map(sk => {
+    const vals = trendMonths.map(m => skPool(scoped.filter(s => s.month === m), sk.key));
+    const nn = vals.filter(v => v !== null);
+    return `<tr><td style="padding:7px 12px;white-space:nowrap;font-size:12.5px">${esc(sk.label)}</td>${vals.map(v => cell(v)).join('')}${arrow(nn[0] === undefined ? null : nn[0], nn.length ? nn[nn.length - 1] : null)}</tr>`;
+  }).join('');
+  const overallByMonth = trendMonths.map(m => skPool(scoped.filter(s => s.month === m)));
+  const onn = overallByMonth.filter(v => v !== null);
+  const overallMonthRow = `<tr style="background:var(--cream2)"><td style="padding:7px 12px;font-weight:700">Overall</td>${overallByMonth.map(v => cell(v, 'font-weight:700')).join('')}${arrow(onn.length ? onn[0] : null, onn.length ? onn[onn.length - 1] : null)}</tr>`;
+
+  // ── Student watch-lists (each student's row for the selected month, or latest) ──
+  const byStudent = {};
+  scoped.slice().sort((a, b) => monthIdx(a.month) - monthIdx(b.month)).forEach(s => skRows(s).forEach(r => { (byStudent[r.id] = byStudent[r.id] || []).push(r); }));
+  const watch = [];
+  Object.values(byStudent).forEach(list => {
+    const i = S.month === 'all' ? list.length - 1 : list.findIndex(r => r.month === S.month);
+    if (i < 0) return;
+    const r = list[i], p = i > 0 ? list[i - 1] : null;
+    watch.push({
+      ...r,
+      delta: (p && p.avg !== null && r.avg !== null) ? r.avg - p.avg : null,
+      focus: SKILLS_LIST.filter(sk => r.ratings[sk.key] > 0 && r.ratings[sk.key] <= 2).map(sk => ({ label: sk.label, v: r.ratings[sk.key] }))
+    });
+  });
+  const attentionList = watch.filter(skNeedsAttention).sort((a, b) => a.avg - b.avg);
+  const topList = watch.filter(r => r.avg !== null).sort((a, b) => b.avg - a.avg).slice(0, 5);
+  const deltaCell = d => d === null ? '<td style="text-align:center;color:var(--muted)">—</td>'
+    : `<td style="text-align:center;font-size:12px;font-weight:600;color:${d > 0.049 ? 'var(--green)' : d < -0.049 ? 'var(--red)' : 'var(--muted)'}">${d > 0.049 ? '▲' : d < -0.049 ? '▼' : '•'} ${Math.abs(d).toFixed(1)}</td>`;
+  const watchRow = r => { const c = skColor(r.avg); return `<tr>
+      <td style="padding:7px 12px"><div style="font-weight:500;font-size:13px;color:var(--navy)">${esc(r.name)}</div><div style="font-size:10px;color:var(--muted)">${esc(r.id)}</div></td>
+      <td style="white-space:nowrap">${esc(r.cls)}</td><td style="white-space:nowrap">${esc(r.month)}</td>
+      <td style="text-align:center;font-weight:700;background:${c.bg};color:${c.fg}">${r.avg === null ? '—' : r.avg.toFixed(1)}</td>
+      ${deltaCell(r.delta)}
+      <td style="font-size:11.5px">${r.focus.length ? r.focus.map(f => `<span style="display:inline-block;margin:1px 3px 1px 0;padding:1px 7px;border-radius:10px;background:${skColor(f.v).bg};color:${skColor(f.v).fg};font-weight:600">${esc(f.label)} ${f.v}</span>`).join('') : '<span style="color:var(--muted)">—</span>'}</td>
+      <td><span class="badge ${SKILL_SUB_BADGE[r.status]}">${SKILL_SUB_LABELS[r.status]}</span></td></tr>`; };
+  const watchHead = '<thead><tr><th style="padding-left:12px">Student</th><th>Class</th><th>Month</th><th style="text-align:center">Avg</th><th style="text-align:center">Change</th><th>Skills rated 1–2</th><th>Status</th></tr></thead>';
+
+  // ── Submissions log ──
+  const log = inScopeAll.slice().sort((a, b) => String(b.submittedAt || '').localeCompare(String(a.submittedAt || '')));
+  const logRows = log.map(s => {
+    const a = skClassAverages(s);
+    const c = skColor(a.overall);
+    return `<tr>
+      <td style="padding:7px 12px;font-weight:600;white-space:nowrap">${esc(s.cls)}</td><td style="white-space:nowrap">${esc(s.month)}</td>
+      <td>${esc(s.submittedBy || '—')}</td><td style="white-space:nowrap;font-size:12px">${skWhen(s.submittedAt)}</td>
+      <td style="text-align:center">${Object.keys(s.ratings || {}).length}</td>
+      <td style="text-align:center;font-weight:700;background:${c.bg};color:${c.fg}">${a.overall === null ? '—' : a.overall.toFixed(1)}</td>
+      <td><span class="badge ${SKILL_SUB_BADGE[s.status]}">${SKILL_SUB_LABELS[s.status]}</span></td>
+      <td style="font-size:11.5px;max-width:260px">${s.reviewedBy ? esc(s.reviewedBy) + (s.decisionNote ? ' — ' + esc(s.decisionNote) : '') : '<span style="color:var(--muted)">—</span>'}</td>
+      <td style="white-space:nowrap"><button class="btn btn-sm ${canReview && s.status === 'pending' ? 'btn-primary' : 'btn-outline'}" onclick="openSkillReview('${s.id}')">${canReview && s.status === 'pending' ? '👁 Review' : '👁 View'}</button></td>
+    </tr>`;
+  }).join('');
+
+  const sel = (id, value, opts) => `<select onchange="skrSet('${id}', this.value)" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);font-size:12.5px;background:var(--white)">${opts.map(o => `<option value="${esc(o[0])}" ${String(value) === String(o[0]) ? 'selected' : ''}>${esc(o[1])}</option>`).join('')}</select>`;
+  const th = 'padding:8px 4px;font-size:10px;text-align:center';
+
+  el.innerHTML = `
+    <div class="section-header">
+      <div>
+        <div class="section-title">📊 Student Assessment Report</div>
+        <div class="section-sub">Skills assessments submitted by teachers — compare classes, months and students · ${ACTIVE_YEAR}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="skrExportCsv()">⬇ CSV</button>
+        <button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ Print</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+      ${sel('month', S.month, [['all', 'All months'], ...MONTHS.map(m => [m, m])])}
+      ${sel('cls', S.cls, [['all', 'All classes'], ...CLASSES.map(c => [c, c])])}
+      ${sel('status', S.status, [['active', 'Approved + Pending'], ['approved', 'Approved only'], ['pending', 'Pending only']])}
+      <span style="font-size:11px;color:var(--muted)">Returned submissions are excluded from the analysis while they are being revised.</span>
+    </div>
+
+    ${all.length === 0 ? `<div class="card"><div class="empty-state"><div class="icon">📭</div>No skills assessments have been submitted yet.<br><span style="font-size:12px">Teachers submit them from Academic → Skills Assessment.</span></div></div>` : `
+
+    <div class="kpi-grid kpi-grid-5" style="margin-bottom:16px">
+      <div class="kpi-card navy"><div class="kpi-label">Submissions</div><div class="kpi-value">${inScopeAll.length}</div><div class="kpi-sub">${cnt('approved')} approved · ${cnt('pending')} pending${cnt('returned') ? ' · ' + cnt('returned') + ' returned' : ''}</div></div>
+      <div class="kpi-card gold"><div class="kpi-label">Students Assessed</div><div class="kpi-value">${uniqueStudents}</div><div class="kpi-sub">${classes.length} class${classes.length !== 1 ? 'es' : ''}</div></div>
+      <div class="kpi-card ${overall !== null && overall >= 3 ? 'green' : overall !== null && overall < 2.5 ? 'red' : 'gold'}"><div class="kpi-label">Overall Average</div><div class="kpi-value" style="color:${oc.fg}">${overall === null ? '—' : overall.toFixed(2)}</div><div class="kpi-sub">out of 4.00</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Rated Good / Excellent</div><div class="kpi-value">${goodPct === null ? '—' : goodPct + '%'}</div><div class="kpi-sub">of all ratings</div></div>
+      <div class="kpi-card ${attentionRows.length ? 'red' : 'green'}"><div class="kpi-label">Need Attention</div><div class="kpi-value">${attentionRows.length}</div><div class="kpi-sub">avg below 2.5 or a skill rated 1</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><span class="card-title">🏫 Class Comparison — ${S.month === 'all' ? 'all months' : esc(S.month)}</span><span style="font-size:11px;color:var(--muted)">Average rating (1–4) per skill · outlined cell = each class's weakest skill</span></div>
+      ${classes.length ? `<div style="overflow-x:auto"><table>
+        <thead><tr><th style="padding-left:12px;min-width:110px">Class</th><th style="${th}">Students</th>${classHead}<th style="${th};border-left:2px solid var(--border)">Overall</th></tr></thead>
+        <tbody>${classBody}${allRow}</tbody></table></div>
+        <div style="padding:14px 20px"><div style="position:relative;height:${Math.max(180, classes.length * 34 + 60)}px"><canvas id="skr-chart-class"></canvas></div></div>`
+        : `<div class="empty-state" style="padding:24px">No submissions match this selection.</div>`}
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><span class="card-title">📈 Month-by-Month Trend — ${S.cls === 'all' ? 'all classes' : esc(S.cls)}</span><span style="font-size:11px;color:var(--muted)">Uses every month submitted (ignores the month filter)</span></div>
+      ${trendMonths.length ? `
+        <div style="padding:14px 20px"><div style="position:relative;height:260px"><canvas id="skr-chart-trend"></canvas></div></div>
+        <div style="overflow-x:auto"><table>
+          <thead><tr><th style="padding-left:12px;min-width:170px">Skill</th>${trendMonths.map(m => `<th style="${th}">${esc(m)}</th>`).join('')}<th style="${th}">Change</th></tr></thead>
+          <tbody>${skillMonthRows}${overallMonthRow}</tbody></table></div>`
+        : `<div class="empty-state" style="padding:24px">No submitted months to compare yet.</div>`}
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><span class="card-title">🚨 Students Needing Attention — ${attentionList.length}</span><span style="font-size:11px;color:var(--muted)">Change is versus the student's previous submitted month</span></div>
+      ${attentionList.length ? `<div style="overflow-x:auto"><table>${watchHead}<tbody>${attentionList.slice(0, 30).map(watchRow).join('')}</tbody></table></div>${attentionList.length > 30 ? `<div style="padding:8px 20px;font-size:11px;color:var(--muted)">Showing the 30 lowest of ${attentionList.length}. Narrow by class or month to see the rest.</div>` : ''}`
+        : `<div class="empty-state" style="padding:24px">🎉 No students flagged for this selection.</div>`}
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><span class="card-title">🌟 Top Performers</span></div>
+      ${topList.length ? `<div style="overflow-x:auto"><table>${watchHead}<tbody>${topList.map(watchRow).join('')}</tbody></table></div>` : `<div class="empty-state" style="padding:24px">No data for this selection.</div>`}
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><span class="card-title">🗂️ Submissions Log — ${log.length}</span></div>
+      ${log.length ? `<div style="overflow-x:auto"><table>
+        <thead><tr><th style="padding-left:12px">Class</th><th>Month</th><th>Submitted by</th><th>Submitted</th><th style="text-align:center">Students</th><th style="text-align:center">Avg</th><th>Status</th><th>Decision</th><th></th></tr></thead>
+        <tbody>${logRows}</tbody></table></div>` : `<div class="empty-state" style="padding:24px">No submissions match this selection.</div>`}
+    </div>`}
+  `;
+
+  // ── Charts (Chart.js is loaded globally; skip quietly if it isn't) ──
+  if (!window.Chart || all.length === 0) return;
+  const kill = k => { if (window._skrCharts[k]) { try { window._skrCharts[k].destroy(); } catch (e) {} window._skrCharts[k] = null; } };
+  kill('cls'); kill('trend');
+
+  const cv1 = document.getElementById('skr-chart-class');
+  if (cv1 && classData.length) {
+    window._skrCharts.cls = new Chart(cv1, {
+      type: 'bar',
+      data: { labels: classData.map(d => d.cls), datasets: [{ label: 'Overall average', data: classData.map(d => d.overall === null ? null : +d.overall.toFixed(2)), backgroundColor: classData.map(d => skColor(d.overall).hex), borderRadius: 4 }] },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { min: 1, max: 4, title: { display: true, text: 'Average rating (1 = Need Urgent Attention · 4 = Excellent)', font: { size: 10 } } } } }
+    });
+  }
+  const cv2 = document.getElementById('skr-chart-trend');
+  if (cv2 && trendMonths.length) {
+    const palette = ['#0f1f3d', '#c9a227', '#16a34a', '#dc2626', '#7c3aed', '#0891b2', '#ea580c', '#db2777', '#4d7c0f', '#64748b'];
+    let datasets;
+    if (S.cls === 'all') {
+      const cl = [...new Set(scoped.map(s => s.cls))].sort((a, b) => CLASSES.indexOf(a) - CLASSES.indexOf(b));
+      datasets = cl.map((c, i) => ({ label: c, data: trendMonths.map(m => { const v = skPool(scoped.filter(s => s.cls === c && s.month === m)); return v === null ? null : +v.toFixed(2); }), borderColor: palette[i % palette.length], backgroundColor: palette[i % palette.length], tension: .25, spanGaps: true }));
+    } else {
+      datasets = [{ label: 'Overall', data: overallByMonth.map(v => v === null ? null : +v.toFixed(2)), borderColor: palette[0], backgroundColor: palette[0], borderWidth: 4, tension: .25, spanGaps: true }]
+        .concat(SKILLS_LIST.map((sk, i) => ({ label: sk.label, data: trendMonths.map(m => { const v = skPool(scoped.filter(s => s.month === m), sk.key); return v === null ? null : +v.toFixed(2); }), borderColor: palette[(i + 1) % palette.length], backgroundColor: palette[(i + 1) % palette.length], borderWidth: 1.5, tension: .25, spanGaps: true })));
+    }
+    window._skrCharts.trend = new Chart(cv2, {
+      type: 'line',
+      data: { labels: trendMonths, datasets },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }, scales: { y: { min: 1, max: 4 } } }
+    });
+  }
 }
 
 // ══════════════ PROMOTION MANAGEMENT ══════════════
@@ -17500,8 +18727,44 @@ function daysBetween(dateStr) {
 // Builds the notification list: every calendar event (and term start/end) within the next
 // 30 days, sorted soonest-first. Anything 2 days away or less (including today) is flagged
 // urgent — that's the "2 day notice" the app actively surfaces via the badge/pulse/toast.
+// ── "Top System User of the Week" — shown at the end of every Friday ──────────
+// Appears in the bell from WEEKLY_TOP_USER_HOUR (24h clock, default 15 = 3 PM) on
+// Friday and stays through the weekend, then drops off on Monday when a new week
+// starts. Covers the current Monday–Sunday week — the same week the Weekly Report
+// opens on by default, so the two always agree.
+const WEEKLY_TOP_USER_HOUR = 15;
+
+function getWeeklyTopUserNotification() {
+  const now = new Date();
+  const dow = now.getDay(); // 0=Sun … 5=Fri, 6=Sat
+  const fridayEnded = (dow === 5 && now.getHours() >= WEEKLY_TOP_USER_HOUR) || dow === 6 || dow === 0;
+  if (!fridayEnded) return null;
+
+  const days = wrWeekDates(0);
+  const ranking = computeWeeklyTeacherRanking(days[0], days[6]);
+  if (!ranking.top.length) return null;
+
+  const names = ranking.top.map(t => t.emp.name).join(' & ');
+  const t = ranking.top[0];
+  const detail = t.total + ' activit' + (t.total !== 1 ? 'ies' : 'y') + ' · ' + t.activeDays + ' active day' + (t.activeDays !== 1 ? 's' : '');
+  const plain = 'Top System User of the Week' + (ranking.top.length > 1 ? ' (tie)' : '') + ': ' + names + ' — ' + detail;
+  return {
+    icon: '🏆',
+    title: esc(plain),
+    plainTitle: plain,
+    date: days[4],            // the Friday of this week
+    daysUntil: -1,            // sorts above every calendar event
+    whenText: 'Weekly report · week of ' + days[0],
+    urgent: true,             // pulses the bell + counts in the badge
+    weeklyTop: true
+  };
+}
+
 function getUpcomingNotifications() {
   const items = [];
+  const weeklyTop = getWeeklyTopUserNotification();
+  if (weeklyTop) items.push(weeklyTop);
+  getSkillSubmissionNotifications().forEach(n => items.push(n));
   const events = (db.academicCalendar && db.academicCalendar.events) || [];
   events.forEach(e => {
     const d = daysBetween(e.date);
@@ -17567,11 +18830,11 @@ function renderNotifBell() {
     ${items.length === 0
       ? `<div class="notif-empty">No events coming up in the next 30 days.</div>`
       : items.map(i => `
-        <div class="notif-item ${i.urgent ? 'urgent' : ''}">
+        <div class="notif-item ${i.urgent ? 'urgent' : ''}" ${i.page ? `style="cursor:pointer" onclick="closeNotifPanel(); navigate('${i.page}')"` : ''}>
           <span class="notif-icon">${i.icon}</span>
           <div>
             <div class="notif-title">${i.title}</div>
-            <div class="notif-when">${whenLabel(i.daysUntil)} · ${i.date}</div>
+            <div class="notif-when">${i.whenText || (whenLabel(i.daysUntil) + ' · ' + i.date)}</div>
           </div>
         </div>`).join('')
     }
@@ -17601,7 +18864,19 @@ document.addEventListener('click', (e) => {
 // One toast per day per browser for urgent (≤2 day) events — alerts users without nagging
 // on every single page navigation. Called once after login and again on live data updates.
 function checkUrgentNotifToast() {
-  const items = getUpcomingNotifications().filter(i => i.urgent);
+  // Top user of the week: one toast per browser per week (its own key, so an
+  // earlier daily event toast on Friday morning can't suppress it).
+  const topN = getWeeklyTopUserNotification();
+  if (topN) {
+    const topKey = 'nazareth_top_user_toast_' + topN.date;
+    let seen = false;
+    try {
+      seen = !!localStorage.getItem(topKey);
+      if (!seen) localStorage.setItem(topKey, '1');
+    } catch(e) {}
+    if (!seen) { toast('🏆 ' + topN.plainTitle); return; }
+  }
+  const items = getUpcomingNotifications().filter(i => i.urgent && !i.weeklyTop);
   if (items.length === 0) return;
   const key = 'nazareth_notif_toast_' + today();
   try {
@@ -17610,7 +18885,7 @@ function checkUrgentNotifToast() {
   } catch(e) {}
   const first = items[0];
   const extra = items.length > 1 ? ` (+${items.length - 1} more)` : '';
-  toast('🔔 ' + first.icon + ' ' + first.title + ' — ' + whenLabel(first.daysUntil) + extra);
+  toast('🔔 ' + first.icon + ' ' + (first.plainTitle || first.title) + (first.plainTitle ? '' : ' — ' + whenLabel(first.daysUntil)) + extra);
 }
 
 function getCurrentTermStatus() {
@@ -18154,6 +19429,7 @@ function renderAttendance() {
     const k = attKey(cls, date);
     if (!db.attendance[k]) db.attendance[k] = {};
     studentsList.forEach(s => { db.attendance[k][s.id] = status; });
+    logUsage('attendance', k);
     saveDb();
     draw();
     const statusLabel = status === 'P' ? 'Present' : status === 'A' ? 'Absent' : 'Late';
@@ -18222,6 +19498,7 @@ function renderAttendance() {
     const next = cur === '' ? 'P' : cur === 'P' ? 'A' : cur === 'A' ? 'L' : '';
     if (next === '') delete db.attendance[k][studentId];
     else db.attendance[k][studentId] = next;
+    if (next !== '') logUsage('attendance', k);
     saveDb();
     draw();
   }
@@ -18286,7 +19563,7 @@ function renderAttendance() {
       const lCount = dates.filter(d => getStatus(selClass,d,s.id)==='L').length;
 
       return `<tr>
-        <td style="padding:8px 14px;white-space:nowrap">
+        <td class="att-name-col" style="padding:8px 14px;white-space:nowrap">
           <div style="font-weight:500;font-size:13px;color:var(--navy)">${esc(s.name)}</div>
           <div style="font-size:10px;color:var(--muted)">${s.id}</div>
         </td>
@@ -18362,10 +19639,10 @@ function renderAttendance() {
         ? `<div class="empty-state"><div class="icon">📭</div>No students in ${selClass}</div>`
         : `<div class="card">
             <div style="overflow-x:auto">
-              <table>
+              <table class="att-grid-table">
                 <thead>
                   <tr>
-                    <th style="padding-left:14px;min-width:160px">Student</th>
+                    <th class="att-name-col" style="padding-left:14px;min-width:160px">Student</th>
                     ${dateHeaders}
                     <th style="min-width:80px;text-align:center">Week</th>
                   </tr>
@@ -18373,7 +19650,7 @@ function renderAttendance() {
                 <tbody>
                   ${rows}
                   <tr style="background:var(--cream2);border-top:2px solid var(--border)">
-                    <td style="padding:8px 14px;font-size:11px;font-weight:600;color:var(--navy)">Present / Total</td>
+                    <td class="att-name-col" style="padding:8px 14px;font-size:11px;font-weight:600;color:var(--navy);background:var(--cream2)">Present / Total</td>
                     ${dailySummary}
                     <td></td>
                   </tr>
@@ -18929,6 +20206,10 @@ function getMyEmployeeRecord() {
 
 function staffClockIn(empId, dateStr) {
   const date = dateStr || today();
+  // Respect the Academic Calendar — no self clock-in on a Holiday/Vacation or
+  // Mid-Term Break day (same rule student Attendance already follows).
+  const nsd = getNonSchoolDayEvent(date);
+  if (nsd) { toast(`🚫 No clock-in — ${CAL_CAT_LABELS[nsd.category]}: ${nsd.title}`, 'error'); return; }
   if (!db.staffAttendance) db.staffAttendance = {};
   if (!db.staffAttendance[date]) db.staffAttendance[date] = {};
   const time = nowTimeStr();
@@ -18994,12 +20275,17 @@ function staffEditTime(empId, dateStr, field) {
 
 let _satDate = null;
 
+function satDateChange(v) { _satDate = v; renderStaffAttendance(); }
+
 function renderStaffAttendance() {
   const el = document.getElementById('sat-inner');
   if (!el) return;
   if (!_satDate) _satDate = today();
 
   const isBackOffice = currentUser && ['Admin','Bursar','Headteacher'].includes(currentUser.role);
+  // Teacher / Class Teacher / Headteacher may pick a date (not just today) and
+  // clock themselves in/out for it — e.g. catching up a day they forgot.
+  const canPickOwnDate = currentUser && ['Teacher','Class Teacher','Headteacher'].includes(currentUser.role);
   const myEmp = getMyEmployeeRecord();
   const dayRecords = (db.staffAttendance || {})[_satDate] || {};
 
@@ -19008,18 +20294,25 @@ function renderStaffAttendance() {
   if (myEmp) {
     const mine = dayRecords[myEmp.id] || {};
     const isToday = _satDate === today();
+    const nsd = getNonSchoolDayEvent(_satDate);
+    const canClockForDate = (isToday || canPickOwnDate) && !nsd;
     selfCard = `
       <div class="card" style="margin-bottom:16px">
-        <div class="card-header"><span class="card-title">🕘 My Attendance — ${esc(myEmp.name)}</span></div>
+        <div class="card-header" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span class="card-title">🕘 My Attendance — ${esc(myEmp.name)}</span>
+          ${canPickOwnDate && !isBackOffice ? `<input type="date" value="${_satDate}" onchange="satDateChange(this.value)" style="margin-left:auto;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px">` : ''}
+        </div>
         <div style="padding:16px 20px;display:flex;align-items:center;gap:24px;flex-wrap:wrap">
           <div class="sr-stat-card" style="min-width:110px"><div class="sr-stat-value">${mine.in || '—'}</div><div class="sr-stat-label">Clock In</div></div>
           <div class="sr-stat-card" style="min-width:110px"><div class="sr-stat-value">${mine.out || '—'}</div><div class="sr-stat-label">Clock Out</div></div>
           <div class="sr-stat-card" style="min-width:110px"><div class="sr-stat-value" style="${mine.status==='Late'?'color:var(--amber)':mine.status==='Absent'?'color:var(--red)':''}">${mine.status || '—'}</div><div class="sr-stat-label">Status</div></div>
-          ${isToday ? `
+          ${nsd
+            ? `<div style="margin-left:auto;font-size:11px;color:var(--red)">🚫 ${esc(CAL_CAT_LABELS[nsd.category])}: ${esc(nsd.title)} — no clock-in on this date</div>`
+            : canClockForDate ? `
             <div style="margin-left:auto;display:flex;gap:8px">
-              ${!mine.in ? `<button class="btn btn-gold" onclick="staffClockIn('${myEmp.id}'); renderStaffAttendance();">🕘 Clock In</button>` : ''}
-              ${mine.in && !mine.out ? `<button class="btn btn-outline" onclick="staffClockOut('${myEmp.id}'); renderStaffAttendance();">🚪 Clock Out</button>` : ''}
-              ${mine.in && mine.out ? `<span style="font-size:12px;color:var(--green);font-weight:600">✔ Done for today</span>` : ''}
+              ${!mine.in ? `<button class="btn btn-gold" onclick="staffClockIn('${myEmp.id}','${_satDate}'); renderStaffAttendance();">🕘 Clock In${!isToday ? ' — ' + esc(_satDate) : ''}</button>` : ''}
+              ${mine.in && !mine.out ? `<button class="btn btn-outline" onclick="staffClockOut('${myEmp.id}','${_satDate}'); renderStaffAttendance();">🚪 Clock Out</button>` : ''}
+              ${mine.in && mine.out ? `<span style="font-size:12px;color:var(--green);font-weight:600">✔ Done for ${isToday ? 'today' : esc(_satDate)}</span>` : ''}
             </div>` : `<div style="margin-left:auto;font-size:11px;color:var(--muted)">Viewing a past date — clock in/out only works for today</div>`}
         </div>
       </div>`;
@@ -19090,8 +20383,6 @@ function renderStaffAttendance() {
         </tbody>
       </table>
     </div>`;
-
-  window.satDateChange = v => { _satDate = v; renderStaffAttendance(); };
 }
 
 // ══════════════ TIMETABLE ══════════════
@@ -20175,8 +21466,9 @@ function renderStudentRecords() {
   function renderPerformanceTab(s) {
     const term = _srPerfTerm || TERMS[0];
     const p = performanceSummary(s, term);
-    const ratings = getSkillRatings(s.id, term);
-    const skillAvg = skillAverage(s.id, term);
+    const skillMonth = latestSkillMonth(s.id);
+    const ratings = skillMonth ? getSkillRatings(s.id, skillMonth) : {};
+    const skillAvg = skillAverageAllMonths(s.id);
     return `
       <div class="sr-filter-row" style="margin-bottom:14px">
         <select onchange="srPerfTerm(this.value)">
@@ -20201,7 +21493,7 @@ function renderStudentRecords() {
         </tbody>
       </table>
 
-      <div class="sr-chart-title" style="margin-top:18px">🌟 Skills Assessment (${esc(term)})</div>
+      <div class="sr-chart-title" style="margin-top:18px">🌟 Skills Assessment${skillMonth ? ' (' + esc(skillMonth) + ')' : ''}</div>
       <table class="sr-table">
         <thead><tr><th>Skill</th><th>Rating</th></tr></thead>
         <tbody>
@@ -21575,6 +22867,25 @@ function cashAccountForMode(mode) {
   return '1010'; // Cash
 }
 
+// Admission fees post straight to the General Ledger the moment a student's fee is saved —
+// debit the Cash/Bank/MoMo account matching the chosen payment mode, credit 4020 Admission
+// Fees — the same way Revenue Tracker entries do. Idempotent: safely reversible/re-callable
+// on every edit (source 'admissionfee', keyed by student id), so an amount or mode correction
+// never leaves a stale or duplicate ledger line behind.
+function postAdmissionFeeJournal(student) {
+  removeJournalEntriesFor('admissionfee', student.id);
+  if (!student.fee) return; // nothing to post
+  postJournalEntry(
+    student.createdDate || student.appdate || today(),
+    'Admission fee: ' + student.name,
+    [
+      { account: cashAccountForMode(student.feeMode || 'Cash'), debit: student.fee, credit: 0 },
+      { account: '4020', debit: 0, credit: student.fee }
+    ],
+    'admissionfee', student.id
+  );
+}
+
 // Removes journal entries tied to a deleted source record, so deleting a Revenue/Expense/
 // Petty Cash/Bank entry doesn't leave an orphaned, unmatched entry sitting in the ledger.
 function removeJournalEntriesFor(source, sourceId) {
@@ -21621,6 +22932,15 @@ function backfillJournalEntries() {
       { account: '4010', debit: 0, credit: tx.amount }
     ], 'fee', tx.id);
     mark('fee', tx.id); posted++;
+  });
+
+  (db.admissions || []).forEach(s => {
+    if (!s.fee || has('admissionfee', s.id)) return;
+    postJournalEntry(s.createdDate || s.appdate || today(), 'Admission fee: ' + s.name, [
+      { account: cashAccountForMode(s.feeMode || 'Cash'), debit: s.fee, credit: 0 },
+      { account: '4020', debit: 0, credit: s.fee }
+    ], 'admissionfee', s.id);
+    mark('admissionfee', s.id); posted++;
   });
 
   (db.pettyCash || []).forEach(p => {
@@ -21690,11 +23010,21 @@ function computeCashPosition(dataObj) {
   const pettyCash  = dataObj.pettyCash  || [];
   const txHistory  = dataObj.txHistory  || [];
 
-  let feesBank = 0, feesCash = 0;
+  let feesBank = 0, feesCash = 0, feesMomo = 0;
   txHistory.forEach(tx => {
     if (tx.type !== 'payment') return;
     if (tx.method === 'Bank') feesBank += tx.amount || 0;
+    else if (tx.method === 'MoMo') feesMomo += tx.amount || 0;
     else if (tx.method === 'Cash') feesCash += tx.amount || 0;
+  });
+  // Admission fees — split by the payment mode chosen on the Admission form (see
+  // postAdmissionFeeJournal() for the matching General Ledger posting; account 4020
+  // "Admission Fees"). Older records predate the mode field, so they default to Cash.
+  (dataObj.admissions || []).forEach(s => {
+    if (!s.fee) return;
+    if (s.feeMode === 'Bank') feesBank += s.fee;
+    else if (s.feeMode === 'MoMo') feesMomo += s.fee;
+    else feesCash += s.fee;
   });
   let revBank = 0, revMomo = 0, revCash = 0;
   revenues.forEach(r => {
@@ -21721,7 +23051,7 @@ function computeCashPosition(dataObj) {
   });
 
   const bank = feesBank + revBank - expBank + bankLedgerNet;
-  const momo = revMomo - expMomo;
+  const momo = feesMomo + revMomo - expMomo;
   const hand = Math.max(0, feesCash + revCash - expCash + pcIn - pcOut);
   return { bank, momo, hand, total: bank + momo + hand };
 }
@@ -23865,6 +25195,154 @@ function computeSystemUsageScore(username) {
   return { score, entries: last30, daysSinceLast, linked: true };
 }
 
+// ══════════════ USAGE LOG ══════════════
+// The system already records WHO did grade entries (recordedBy) and staff
+// clock in/out (staffAttendance, per employee). It did NOT record who marked
+// student attendance, who rated skills, or who logged in — this log fills
+// that gap. Stored at  <year>/usageLog/<username>/<date>/<type> = count.
+//
+// Written SEPARATELY from saveDb() on purpose: saveDb() sends every changed
+// field in ONE all-or-nothing Firebase update, so if the database rules ever
+// refuse this log it must not be able to break grade / attendance saving.
+// A refused log write just logs a console warning and is otherwise harmless.
+// Counts use Firebase's atomic server-side increment, so two teachers logging
+// at the same moment can never overwrite each other.
+const USAGE_FLUSH_MS = 60 * 1000;   // batch writes — one small write a minute at most
+let _usagePending = {};             // {full firebase path: increments waiting to be sent}
+let _usageFlushTimer = null;
+const _usageSeen = new Set();       // de-dupes repeat clicks within this page session
+
+function usageUserKey(username) {
+  return sanitizeFirebaseKey(String(username || '').toLowerCase());
+}
+
+// type: 'skills' | 'attendance' | 'login'.  uniqueKey (optional): the unit of work
+// (e.g. one class register, one skill cell) — repeated edits to the SAME unit in
+// one session count once, so re-clicking a cell can't inflate someone's score.
+function logUsage(type, uniqueKey) {
+  try {
+    if (!currentUser || !currentUser.username || !window.FB_PATH) return;
+    if (uniqueKey) {
+      const sk = type + '|' + uniqueKey;
+      if (_usageSeen.has(sk)) return;
+      _usageSeen.add(sk);
+    }
+    const user = usageUserKey(currentUser.username);
+    const date = today();
+
+    // Local copy first, so this user's own view is current straight away.
+    if (!db.usageLog) db.usageLog = {};
+    if (!db.usageLog[user]) db.usageLog[user] = {};
+    if (!db.usageLog[user][date]) db.usageLog[user][date] = {};
+    db.usageLog[user][date][type] = (db.usageLog[user][date][type] || 0) + 1;
+
+    if (!fbDb) return;
+    const path = `${window.FB_PATH}/usageLog/${user}/${date}/${type}`;
+    _usagePending[path] = (_usagePending[path] || 0) + 1;
+    if (!_usageFlushTimer) _usageFlushTimer = setTimeout(flushUsageLog, USAGE_FLUSH_MS);
+  } catch (e) { console.warn('logUsage failed:', e); }
+}
+
+function flushUsageLog() {
+  clearTimeout(_usageFlushTimer); _usageFlushTimer = null;
+  const paths = Object.keys(_usagePending);
+  if (!paths.length || !fbDb) return;
+  const updates = {};
+  paths.forEach(pth => { updates[pth] = firebase.database.ServerValue.increment(_usagePending[pth]); });
+  _usagePending = {};
+  // Same guard saveDb() uses: stops our own write echoing back and re-rendering
+  // the page the user is working on.
+  const wasSaving = _isSaving;
+  _isSaving = true;
+  fbDb.ref().update(updates)
+    .catch(err => console.warn('Usage log not saved — add a write rule for usageLog in Firebase:', err))
+    .then(() => setTimeout(() => { if (!wasSaving) _isSaving = false; }, 500));
+}
+
+// One login per user per day per browser. (The weekly ranking also caps logins
+// at 1 per day, so opening extra tabs can't be used to climb the ranking.)
+function logLoginOnce() {
+  try {
+    if (!currentUser || !currentUser.username) return;
+    const k = 'nazareth_login_logged_' + usageUserKey(currentUser.username) + '_' + today();
+    if (localStorage.getItem(k)) return;
+    localStorage.setItem(k, '1');
+  } catch (e) { /* storage blocked — fall through and log anyway */ }
+  logUsage('login');
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushUsageLog(); });
+window.addEventListener('pagehide', flushUsageLog);
+
+// ── Weekly teacher ranking ────────────────────────────────────────────────
+// Ranks teachers (staff whose Role mentions "Teacher" AND who have a System Login
+// Username linked in Payroll → Employee) by everything they did in the system
+// between wkStart and wkEnd (inclusive ISO dates). Six kinds of activity count:
+//   • Grade entries      – db.grades / db.gradeComponents   (recordedBy + date)
+//   • Skills assessment  – usageLog 'skills'  (one per skill rating given)
+//   • Student attendance – usageLog 'attendance' (one per class register worked on, per session)
+//   • Clock in / Clock out – db.staffAttendance (one each per day)
+//   • Logins             – usageLog 'login'   (max 1 per day counted)
+// total = sum of the above.  Order: 1) higher total, 2) more active days,
+// 3) still level → they share the same rank (competition ranking 1, 1, 3 …).
+// Teachers with no activity are listed last, unranked (rank = null).
+// Returns { rows: [{emp, total, grades, skills, attendance, clockIns, clockOuts,
+//                   logins, activeDays, lastDate, rank}], top: [rank-1 rows with total > 0] }
+function computeWeeklyTeacherRanking(wkStart, wkEnd) {
+  const inWk = d => d && d >= wkStart && d <= wkEnd;
+  const teachers = (db.employees || []).filter(e => (e.role || '').toLowerCase().includes('teacher') && e.username);
+  const log = db.usageLog || {};
+  const staffAtt = db.staffAttendance || {};
+  const attDates = Object.keys(staffAtt).filter(inWk);
+
+  const rows = teachers.map(e => {
+    const r = { emp: e, total: 0, grades: 0, skills: 0, attendance: 0, clockIns: 0, clockOuts: 0, logins: 0, activeDays: 0, lastDate: null, rank: null };
+    const days = new Set();
+    const touch = d => { days.add(d); if (!r.lastDate || d > r.lastDate) r.lastDate = d; };
+
+    // Grade entries (existing per-user record)
+    [db.grades, db.gradeComponents].forEach(store => {
+      Object.values(store || {}).forEach(g => {
+        if (g && g.recordedBy === e.username && inWk(g.date)) { r.grades++; touch(g.date); }
+      });
+    });
+
+    // Skills, student attendance, logins (usage log)
+    const mine = log[usageUserKey(e.username)] || {};
+    Object.keys(mine).forEach(d => {
+      if (!inWk(d)) return;
+      const day = mine[d] || {};
+      if (day.skills > 0)     { r.skills     += day.skills;     touch(d); }
+      if (day.attendance > 0) { r.attendance += day.attendance; touch(d); }
+      if (day.login > 0)      { r.logins     += 1;              touch(d); }   // max 1 per day
+    });
+
+    // Staff clock in / clock out
+    attDates.forEach(d => {
+      const rec = (staffAtt[d] || {})[e.id];
+      if (!rec) return;
+      if (rec.in)  { r.clockIns++;  touch(d); }
+      if (rec.out) { r.clockOuts++; touch(d); }
+    });
+
+    r.total = r.grades + r.skills + r.attendance + r.clockIns + r.clockOuts + r.logins;
+    r.activeDays = days.size;
+    return r;
+  });
+
+  rows.sort((a, b) =>
+    b.total - a.total ||
+    b.activeDays - a.activeDays ||
+    (a.emp.name || '').localeCompare(b.emp.name || ''));
+
+  rows.forEach((r, i) => {
+    if (r.total === 0) return;
+    const prev = rows[i - 1];
+    r.rank = (prev && prev.total === r.total && prev.activeDays === r.activeDays) ? prev.rank : i + 1;
+  });
+
+  return { rows, top: rows.filter(r => r.rank === 1 && r.total > 0) };
+}
+
 function aprOverallRating(criteria) {
   const vals = APPRAISAL_CRITERIA.map(c => criteria[c.key] || 0).filter(v => v > 0);
   return vals.length ? (vals.reduce((a,b)=>a+b,0) / vals.length) : 0;
@@ -23883,6 +25361,106 @@ function aprPercentColor(pct) {
 function renderStars(rating) {
   const full = Math.round(rating);
   return '<span class="rating-stars">' + '★★★★★'.slice(0,full) + '☆☆☆☆☆'.slice(0, 5-full) + '</span>';
+}
+
+// ══════════════ PARENT DATABASE (read-only, every role) ══════════════
+// Cached username→class map for whichever user is the Class Teacher of each
+// class — fetched once per session from the same listUsers Cloud Function
+// Manage Users uses. Teachers/Class Teachers may not have permission to call
+// it (it's normally an Admin tool), so a failure here is caught and simply
+// leaves the "Class Teacher" column blank rather than breaking the page.
+let _pdClassTeacherByClass = null;
+let _pdClassTeacherLoading = false;
+
+async function pdLoadClassTeachers() {
+  if (_pdClassTeacherByClass || _pdClassTeacherLoading || !cfListUsers) return;
+  _pdClassTeacherLoading = true;
+  try {
+    const { data: users } = await cfListUsers();
+    const map = {};
+    (users || []).forEach(u => {
+      if (u.role === 'Class Teacher' && u.class) map[u.class] = u.username;
+    });
+    _pdClassTeacherByClass = map;
+  } catch (e) {
+    // Likely a permissions restriction for non-Admin roles — degrade quietly.
+    _pdClassTeacherByClass = {};
+  } finally {
+    _pdClassTeacherLoading = false;
+    renderParentDatabase();
+  }
+}
+
+function renderParentDatabase() {
+  const el = document.getElementById('pdb-inner');
+  if (!el) return;
+
+  // Kick off the class-teacher lookup once; renderParentDatabase() re-runs
+  // itself when it resolves (see pdLoadClassTeachers above).
+  if (_pdClassTeacherByClass === null) pdLoadClassTeachers();
+
+  const search   = (document.getElementById('pd-search') || {value:''}).value.toLowerCase();
+  const clsFilter = (document.getElementById('pd-class-filter') || {value:''}).value;
+  const admitted = (db.admissions || []).filter(s => ['Admitted','Continuing','Scholarship'].includes(s.status));
+
+  const filtered = admitted.filter(s =>
+    (!clsFilter || s.cls === clsFilter) &&
+    (!search ||
+      (s.parent || '').toLowerCase().includes(search) ||
+      (s.name   || '').toLowerCase().includes(search) ||
+      (s.phone1 || '').toLowerCase().includes(search) ||
+      (s.phone2 || '').toLowerCase().includes(search))
+  ).sort((a,b) => (a.parent||'').localeCompare(b.parent||''));
+
+  const rows = filtered.map(s => {
+    const contact = [s.phone1, s.phone2].filter(Boolean).join(' / ') || '—';
+    const teacher = _pdClassTeacherByClass ? (_pdClassTeacherByClass[s.cls] || '—') : '…';
+    return `<tr>
+      <td style="font-weight:500">${esc(s.parent) || '—'}</td>
+      <td>${contact}</td>
+      <td>${esc(s.name)}</td>
+      <td>${esc(s.cls)}</td>
+      <td>${esc(teacher)}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" class="empty-state">No matching records</td></tr>';
+
+  el.innerHTML = `
+    <div class="section-header">
+      <div>
+        <div class="section-title">👪 Parent Database</div>
+        <div class="section-sub">Read-only directory — parent/guardian, contact, ward, class &amp; assigned class teacher</div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ Print</button>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <input type="text" id="pd-search" placeholder="🔍  Search parent, ward, or phone…" oninput="renderParentDatabase()" style="width:240px">
+        <select id="pd-class-filter" onchange="renderParentDatabase()">
+          <option value="">All classes</option>
+          ${CLASSES.map(c => `<option value="${c}" ${c===clsFilter?'selected':''}>${c}</option>`).join('')}
+        </select>
+        <div class="spacer"></div>
+        <span style="font-size:12px;color:var(--muted)">${filtered.length} record${filtered.length!==1?'s':''}</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th style="padding-left:14px">Parent / Guardian</th>
+              <th>Contact</th>
+              <th>Ward</th>
+              <th>Class</th>
+              <th>Class Teacher</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--muted)">
+      ℹ This directory is read-only for every role — no records can be added, edited, or removed here. Manage parent/guardian details from Admissions; manage class teacher assignments from Settings → Manage Users.
+    </div>`;
 }
 
 function renderAppraisals() {
@@ -24704,24 +26282,31 @@ function renderBankAccount() {
 
   // ── Build a unified chronological list from every source that touches the bank ──
   const rows = [];
+  const defAcctId = getDefaultBankAccountId();
+  // Same fallback used by bankAccountBalance(): a "Bank" transaction predating per-account
+  // tagging (or recorded before a second account existed) belongs to the Default account.
+  const acctOf = bid => bid || defAcctId;
+  const inAcct = bid => acctFil === 'ALL' || acctOf(bid) === acctFil;
 
-  if (acctFil === 'ALL') {
-    (db.revenue || []).forEach(r => {
-      if (r.mode !== 'Bank') return;
-      rows.push({ date: r.date, desc: r.desc, ref: r.ref, amount: r.amount || 0, direction: 'in', source: 'revenue', sourceLabel: 'Revenue', notes: r.notes });
-    });
-    (db.expenses || []).forEach(e => {
-      if (e.mode !== 'Bank') return;
-      rows.push({ date: e.date, desc: e.desc, ref: e.ref, amount: e.amount || 0, direction: 'out', source: 'expense', sourceLabel: 'Expense', notes: e.notes });
-    });
-    (db.txHistory || []).forEach(tx => {
-      if (tx.type !== 'payment' || tx.method !== 'Bank') return;
-      const s = (db.admissions || []).find(a => a.id === tx.studentId);
-      rows.push({ date: tx.date, desc: (s ? s.name : tx.studentId) + ' — fee payment (' + tx.term + ')', ref: tx.ref, amount: tx.amount || 0, direction: 'in', source: 'fee', sourceLabel: 'Fee Payment', notes: tx.notes });
-    });
-  }
+  (db.revenue || []).forEach(r => {
+    if (r.mode !== 'Bank' || !isPostedFin(r) || !inAcct(r.bankAccountId)) return;
+    rows.push({ date: r.date, desc: r.desc, ref: r.ref, amount: r.amount || 0, direction: 'in', source: 'revenue', sourceLabel: 'Revenue', notes: r.notes, bankAccountId: acctOf(r.bankAccountId) });
+  });
+  (db.expenses || []).forEach(e => {
+    if (e.mode !== 'Bank' || !isPostedFin(e) || !inAcct(e.bankAccountId)) return;
+    rows.push({ date: e.date, desc: e.desc, ref: e.ref, amount: e.amount || 0, direction: 'out', source: 'expense', sourceLabel: 'Expense', notes: e.notes, bankAccountId: acctOf(e.bankAccountId) });
+  });
+  (db.txHistory || []).forEach(tx => {
+    if (tx.type !== 'payment' || tx.method !== 'Bank' || !inAcct(tx.bankAccountId)) return;
+    const s = (db.admissions || []).find(a => a.id === tx.studentId);
+    rows.push({ date: tx.date, desc: (s ? s.name : tx.studentId) + ' — fee payment (' + tx.term + ')', ref: tx.ref, amount: tx.amount || 0, direction: 'in', source: 'fee', sourceLabel: 'Fee Payment', notes: tx.notes, bankAccountId: acctOf(tx.bankAccountId) });
+  });
+  (db.admissions || []).forEach(s => {
+    if (!s.fee || s.feeMode !== 'Bank' || !inAcct(s.feeBankAccountId)) return;
+    rows.push({ date: s.createdDate || s.appdate, desc: s.name + ' — admission fee', ref: '', amount: s.fee, direction: 'in', source: 'admissionfee', sourceLabel: 'Admission Fee', notes: '', bankAccountId: acctOf(s.feeBankAccountId) });
+  });
   (db.bankLedger || []).forEach(b => {
-    if (acctFil !== 'ALL' && b.bankAccountId !== acctFil) return;
+    if (!inAcct(b.bankAccountId)) return;
     rows.push({ id: b.id, date: b.date, desc: b.desc, ref: b.ref, amount: b.amount || 0, direction: b.direction, source: 'ledger', sourceLabel: b.category, notes: b.notes, editable: true, bankAccountId: b.bankAccountId, status: b.status });
   });
 
@@ -24862,17 +26447,62 @@ function getDefaultBankAccountId() {
   const def = accts.find(a => a.isDefault) || accts[0];
   return def ? def.id : null;
 }
-// Account-specific balance: opening balance + every bankLedger entry tagged to this
-// account. Revenue/Expense/Fee-Payment rows marked "Bank" aren't attributable to a
-// specific account yet, so they're excluded here — they still count toward the
-// combined "Bank Balance" KPI (computeCashPosition) shown in the "All Accounts" view.
+
+// Shown/hidden next to every "Payment Mode"/"Payment Method" selector (Revenue, Expense,
+// Payment Tracker, Transaction History, Admission) so a "Bank" transaction can be tied to
+// a SPECIFIC account — Barclays vs Absa vs Stanchart — not just a generic "Bank" bucket.
+function populateBankAcctSelect(selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const accts = getBankAccounts();
+  const defId = getDefaultBankAccountId();
+  sel.innerHTML = accts.length
+    ? accts.map(a => `<option value="${esc(a.id)}" ${a.id===defId?'selected':''}>${esc(a.name)}${a.bankName ? ' — ' + esc(a.bankName) : ''}</option>`).join('')
+    : '<option value="">No bank accounts set up — add one in Bank Account</option>';
+}
+function toggleBankAcctField(modeSelId, wrapId, selectId) {
+  const mode = document.getElementById(modeSelId).value;
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  if (mode === 'Bank') {
+    wrap.style.display = '';
+    populateBankAcctSelect(selectId);
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+// Account-specific balance: opening balance + everything actually tagged to this account —
+// manual Bank Account ledger entries, plus Revenue/Expense/Fee-payment/Admission-fee rows
+// recorded with mode/method "Bank". Records that predate per-account tagging (or where the
+// picker was left on "No bank accounts set up") fall back to the Default account, so no
+// money silently disappears from every account's total the day you add a second bank.
 function bankAccountBalance(acctId) {
   const acct = getBankAccounts().find(a => a.id === acctId);
   if (!acct) return 0;
+  const defId = getDefaultBankAccountId();
+  const acctOf = bid => bid || defId;
+
   const ledgerNet = (db.bankLedger || [])
     .filter(b => b.bankAccountId === acctId && b.status !== 'pending')
     .reduce((sum, b) => sum + (b.direction === 'in' ? b.amount : -b.amount), 0);
-  return (acct.openingBalance || 0) + ledgerNet;
+
+  const revIn = (db.revenue || [])
+    .filter(r => isPostedFin(r) && r.mode === 'Bank' && acctOf(r.bankAccountId) === acctId)
+    .reduce((a,r) => a + (r.amount||0), 0);
+
+  const expOut = (db.expenses || [])
+    .filter(e => isPostedFin(e) && e.mode === 'Bank' && acctOf(e.bankAccountId) === acctId)
+    .reduce((a,e) => a + (e.amount||0), 0);
+
+  const feeIn = (db.txHistory || [])
+    .filter(t => t.type === 'payment' && t.method === 'Bank' && acctOf(t.bankAccountId) === acctId)
+    .reduce((a,t) => a + (t.amount||0), 0);
+
+  const admIn = (db.admissions || [])
+    .filter(s => s.fee && s.feeMode === 'Bank' && acctOf(s.feeBankAccountId) === acctId)
+    .reduce((a,s) => a + (s.fee||0), 0);
+
+  return (acct.openingBalance || 0) + ledgerNet + revIn - expOut + feeIn + admIn;
 }
 
 function openBankAccountsModal() {
