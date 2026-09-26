@@ -5185,6 +5185,38 @@
   </div>
 </div>
 
+<!-- ── General Settings modal (Settings → General Settings) ── -->
+<div class="modal-overlay" id="general-settings-modal">
+  <div class="modal" style="width:520px">
+    <div class="modal-header">
+      <span class="modal-title">⚙️ General Settings</span>
+      <button class="modal-close" onclick="closeModal('general-settings-modal')">✕</button>
+    </div>
+    <div style="padding:14px 20px 4px;font-size:12px;color:var(--muted)">
+      School-wide feature toggles. These apply for every user, in every class.
+    </div>
+    <div style="padding:16px 20px 4px">
+      <div class="card" style="padding:14px 16px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--navy)">🍽️ Auto-disable feeding fee on absent days</div>
+            <div style="font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.6">
+              When a student is marked <strong>Absent</strong> on the Attendance Register, that day's
+              feeding fee is automatically excluded from what they owe, and the Feeding Revenue cell
+              for that student/date is locked — the same way a holiday already is.
+            </div>
+          </div>
+          <input type="checkbox" id="gs-auto-disable-feeding" style="width:18px;height:18px;accent-color:var(--navy);cursor:pointer;flex-shrink:0;margin-top:2px">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('general-settings-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveGeneralSettings()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ ADD ACCOUNT MODAL ══ -->
 <div class="modal-overlay" id="add-account-modal">
   <div class="modal">
@@ -5821,6 +5853,15 @@ const DB_SEED = {
   // ── PROMOTION MANAGEMENT — class teacher proposes, headmistress approves ──
   promotionLists: [], // [{id, cls, status:'draft'|'pending'|'approved'|'rejected', decisions:{studentId:{decision,toClass,notes}}, submittedBy, submittedAt, reviewedBy, reviewedAt, rejectionReason}]
   nextPromotionListId: 1,
+  // ── GENERAL SETTINGS — school-wide feature toggles, edited from Settings → General Settings ──
+  generalSettings: {
+    // When on, a student marked Absent (attendance = 'A') for a class/date has
+    // that day's feeding fee automatically disabled: it's excluded from the
+    // amount expected/owed, and the Feeding Revenue cell for that student/date
+    // is locked (same treatment as a holiday), so no one can record a payment
+    // against a day the child wasn't in school to be fed.
+    autoDisableFeedingOnAbsent: true
+  },
   // ── APPROVAL WORKFLOW CONFIG — which roles submit-for-approval vs approve, per workflow ──
   approvalConfig: {
     pettyCash: { needsApprovalRoles: ['Headteacher'], approverRoles: ['Admin'] },
@@ -6908,6 +6949,22 @@ function saveSchoolDetails() {
   closeModal('school-details-modal');
 }
 
+// ── General Settings modal (Settings → General Settings) ──
+function openGeneralSettingsModal() {
+  if (!requireRole('Admin')) return;
+  if (!db.generalSettings) db.generalSettings = JSON.parse(JSON.stringify(DB_SEED.generalSettings));
+  document.getElementById('gs-auto-disable-feeding').checked = !!db.generalSettings.autoDisableFeedingOnAbsent;
+  document.getElementById('general-settings-modal').classList.add('open');
+}
+
+function saveGeneralSettings() {
+  if (!db.generalSettings) db.generalSettings = {};
+  db.generalSettings.autoDisableFeedingOnAbsent = document.getElementById('gs-auto-disable-feeding').checked;
+  saveDb();
+  toast('✅ General settings saved');
+  closeModal('general-settings-modal');
+}
+
 // ── Sync status indicator ──
 let _fbConnected = false;
 function setSyncStatus(status) {
@@ -7104,6 +7161,8 @@ function initDb(callback) {
       db.nextSkillSubId = data.nextSkillSubId ?? 1;
       db.promotionLists = data.promotionLists || [];
       db.nextPromotionListId = data.nextPromotionListId ?? 1;
+      db.generalSettings = data.generalSettings || JSON.parse(JSON.stringify(DB_SEED.generalSettings));
+      if (db.generalSettings.autoDisableFeedingOnAbsent === undefined) db.generalSettings.autoDisableFeedingOnAbsent = true;
       db.approvalConfig = data.approvalConfig || JSON.parse(JSON.stringify(DB_SEED.approvalConfig));
       if (!db.approvalConfig.pettyCash) db.approvalConfig.pettyCash = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.pettyCash));
       if (!db.approvalConfig.finance) db.approvalConfig.finance = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.finance));
@@ -7572,6 +7631,7 @@ const MODULE_DEFS = {
       { icon:'🔑', label:'Change Password',    action:'openChpwdModal' },
       { icon:'👥', label:'Manage Users',       action:'openManageUsersModal', adminOnly:true },
       { icon:'🏫', label:'School Details',     action:'openSchoolDetailsModal', adminOnly:true },
+      { icon:'⚙️', label:'General Settings',   action:'openGeneralSettingsModal', adminOnly:true },
       { icon:'✅', label:'Approval Workflow',  action:'openApprovalWorkflowModal', adminOnly:true },
       { icon:'🔒', label: () => isYearLocked() ? '🔓 Unlock Academic Year' : '🔒 Lock Academic Year', action:'toggleYearLock', adminOnly:true },
       { icon:'🎟️', label:'Fee Discounts & Exemptions', action:'openFeeDiscountsModal', adminOnly:true },
@@ -11744,9 +11804,37 @@ function renderIncomeStatement() {
 
   // Revenue by category & term — date filtered, approved only. "Admission Fees" is
   // excluded here since it's already counted in the "Admissions" row above.
-  const revCats = getRevCats().filter(c => c !== 'Admission Fees');
+  // "Feeding Fees" is also excluded and handled specially below.
+  const revCats = getRevCats().filter(c => c !== 'Admission Fees' && c !== 'Feeding Fees');
   const getRevByTermCat = (t,cat) => db.revenue.filter(r=>(!t||r.term===t)&&r.cat===cat&&inRange(r.date)&&isPostedFin(r)).reduce((a,b)=>a+b.amount,0);
   const getRevByTerm = t => db.revenue.filter(r=>(!t||r.term===t)&&inRange(r.date)&&isPostedFin(r)).reduce((a,b)=>a+b.amount,0);
+
+  // Feeding Fees — the day-by-day amounts recorded on the Feeding Schedule
+  // (Feeding Revenue) page never get filed as a Revenue Tracker entry, so on
+  // their own they'd never reach this statement. Combine those actual
+  // collections (date-filtered, term inferred from each date via
+  // fdrTermForDate) with any Revenue Tracker entry filed under "Feeding
+  // Fees" directly — the same fromReg + fromRev pattern "Admissions" above
+  // already uses to merge two sources of the same revenue.
+  const feedingFromSchedule = {};
+  TERMS.forEach(t => { feedingFromSchedule[t] = 0; });
+  Object.keys(db.feedingLedger || {}).forEach(key => {
+    const sep = key.indexOf('|');
+    if (sep === -1) return;
+    const cls = key.slice(3, sep).replace(/_/g, ' '); // strip 'fd_' prefix
+    const date = key.slice(sep + 1);
+    if (!inRange(date)) return;
+    const term = fdrTermForDate(date);
+    if (!term || feedingFromSchedule[term] === undefined) return;
+    Object.keys(db.feedingLedger[key] || {}).forEach(sid => {
+      feedingFromSchedule[term] += feedingAmountFor(cls, date, sid);
+    });
+  });
+  const feeding = {};
+  TERMS.forEach(t => {
+    const fromRev = db.revenue.filter(r=>r.term===t && r.cat==='Feeding Fees' && inRange(r.date) && isPostedFin(r)).reduce((s,r)=>s+(r.amount||0),0);
+    feeding[t] = feedingFromSchedule[t] + fromRev;
+  });
 
   // Expenses by category & term — date filtered, approved only
   const expCats = getExpCats();
@@ -11766,6 +11854,7 @@ function renderIncomeStatement() {
   const revRows = {
     'Tuition Fees': TERMS.map(t=>tuition[t]),
     'Admissions': TERMS.map(t=>admissions[t]),
+    'Feeding Fees': TERMS.map(t=>feeding[t]),
     ...Object.fromEntries(revCats.map(c=>[c, TERMS.map(t=>getRevByTermCat(t,c))]))
   };
   const totalRevPerTerm = TERMS.map((_,i) => Object.values(revRows).reduce((s,v)=>s+v[i],0));
@@ -11775,6 +11864,20 @@ function renderIncomeStatement() {
 
   const netPerTerm = TERMS.map((_,i) => totalRevPerTerm[i] - totalExpPerTerm[i]);
   const netTotal = netPerTerm.reduce((a,b)=>a+b,0);
+
+  // ── Reconciliation: Dashboard's "Total Billed" KPI vs. this statement's
+  // Tuition Fees row. Both ultimately sum getStudentFee() over the same
+  // admitted/Continuing/Scholarship students, so on their own they'd match —
+  // but the Dashboard KPI also adds each student's carryForward (arrears
+  // brought forward from the previous academic year), which this statement
+  // correctly leaves out: that revenue was already recognized in the prior
+  // year's Income Statement, not this one. This is what usually explains a
+  // Total Billed figure that reads higher than Tuition Fees shown below.
+  const tuitionFullYear = TERMS.reduce((a,t) => a + tuition[t], 0);
+  const carryForwardTotal = admitted.reduce((a,s) => a + ((db.carryForwards && db.carryForwards[s.id]) || 0), 0);
+  const totalBilledKpi = tuitionFullYear + carryForwardTotal;
+  const _prevYrKey = getPrevYearKey(ACTIVE_YEAR);
+  const prevYearLabel = _prevYrKey ? yearKeyToDisplay(_prevYrKey).long : 'the previous year';
 
   const card = document.getElementById('income-statement-card');
   if (!card) return;
@@ -11814,6 +11917,16 @@ function renderIncomeStatement() {
     <div style="padding:10px 20px;font-size:11px;color:var(--muted)">
       ℹ Revenue and Expense entries are filtered by their recorded date within the selected period. Tuition Fees reflect the total bill per term based on student admission status. Admissions reflect one-time admission fees within the period.
     </div>
+    ${carryForwardTotal > 0 ? `
+    <div style="margin:0 20px 14px;padding:12px 16px;background:var(--cream2);border-radius:8px;border:1px dashed var(--gold)">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:6px">🔎 Why "Total Billed" on the Dashboard reads higher than Tuition Fees above</div>
+      <div style="display:flex;flex-direction:column;gap:3px;font-size:12px">
+        <div style="display:flex;justify-content:space-between"><span>Total Billed (Dashboard KPI — full year, all terms)</span><b>GHS ${fmt(totalBilledKpi)}</b></div>
+        <div style="display:flex;justify-content:space-between;color:var(--red)"><span>Less: arrears carried forward from ${esc(prevYearLabel)} (already recognized as revenue that year)</span><span>(GHS ${fmt(carryForwardTotal)})</span></div>
+        <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:3px;margin-top:2px"><span style="font-weight:600">= Tuition Fees revenue for this year (shown above)</span><b style="color:var(--green)">GHS ${fmt(tuitionFullYear)}</b></div>
+      </div>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:6px">The Dashboard's Total Billed figure includes brought-forward arrears so it reflects everything currently owed to the school; this Income Statement excludes it so this year's revenue isn't double-counted.</div>
+    </div>` : ''}
     <div id="is-prior-compare" style="border-top:1px solid var(--border)">
       <div style="padding:12px 20px;font-size:12px;color:var(--muted)">⏳ Checking for prior year comparison…</div>
     </div>`;
@@ -12453,10 +12566,13 @@ function renderFeedingSchedule() {
     if (!db.feedingLedger) db.feedingLedger = {};
     const k = fdKey(cls, date);
     if (!db.feedingLedger[k]) db.feedingLedger[k] = {};
-    studentsList.forEach(s => { db.feedingLedger[k][s.id] = rate; });
+    const eligible = studentsList.filter(s => !feedingDisabledByAbsence(cls, date, s.id));
+    const skipped = studentsList.length - eligible.length;
+    eligible.forEach(s => { db.feedingLedger[k][s.id] = rate; });
     saveDb();
     draw();
-    toast(`✅ Marked all ${studentsList.length} students fully paid (GHS ${rate.toFixed(2)} each)`);
+    toast(`✅ Marked ${eligible.length} student${eligible.length!==1?'s':''} fully paid (GHS ${rate.toFixed(2)} each)` +
+      (skipped ? ` · 🚫 ${skipped} skipped (marked Absent)` : ''));
   }
 
   // Admin-only: mark every student in the current class Paid across every school
@@ -12485,7 +12601,9 @@ function renderFeedingSchedule() {
         const k = fdKey(cls, dateStr);
         if (!db.feedingLedger[k]) db.feedingLedger[k] = {};
         const rate = feedingDailyRate(cls, fdrTermForDate(dateStr));
-        studentsList.forEach(s => { db.feedingLedger[k][s.id] = rate; });
+        studentsList.forEach(s => {
+          if (!feedingDisabledByAbsence(cls, dateStr, s.id)) db.feedingLedger[k][s.id] = rate;
+        });
         schoolDays++;
       }
       cursor.setDate(cursor.getDate() + 1);
@@ -12516,6 +12634,7 @@ function renderFeedingSchedule() {
     if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_','/') + ' is locked — ask an admin to unlock it first', 'error'); return; }
     const nsd = getNonSchoolDayEvent(date);
     if (nsd) { toast(`🚫 No feeding — ${CAL_CAT_LABELS[nsd.category]}: ${nsd.title}`, 'error'); return; }
+    if (feedingDisabledByAbsence(cls, date, sid)) { toast('🚫 Feeding fee disabled — student was marked Absent that day', 'error'); return; }
     const amt = parseFloat(value);
     if (!db.feedingLedger) db.feedingLedger = {};
     const k = fdKey(cls, date);
@@ -12778,6 +12897,11 @@ function renderFeedingSchedule() {
             <span class="fd-cell" style="cursor:not-allowed;opacity:0.55;background:transparent;width:36px;height:32px;display:inline-flex" title="No feeding — ${esc(CAL_CAT_LABELS[nsd.category])}: ${esc(nsd.title)}">🔒</span>
           </td>`;
         }
+        if (feedingDisabledByAbsence(selClass, d, s.id)) {
+          return `<td style="text-align:center;padding:5px 3px">
+            <span class="fd-cell" style="cursor:not-allowed;opacity:0.55;background:transparent;width:36px;height:32px;display:inline-flex" title="Feeding fee disabled — ${esc(s.name)} was marked Absent on ${d}">🚫</span>
+          </td>`;
+        }
         const amt = feedingAmountFor(selClass, d, s.id);
         const stateClass = amt <= 0 ? 'fd-amt-empty' : (amt >= dailyRate ? 'fd-amt-full' : 'fd-amt-partial');
         return `<td style="text-align:center;padding:5px 3px">
@@ -12789,7 +12913,7 @@ function renderFeedingSchedule() {
       }).join('');
 
       const weekPaid     = dates.reduce((a,d) => a + feedingAmountFor(selClass, d, s.id), 0);
-      const weekExpected = weekSchoolDays.length * dailyRate;
+      const weekExpected = weekSchoolDays.filter(d => !feedingDisabledByAbsence(selClass, d, s.id)).length * dailyRate;
       const joinDate = s.date || s.admissionDate || '';
       const cum = feedingCumulativeForStudent(selClass, s.id, joinDate);
 
@@ -12824,9 +12948,11 @@ function renderFeedingSchedule() {
       </td>`;
     }).join('');
 
-    let weekRevenue = 0;
-    students.forEach(s => { dates.forEach(d => { weekRevenue += feedingAmountFor(selClass, d, s.id); }); });
-    const weekExpectedTotal = students.length * weekSchoolDays.length * dailyRate;
+    let weekRevenue = 0, weekExpectedTotal = 0;
+    students.forEach(s => {
+      dates.forEach(d => { weekRevenue += feedingAmountFor(selClass, d, s.id); });
+      weekExpectedTotal += weekSchoolDays.filter(d => !feedingDisabledByAbsence(selClass, d, s.id)).length * dailyRate;
+    });
 
     // Cumulative outstanding across every student currently in this class —
     // the headline "how much feeding money is this class owed right now" figure.
@@ -13184,6 +13310,29 @@ function renderFeedingReport() {
     `<button class="stat-tab ${_fdrActiveTerm===t?'active':''}" onclick="switchFeedingReportTerm('${t}',this)">📅 ${t}</button>`
   ).join('');
 
+  // ── Feeding Arrears — sourced directly from the Feeding Schedule's own
+  // running-balance calculation (feedingCumulativeForStudent: expected minus
+  // paid across every configured term, from each student's admission date up
+  // to today). This is the same figure the "Balance" column on the Feeding
+  // Revenue page shows per student — here it's totalled across every
+  // currently admitted student. It's a current balance, not a period
+  // activity, so — unlike the KPIs above — it isn't scoped to the Full
+  // Year / per-term tab.
+  const arrearsByClass = {};
+  CLASSES.forEach(c => { arrearsByClass[c] = { outstanding: 0, credit: 0, studentsOwing: 0 }; });
+  let totalFeedingArrears = 0, totalFeedingCredit = 0, studentsInArrears = 0;
+  (db.admissions || []).forEach(s => {
+    if (!arrearsByClass[s.cls]) return;
+    const joinDate = s.date || s.admissionDate || '';
+    const cum = feedingCumulativeForStudent(s.cls, s.id, joinDate);
+    arrearsByClass[s.cls].outstanding += cum.outstanding;
+    arrearsByClass[s.cls].credit += cum.credit;
+    if (cum.outstanding > 0) { arrearsByClass[s.cls].studentsOwing += 1; studentsInArrears += 1; }
+    totalFeedingArrears += cum.outstanding;
+    totalFeedingCredit += cum.credit;
+  });
+  const classesInArrears = CLASSES.filter(c => arrearsByClass[c].outstanding > 0 || arrearsByClass[c].credit > 0);
+
   el.innerHTML = `
     <div class="section-header">
       <div>
@@ -13233,6 +13382,38 @@ function renderFeedingReport() {
           </tr></tfoot>` : ''}
         </table>
       </div>
+    </div>
+
+    <!-- ── Feeding Arrears (from the Feeding Schedule's running balance) ── -->
+    <div class="section-header" style="margin-bottom:14px;margin-top:4px">
+      <div><div class="section-title">💳 Feeding Fee Arrears</div><div class="section-sub">Current outstanding balance, sourced from the Feeding Schedule (Feeding Revenue) page — not scoped to the term tab above</div></div>
+    </div>
+
+    <div class="kpi-grid kpi-grid-3" style="margin-bottom:16px">
+      <div class="kpi-card red"><div class="kpi-label">Total Feeding in Arrears</div><div class="kpi-value">GHS ${fmt(totalFeedingArrears)}</div><div class="kpi-sub">Owed across every currently admitted student</div></div>
+      <div class="kpi-card gold"><div class="kpi-label">Students in Arrears</div><div class="kpi-value">${studentsInArrears}</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Total Credit / Overpaid</div><div class="kpi-value">GHS ${fmt(totalFeedingCredit)}</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <div class="stat-section-title">📋 Arrears by Class</div>
+      <table>
+        <thead><tr><th>Class</th><th>Students Owing</th><th>Outstanding (GHS)</th><th>Credit (GHS)</th></tr></thead>
+        <tbody>
+          ${classesInArrears.length ? classesInArrears.map(c => `<tr>
+            <td>${esc(c)}</td>
+            <td>${arrearsByClass[c].studentsOwing}</td>
+            <td style="font-weight:600;color:${arrearsByClass[c].outstanding>0?'var(--red)':'var(--muted)'}">${fmt(arrearsByClass[c].outstanding)}</td>
+            <td style="color:var(--green)">${arrearsByClass[c].credit>0?fmt(arrearsByClass[c].credit):'—'}</td>
+          </tr>`).join('') : '<tr><td colspan="4" class="empty-state">No feeding arrears or credit on record for any admitted student.</td></tr>'}
+        </tbody>
+        ${classesInArrears.length ? `<tfoot><tr>
+          <td style="font-weight:700">Total</td>
+          <td style="font-weight:700">${studentsInArrears}</td>
+          <td style="font-weight:700;color:var(--red)">${fmt(totalFeedingArrears)}</td>
+          <td style="font-weight:700;color:var(--green)">${fmt(totalFeedingCredit)}</td>
+        </tr></tfoot>` : ''}
+      </table>
     </div>
 
     <!-- ── Feeding Revenue vs Feeding Expenses (General Ledger) ── -->
@@ -13346,6 +13527,22 @@ function renderFeedingReport() {
 // key format, kept as a standalone copy for the report to parse ledger keys.
 function fdKeyGlobal(cls, date) { return 'fd_' + cls.replace(/\s/g,'_') + '|' + date; }
 
+// Attendance status ('P'|'A'|'L'|'') for one student, one class, one date.
+// Matches the key format attendance is stored under (see renderAttendance()'s
+// local attKey() and kgAttendanceSummary()).
+function attendanceStatusFor(cls, date, sid) {
+  const key = cls.replace(/\s/g,'_') + '|' + date;
+  return ((db.attendance || {})[key] || {})[sid] || '';
+}
+
+// Whether General Settings → "Auto-disable feeding fee on absent days" should
+// block/zero-out the feeding fee for this student on this date. True only
+// when the toggle is on AND the student is marked Absent for that class/date.
+function feedingDisabledByAbsence(cls, date, sid) {
+  return !!(db.generalSettings && db.generalSettings.autoDisableFeedingOnAbsent) &&
+    attendanceStatusFor(cls, date, sid) === 'A';
+}
+
 // Daily feeding rate for a class in a given term (falls back to Term 1's
 // rate for null/unconfigured terms, matching the Feeding Report's existing
 // convention).
@@ -13388,7 +13585,7 @@ function feedingCumulativeForStudent(cls, sid, joinDate) {
     while (cursor <= endD) {
       const dow = cursor.getDay();
       const dateStr = cursor.toISOString().slice(0, 10);
-      if (dow !== 0 && dow !== 6 && !getNonSchoolDayEvent(dateStr)) {
+      if (dow !== 0 && dow !== 6 && !getNonSchoolDayEvent(dateStr) && !feedingDisabledByAbsence(cls, dateStr, sid)) {
         expected += rate;
         paid += feedingAmountFor(cls, dateStr, sid);
       }
@@ -26722,11 +26919,13 @@ const APPRAISAL_CRITERIA_CLASS_TEACHER = [
 ];
 const APPRAISAL_CRITERIA_HEADTEACHER = [
   { key: 'leadership',      label: 'Leadership &amp; Staff Supervision' },
+  { key: 'punctuality',     label: 'Punctuality &amp; Attendance', auto: true },
   { key: 'compliance',      label: 'Policy Implementation &amp; Compliance' },
   { key: 'staffDev',        label: 'Staff Development &amp; Support' },
   { key: 'parentRelations', label: 'Parent &amp; Community Relations' },
   { key: 'oversight',       label: 'School Administration &amp; Record Oversight' },
-  { key: 'professionalism', label: 'Professionalism &amp; Conduct' }
+  { key: 'professionalism', label: 'Professionalism &amp; Conduct' },
+  { key: 'systemUsage',     label: 'System Usage — Frequent &amp; Timely Records', auto: true }
 ];
 
 // Matches a staff member to their KPI set. Payroll → Employee's "Role /
@@ -27269,7 +27468,7 @@ function aprRecomputePunctuality() {
   const empId = document.getElementById('apr-employee').value;
   const emp = (db.employees || []).find(e => e.id == empId);
   const el = document.getElementById('apr-rate-punctuality');
-  if (!el) return; // this staff member's KPI set doesn't include punctuality (e.g. Headteacher)
+  if (!el) return; // this staff member's KPI set doesn't include punctuality (defensive — every role-specific set has it now)
 
   if (!emp) {
     delete _aprCriteriaValues.punctuality;
