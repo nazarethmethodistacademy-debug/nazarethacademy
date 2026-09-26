@@ -2343,6 +2343,13 @@
     #page-dashboard > div[style*="grid-template-columns:1fr 1fr"] > .card {
       margin-bottom: 12px;
     }
+    /* ── Teacher Dashboard 2-col grid → 1-col ── */
+    #page-teacherdashboard .dash-2col {
+      display: block !important;
+    }
+    #page-teacherdashboard .dash-2col > .card {
+      margin-bottom: 12px;
+    }
 
     /* ── Revenue / Expense summary grids → scroll row ── */
     #rev-summary-grid,
@@ -3060,7 +3067,7 @@
           <input type="checkbox" id="cy-opt-promote" checked>
           <div>
             <div class="cy-opt-lbl">Promote students to next class</div>
-            <div class="cy-opt-sub">For any class with an <strong>approved</strong> Promotion Management list, each student's individual decision (promote/repeat/graduate/withdraw) is used. Classes with no approved list fall back to promoting every student one level up (Basic 6 → Graduated). Students already Left/Expelled/Graduated are skipped either way.</div>
+            <div class="cy-opt-sub">For any class with an <strong>approved</strong> Promotion Management list, each student's individual decision (promote/repeat/graduate/withdraw) is used. Classes with no approved list fall back to promoting every student one level up (Basic 6 → Graduated). Students already Left/Expelled/Graduated are skipped either way. Independently of this setting, every student still marked <strong>Admitted</strong> is automatically switched to <strong>Continuing</strong> in the new year — a returning student is no longer a fresh admission.</div>
           </div>
         </div>
         <div class="cy-opt-row">
@@ -3133,6 +3140,9 @@
     <div class="nav-section" id="nav-section-overview">
       <div class="nav-item active" onclick="navigate('dashboard')"><span class="icon">📊</span> Dashboard</div>
     </div>
+    <div class="nav-section" id="nav-section-teacherhome" style="display:none">
+      <div class="nav-item active" onclick="navigate('teacherdashboard')"><span class="icon">🏠</span> My Dashboard</div>
+    </div>
     <div class="nav-section" id="nav-section-students">
       <div class="nav-label"><span class="nav-label-icon">🎒</span> Students</div>
       <div class="nav-item" onclick="navigate('admission')"><span class="icon">📋</span> Admissions</div>
@@ -3192,7 +3202,7 @@
         <span id="topbar-school-name" style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Nazareth Academy</span>
         <div class="topbar-title" id="topbar-title">Dashboard</div>
       </div>
-      <button class="btn btn-outline btn-sm" id="back-to-dash-btn" onclick="navigate('dashboard')" style="display:none;margin-left:12px">🏠 <span class="back-btn-label">Back to Dashboard</span></button>
+      <button class="btn btn-outline btn-sm" id="back-to-dash-btn" onclick="goHome()" style="display:none;margin-left:12px">🏠 <span class="back-btn-label">Back to Dashboard</span></button>
     </div>
     <div class="topbar-meta">
       <button class="btn btn-outline btn-sm" id="cmdk-trigger-btn" onclick="openCmdPalette()" title="Jump to a page" style="color:var(--muted);gap:6px">
@@ -3547,6 +3557,7 @@
 
       <div class="card">
         <div class="toolbar">
+          <input type="text" id="rev-search" placeholder="🔍  Search student or payer…" oninput="revResetPage()" style="width:200px">
           <select id="rev-term-filter" onchange="revResetPage()"><option value="">All terms</option><option>Term 1</option><option>Term 2</option><option>Term 3</option></select>
           <select id="rev-cat-filter" onchange="revResetPage()"><option value="">All categories</option></select>
           <select id="rev-mode-filter" onchange="revResetPage()"><option value="">All Modes</option><option value="Cash">💵 Cash</option><option value="Bank">🏦 Bank</option><option value="MoMo">📱 MoMo</option></select>
@@ -4403,14 +4414,21 @@
     </div>
     <div class="form-grid three" style="padding:20px">
       <div class="form-group"><label>Date *</label><input type="date" id="rev-date"></div>
+      <div class="form-group ss-wrap" id="rev-student-wrap" style="display:none">
+        <label>Student *</label>
+        <input type="text" id="rev-student-search" placeholder="Type a student's name or ID to search…" autocomplete="off"
+          oninput="ssFilter('rev')" onfocus="ssFilter('rev')" onblur="setTimeout(()=>ssClose('rev'),150)">
+        <input type="hidden" id="rev-student-sel">
+        <div class="ss-list" id="rev-student-list"></div>
+      </div>
       <div class="form-group"><label>Description / Payer *</label><input id="rev-desc" placeholder="e.g. Mrs Adjoa Mensah"></div>
       <div class="form-group"><label>Reference No.</label><input id="rev-ref" placeholder="e.g. RCV-001"></div>
       <div class="form-group"><label>Term *</label>
         <select id="rev-term-sel"><option>Term 1</option><option>Term 2</option><option>Term 3</option></select>
       </div>
       <div class="form-group"><label>Category *</label>
-        <select id="rev-cat-sel">
-          <option>Uniform Fees</option><option>Feeding Fees</option><option>Education Week</option>
+        <select id="rev-cat-sel" onchange="revCatChanged()">
+          <option>Uniform Fees</option><option>Admission Fees</option><option>Feeding Fees</option><option>Education Week</option>
           <option>Income from Events</option><option>Income from Learning Materials</option>
           <option>Vacation Classes</option><option>Investment Income</option><option>Donations</option><option>Others</option>
         </select>
@@ -4985,11 +5003,12 @@
       <button class="modal-close" onclick="closeModal('appraisal-modal')">✕</button>
     </div>
     <div class="form-grid" style="padding:16px 20px 4px">
-      <div class="form-group"><label>Staff Member *</label><select id="apr-employee" onchange="aprRecomputeSystemUsage()"></select></div>
+      <div class="form-group"><label>Staff Member *</label><select id="apr-employee" onchange="aprEmployeeChanged()"></select></div>
       <div class="form-group"><label>Term *</label><select id="apr-term"></select></div>
     </div>
     <div style="padding:8px 20px">
-      <div style="font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Rate Each Criterion (1–5)</div>
+      <div style="font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Rate Each Criterion (1–5)</div>
+      <div id="apr-criteria-heading" style="font-size:11px;color:var(--muted);margin-bottom:8px"></div>
       <div id="apr-criteria-list"></div>
       <div id="apr-overall-preview" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;margin-top:4px;border-top:1px dashed var(--border);font-size:12.5px;font-weight:600">
         <span>Overall Score</span>
@@ -6173,6 +6192,7 @@ function _cyBuildConfirmSummary() {
     optArrears && '• Carry forward fee arrears to new year',
     optArchive && '• Archive current year as read-only',
     optFees    && '• Reset fee payments in new year',
+    '• Switch every "Admitted" student to "Continuing" (always runs)',
   ].filter(Boolean).join('<br>');
 
   document.getElementById('cy-confirm-summary').innerHTML = `
@@ -6248,67 +6268,79 @@ async function executeCloseYear() {
     // ── STEP 2: Promote students in current year's db ──
     // For any class with an APPROVED Promotion Management list, each student's individual
     // decision (promote/repeat/graduate/withdraw) is used instead of the blanket rule below.
-    let promotedCount = 0, graduatedCount = 0, repeatedCount = 0, withdrawnCount = 0, classesUsingApprovedList = 0;
+    let promotedCount = 0, graduatedCount = 0, repeatedCount = 0, withdrawnCount = 0, classesUsingApprovedList = 0, continuingCount = 0;
     const approvedListsByClass = {};
     (db.promotionLists || []).forEach(pl => { if (pl.status === 'approved') approvedListsByClass[pl.cls] = pl; });
     if (Object.keys(approvedListsByClass).length) classesUsingApprovedList = Object.keys(approvedListsByClass).length;
 
+    // Note: this runs unconditionally on every rollover (not gated behind optPromote) — a
+    // returning student is "Continuing" for the new academic year regardless of whether
+    // class-promotion also ran, since the two are separate concepts.
     const updatedAdmissions = (db.admissions || []).map(s => {
       const copy = Object.assign({}, s);
-      if (!optPromote) return copy;
       if (copy.status === 'Left' || copy.status === 'Expelled' || copy.status === 'Graduated') return copy;
 
-      const approvedList = approvedListsByClass[copy.cls];
-      const decision = approvedList ? (approvedList.decisions[copy.id] || {}).decision : null;
+      if (optPromote) {
+        const approvedList = approvedListsByClass[copy.cls];
+        const decision = approvedList ? (approvedList.decisions[copy.id] || {}).decision : null;
 
-      if (decision) {
-        // Follow this student's individually-approved decision
-        if (decision === 'repeat') {
-          repeatedCount++; // stays in same class — no change
-        } else if (decision === 'withdraw') {
-          copy.status = 'Left';
-          copy.notes = (copy.notes ? copy.notes + '; ' : '') + 'Withdrawn — approved promotion list, ' + yearKeyToDisplay(ACTIVE_YEAR).long;
-          withdrawnCount++;
-        } else if (decision === 'graduate') {
-          copy.status = 'Graduated';
-          copy.notes = (copy.notes ? copy.notes + '; ' : '') + 'Graduated end of ' + yearKeyToDisplay(ACTIVE_YEAR).long;
-          graduatedCount++;
-        } else { // 'promote'
+        if (decision) {
+          // Follow this student's individually-approved decision
+          if (decision === 'repeat') {
+            repeatedCount++; // stays in same class — no change
+          } else if (decision === 'withdraw') {
+            copy.status = 'Left';
+            copy.notes = (copy.notes ? copy.notes + '; ' : '') + 'Withdrawn — approved promotion list, ' + yearKeyToDisplay(ACTIVE_YEAR).long;
+            withdrawnCount++;
+          } else if (decision === 'graduate') {
+            copy.status = 'Graduated';
+            copy.notes = (copy.notes ? copy.notes + '; ' : '') + 'Graduated end of ' + yearKeyToDisplay(ACTIVE_YEAR).long;
+            graduatedCount++;
+          } else { // 'promote'
+            const next = nextClassFor(copy.cls);
+            if (next) {
+              copy.cls = next;
+              const newFees = FEE_BY_CLASS[next];
+              if (newFees) copy.fee = newFees['t1'] || copy.fee;
+              copy.feeTerm = 'Term 1';
+              promotedCount++;
+            } else {
+              copy.status = 'Graduated';
+              copy.notes = (copy.notes ? copy.notes + '; ' : '') + 'Graduated end of ' + yearKeyToDisplay(ACTIVE_YEAR).long;
+              graduatedCount++;
+            }
+          }
+        } else {
+          // No approved list for this class — fall back to the blanket promote-everyone rule
           const next = nextClassFor(copy.cls);
-          if (next) {
+          if (!next) {
+            // Final class — graduate
+            copy.status = 'Graduated';
+            copy.notes = (copy.notes ? copy.notes + '; ' : '') + 'Graduated end of ' + yearKeyToDisplay(ACTIVE_YEAR).long;
+            graduatedCount++;
+          } else {
             copy.cls = next;
+            // Update fee to match new class
             const newFees = FEE_BY_CLASS[next];
             if (newFees) copy.fee = newFees['t1'] || copy.fee;
             copy.feeTerm = 'Term 1';
             promotedCount++;
-          } else {
-            copy.status = 'Graduated';
-            copy.notes = (copy.notes ? copy.notes + '; ' : '') + 'Graduated end of ' + yearKeyToDisplay(ACTIVE_YEAR).long;
-            graduatedCount++;
           }
         }
-        return copy;
       }
 
-      // No approved list for this class — fall back to the blanket promote-everyone rule
-      const next = nextClassFor(copy.cls);
-      if (!next) {
-        // Final class — graduate
-        copy.status = 'Graduated';
-        copy.notes = (copy.notes ? copy.notes + '; ' : '') + 'Graduated end of ' + yearKeyToDisplay(ACTIVE_YEAR).long;
-        graduatedCount++;
-      } else {
-        copy.cls = next;
-        // Update fee to match new class
-        const newFees = FEE_BY_CLASS[next];
-        if (newFees) copy.fee = newFees['t1'] || copy.fee;
-        copy.feeTerm = 'Term 1';
-        promotedCount++;
+      // Entering a new academic year — a student who was "Admitted" is no longer a
+      // fresh admission, so flip them to "Continuing" (unless the block above just
+      // graduated or withdrew them this cycle).
+      if (copy.status === 'Admitted') {
+        copy.status = 'Continuing';
+        continuingCount++;
       }
       return copy;
     });
     _cyLog('🎓', `Promoted ${promotedCount} · Repeating ${repeatedCount} · Graduated ${graduatedCount} · Withdrawn ${withdrawnCount}` +
-      (classesUsingApprovedList ? ` (${classesUsingApprovedList} class${classesUsingApprovedList!==1?'es':''} used their approved Promotion Management list)` : ' (no approved Promotion Management lists found — used blanket promotion for every class)'));
+      (optPromote ? (classesUsingApprovedList ? ` (${classesUsingApprovedList} class${classesUsingApprovedList!==1?'es':''} used their approved Promotion Management list)` : ' (no approved Promotion Management lists found — used blanket promotion for every class)') : ' (class promotion was not selected — classes left unchanged)'));
+    _cyLog('🔁', `${continuingCount} previously-Admitted student(s) marked Continuing for ${yearKeyToDisplay(_cyNewYearKey).long}`);
     _cySetProgress(40);
 
     // ── STEP 3: Archive flag on current year ──
@@ -6341,8 +6373,8 @@ async function executeCloseYear() {
     // field is auto-carried-forward instead of needing manual re-entry every year.
     let _cyTotalFeesColl = 0;
     (db.admissions || []).forEach(s => { TERMS.forEach(t => { _cyTotalFeesColl += (db.payments[s.id+'|'+t]||{paid:0}).paid; }); });
-    const _cyAdmFees   = (db.admissions || []).filter(a => a.status !== 'Scholarship' && a.status !== 'Continuing').reduce((sum,a) => sum + (a.fee||0), 0);
-    const _cyOtherRev  = (db.revenue  || []).filter(isPostedFin).reduce((a,r) => a + (r.amount||0), 0);
+    const _cyAdmFees   = getAdmissionFeeTotal(db);
+    const _cyOtherRev  = getOtherRevenueTotal(db);
     const _cyTotalExp  = (db.expenses || []).filter(isPostedFin).reduce((a,e) => a + (e.amount||0), 0);
     const _cyNetSurplus = (_cyTotalFeesColl + _cyAdmFees + _cyOtherRev) - _cyTotalExp;
     const _cyNewRetainedBF = (parseFloat(db.bsRetainedBF || 0)) + _cyNetSurplus;
@@ -6368,9 +6400,9 @@ async function executeCloseYear() {
     const _cyOldBankPos = computeCashPosition(db);
     const _cyBankBF = Math.round((_cyOldBankPos.bank - _cyOldBankLedgerNet) * 100) / 100;
 
-    // Seed new year: copy admissions (already promoted), clear payments
+    // Seed new year: copy admissions (promoted if selected, Admitted→Continuing always), clear payments
     const newDb = JSON.parse(JSON.stringify(db));
-    newDb.admissions    = optPromote ? updatedAdmissions : JSON.parse(JSON.stringify(db.admissions || []));
+    newDb.admissions    = updatedAdmissions;
     newDb.payments      = optFees ? {} : JSON.parse(JSON.stringify(db.payments || {}));
     newDb.revenue       = [];
     newDb.expenses      = [];
@@ -7183,6 +7215,63 @@ const fmt = n => Number(n||0).toLocaleString('en-GH',{minimumFractionDigits:2,ma
 // still show (so approvers can act on them) — everywhere else that aggregates these
 // arrays into a total, filter with this first.
 const isPostedFin = r => r.status !== 'pending';
+
+// ── Combined Admission Fee total ──
+// Admission fees can be entered from two places: the one-time fee captured at
+// Admission Registration (student.fee), and a Revenue Tracker entry filed under
+// the "Admission Fees" category. Both post to the same GL account (4020), so the
+// books were already correct — but every KPI/report that summed these two ad-hoc
+// (outside the GL) needs to add them together too, or "Admission Fees" undercounts
+// and "Other Revenue" overcounts. Every place that computes an admission-fee total
+// or an other-revenue total should go through these two functions instead of
+// summing db.admissions/db.revenue directly, so the two always move together.
+// dataObj defaults to the live db but also accepts a stored snapshot (e.g. a prior
+// year's data pulled from Firebase). term, if given, restricts to entries billed/
+// dated to that one term (feeTerm for admissions, term for revenue entries).
+function getAdmissionFeeTotal(dataObj, term) {
+  const d = dataObj || db;
+  const fromAdmissions = (d.admissions || [])
+    .filter(a => a.status !== 'Scholarship' && a.status !== 'Continuing')
+    .filter(a => !term || a.feeTerm === term)
+    .reduce((sum, a) => sum + (a.fee || 0), 0);
+  const fromRevenue = (d.revenue || [])
+    .filter(r => r.cat === 'Admission Fees' && isPostedFin(r))
+    .filter(r => !term || r.term === term)
+    // Only count entries for a student currently in "Admitted" status — saveRevenue()
+    // enforces this at entry time, but this keeps the total self-correcting if a
+    // student's status changes afterward, or for any older entries filed before
+    // that check existed. Entries with no linked student (studentId missing) are
+    // pre-existing free-text entries and are left counted, since there's no
+    // student record to check.
+    .filter(r => !r.studentId || (d.admissions || []).some(a => a.id === r.studentId && a.status === 'Admitted'))
+    .reduce((sum, r) => sum + (r.amount || 0), 0);
+  return fromAdmissions + fromRevenue;
+}
+// Per-student Admission Fee total — the same "registration fee + Revenue Tracker
+// top-ups" combination as getAdmissionFeeTotal() above, but scoped to one student.
+// Used by the Admissions list's "ADM. FEE" column so it stays in sync automatically:
+// if a bursar later records an extra Admission Fees entry in Revenue Tracker for
+// this student (e.g. a top-up payment), it shows up here immediately without
+// anyone having to go edit the student's registration record by hand.
+function getStudentAdmissionFeeTotal(studentId, dataObj) {
+  const d = dataObj || db;
+  const student = (d.admissions || []).find(a => a.id === studentId);
+  const base = student ? (student.fee || 0) : 0;
+  const topUps = (d.revenue || [])
+    .filter(r => r.cat === 'Admission Fees' && isPostedFin(r) && r.studentId === studentId)
+    .reduce((sum, r) => sum + (r.amount || 0), 0);
+  return { total: base + topUps, base, topUps };
+}
+// Other Revenue total, excluding "Admission Fees" entries (those are folded into
+// getAdmissionFeeTotal above instead, so they're never double-counted).
+function getOtherRevenueTotal(dataObj, term) {
+  const d = dataObj || db;
+  return (d.revenue || [])
+    .filter(r => isPostedFin(r) && r.cat !== 'Admission Fees')
+    .filter(r => !term || r.term === term)
+    .reduce((sum, r) => sum + (r.amount || 0), 0);
+}
+
 const pct = (a,b) => b > 0 ? (a/b*100).toFixed(1)+'%' : '0.0%';
 const today = () => new Date().toISOString().slice(0,10);
 
@@ -7326,7 +7415,7 @@ const pageTitles = {
   feeschedule:'Fee Schedule', stats:'Statistical Report', myappraisal:'My Appraisal', myworkspace:'My Workspace', staffdirectory:'Staff Directory', accesscontrol:'Access Control',
   export:'Export to Excel', backup:'Backup & Restore',
   balancesheet:'Balance Sheet', assetmanagement:'Asset Management', cashflow:'Statement of Cash Flows', reportcard:'Report Cards', classanalytics:'Class Analytics', skillsreport:'Student Assessment Report',
-  grades:'Grade Entry', skillsassessment:'Skills Assessment', promotion:'Promotion Management', academiccalendar:'Academic Calendar', attendance:'Attendance Register', attendancereport:'Attendance Report', staffattendance:'Staff Attendance', timetable:'Class Timetable', subjects:'Subject Management',
+  grades:'Grade Entry', skillsassessment:'Skills Assessment', promotion:'Promotion Management', academiccalendar:'Academic Calendar', attendance:'Attendance Register', attendancereport:'Attendance Report', staffattendance:'Staff Attendance', staffattendancereport:'Staff Attendance Report', timetable:'Class Timetable', subjects:'Subject Management',
   announce_pta:'Announcements — PTA', announce_graduation:'Announcements — Graduation',
   announce_midterms:'Announcements — Mid Terms', announce_events:'Announcements — Events',
   announcements:'Announcements',
@@ -7339,7 +7428,8 @@ const pageTitles = {
   aiassistant:'AI Assistant',
   anomalydetection:'Anomaly Detection',
   academicintelligence:'Academic Intelligence Dashboard',
-  feedingreport:'Feeding Report'
+  feedingreport:'Feeding Report',
+  teacherdashboard:'My Dashboard'
 };
 
 // ── MODULE LAUNCHER: large icon tiles for each sidebar section's pages,
@@ -7373,13 +7463,12 @@ const MODULE_DEFS = {
     items: [
       { icon:'✏️', label:'Grade Entry',          page:'grades' },
       { icon:'🌟', label:'Skills Assessment',     page:'skillsassessment' },
-      { icon:'📊', label:'Student Assessment Report', page:'skillsreport' },
       { icon:'🎓', label:'Promotion Management',  page:'promotion' },
       { icon:'🗓️', label:'Academic Calendar',      page:'academiccalendar' },
-      { icon:'📝', label:'Report Cards',         page:'reportcard' },
       { icon:'🎓', label:'Class Analytics',      page:'classanalytics' },
       { icon:'📅', label:'Attendance',           page:'attendance' },
       { icon:'📊', label:'Attendance Report',    page:'attendancereport' },
+      { icon:'📝', label:'Report Cards',         page:'reportcard' },
       { icon:'🕘', label:'Staff Attendance',     page:'staffattendance' },
       { icon:'🗓️', label:'Timetable',            page:'timetable' },
       { icon:'📚', label:'Subjects',             page:'subjects' },
@@ -7392,6 +7481,7 @@ const MODULE_DEFS = {
     items: [
       { icon:'🧑‍🎓', label:'Student Records',             page:'studentrecords' },
       { icon:'📊', label:'Student Assessment Report',     page:'skillsreport' },
+      { icon:'📈', label:'Staff Attendance Report',       page:'staffattendancereport' },
       { icon:'🧠', label:'Academic Intelligence Dashboard', page:'academicintelligence' },
       { icon:'🤖', label:'AI Assistant',                  page:'aiassistant' },
       { icon:'🚨', label:'Anomaly Detection',              page:'anomalydetection' },
@@ -7532,6 +7622,7 @@ const _dynamicPages = {
   attendance:       'att-inner',
   attendancereport: 'ar-inner',
   staffattendance: 'sat-inner',
+  staffattendancereport: 'satr-inner',
   timetable:        'tt-inner',
   subjects:         'sub-inner',
   workflow:         'wf-inner',
@@ -7540,8 +7631,18 @@ const _dynamicPages = {
   anomalydetection: 'anom-inner',
   academicintelligence: 'aid-inner',
   feedingreport: 'fdr-inner',
+  teacherdashboard: 'tdb-inner',
   _feedingschedule_removed: 'fd-inner-unused'
 };
+
+// Routes the topbar "Back to Dashboard" button (and anything else that wants
+// to go "home") to whichever landing page the current role actually has:
+// Teacher/Class Teacher → their personalized My Dashboard; everyone else →
+// the main financial Dashboard.
+function goHome() {
+  const role = currentUser && currentUser.role;
+  navigate((role === 'Teacher' || role === 'Class Teacher') ? 'teacherdashboard' : 'dashboard');
+}
 
 function navigate(page) {
   // Access Control (Admin-configurable, see Access Control settings page) governs
@@ -7576,7 +7677,12 @@ function navigate(page) {
   document.getElementById('page-' + page).classList.add('active');
   document.getElementById('topbar-title').textContent = pageTitles[page];
   const backBtn = document.getElementById('back-to-dash-btn');
-  if (backBtn) backBtn.style.display = (page === 'dashboard') ? 'none' : 'inline-flex';
+  if (backBtn) {
+    const isHome = (page === 'dashboard' || page === 'teacherdashboard');
+    backBtn.style.display = isHome ? 'none' : 'inline-flex';
+    const backLabel = backBtn.querySelector('.back-btn-label');
+    if (backLabel) backLabel.textContent = (currentUser && (currentUser.role === 'Teacher' || currentUser.role === 'Class Teacher')) ? 'My Dashboard' : 'Back to Dashboard';
+  }
   if (typeof event !== 'undefined' && event && event.currentTarget && event.currentTarget.classList) {
     event.currentTarget.classList.add('active');
   }
@@ -7585,6 +7691,7 @@ function navigate(page) {
   if (_bnPageMap[page]) updateBottomNav(_bnPageMap[page]);
   else document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
   if (page === 'dashboard') renderDashboard();
+  if (page === 'teacherdashboard') renderTeacherDashboard();
   if (page === 'admission') renderAdmissions();
   if (page === 'payment') renderPayments();
   if (page === 'revenue') renderRevenue();
@@ -7628,6 +7735,7 @@ function navigate(page) {
   if (page === 'attendance') renderAttendance();
   if (page === 'attendancereport') renderAttendanceReport();
   if (page === 'staffattendance') renderStaffAttendance();
+  if (page === 'staffattendancereport') renderStaffAttendanceReport();
   if (page === 'timetable') renderTimetable();
   if (page === 'subjects') renderSubjects();
   if (page === 'announce_pta') renderAnnouncement('pta');
@@ -8372,9 +8480,10 @@ function renderModuleOverview() {
   // ── 💰 Finance & Accounting ──
   let totalFeesColl = 0, totalBilledF = 0;
   admitted.forEach(s => { const c = calcStudentStatus(s.id); totalFeesColl += c.totalPaid; totalBilledF += c.totalBilled; });
-  const otherRev = (db.revenue || []).filter(isPostedFin).reduce((a,r) => a + (r.amount||0), 0);
+  const admFeesOv = getAdmissionFeeTotal(db);
+  const otherRev = getOtherRevenueTotal(db);
   const totalExp = (db.expenses || []).filter(isPostedFin).reduce((a,e) => a + (e.amount||0), 0);
-  const netPos = (totalFeesColl + otherRev) - totalExp;
+  const netPos = (totalFeesColl + admFeesOv + otherRev) - totalExp;
   const pendingPC = (db.pettyCash || []).filter(p => p.status === 'pending').length;
   const pendingSms = (db.pendingSmsQueue || []).filter(x => x.status === 'pending').length;
   const pendingFinTx = (db.revenue||[]).filter(r=>r.status==='pending').length + (db.expenses||[]).filter(r=>r.status==='pending').length;
@@ -8468,6 +8577,7 @@ function renderModuleOverview() {
       summary: `GHS ${fmt(netPos)} net · ${fmt(cashPos.total)} cash`,
       stats: [
         statBox('Fees Collected', 'GHS ' + fmt(totalFeesColl)),
+        statBox('Admission Fees', 'GHS ' + fmt(admFeesOv)),
         statBox('Other Revenue', 'GHS ' + fmt(otherRev)),
         statBox('Total Expenses', 'GHS ' + fmt(totalExp)),
         statBox(netPos>=0?'Net Surplus':'Net Deficit', 'GHS ' + fmt(Math.abs(netPos))),
@@ -9066,12 +9176,25 @@ function renderAdmissions() {
       <td>${esc(a.parent) || '<span style="color:var(--muted)">—</span>'}</td>
       <td>${esc(a.phone1) || '<span style="color:var(--muted)">—</span>'}</td>
       <td><span class="badge badge-${a.status==='Admitted'?'admitted':a.status==='Continuing'?'continuing':a.status==='Scholarship'?'scholarship':a.status==='Withdrawn'?'withdrawn':'pending'}">${a.status}</span></td>
-      <td>GHS ${fmt(a.fee)}</td>
+      <td>${admFeeCell(a)}</td>
       <td style="display:flex;gap:6px;align-items:center;padding:8px 14px">
         ${canEdit ? `<button class="btn btn-sm btn-outline" onclick="openEditAdmissionModal('${a.id}')" title="Edit student">✏️</button>
         <button class="btn btn-sm btn-danger" onclick="deleteAdmission('${a.id}')">✕</button>` : ''}
       </td>
     </tr>`).join('') || '<tr><td colspan="9" class="empty-state">No students found.</td></tr>';
+}
+
+// Renders the ADM. FEE cell using getStudentAdmissionFeeTotal() so it stays in
+// sync with any Revenue Tracker top-ups filed for this student — see that
+// function for why. When there's a top-up on top of the registration fee, show
+// a small breakdown underneath so it's clear where the total came from rather
+// than just a number that no longer matches the registration form.
+function admFeeCell(a) {
+  const { total, base, topUps } = getStudentAdmissionFeeTotal(a.id);
+  if (topUps > 0) {
+    return `GHS ${fmt(total)}<div style="font-size:10px;color:var(--muted);font-weight:400">GHS ${fmt(base)} reg. + GHS ${fmt(topUps)} via Revenue Tracker</div>`;
+  }
+  return `GHS ${fmt(total)}`;
 }
 
 // ── ADMISSION MODAL STATE ──
@@ -9422,7 +9545,16 @@ function openPaymentModal() {
 // student ID (read exactly like the old <select>'s .value), and a
 // <div id="{prefix}-student-list"> the suggestions render into.
 // ══════════════════════════════════════════════
-function ssActiveStudents() {
+// ssActiveStudents(prefix) — the typeahead pool differs by picker:
+//  • Payment Tracker ('pay') collects fee payments, which legitimately continue
+//    for Continuing and Scholarship students too, so it keeps the wider pool.
+//  • Revenue Tracker's Admission Fees picker ('rev') is a one-time fee that only
+//    applies to students currently in "Admitted" status — see saveRevenue() and
+//    getAdmissionFeeTotal(), which both enforce the same rule.
+function ssActiveStudents(prefix) {
+  if (prefix === 'rev') {
+    return (db.admissions || []).filter(a => a.status === 'Admitted');
+  }
   return (db.admissions || []).filter(a => ['Admitted','Continuing','Scholarship'].includes(a.status));
 }
 
@@ -9436,18 +9568,21 @@ function ssFilter(prefix) {
   // for someone else — clear the previous selection until they pick again.
   document.getElementById(prefix + '-student-sel').value = '';
 
+  const pool = ssActiveStudents(prefix);
   const matches = q
-    ? ssActiveStudents().filter(a =>
+    ? pool.filter(a =>
         a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q) || (a.cls||'').toLowerCase().includes(q)
       ).slice(0, 30)
-    : ssActiveStudents().slice(0, 30);
+    : pool.slice(0, 30);
 
   list.innerHTML = matches.length
     ? matches.map(a => `<div class="ss-item" onmousedown="ssPick('${prefix}','${a.id}')">
          <div class="ss-name">${esc(a.name)}</div>
          <div class="ss-meta">${a.id} · ${esc(a.cls)}</div>
        </div>`).join('')
-    : `<div class="ss-empty">No matching students</div>`;
+    : (prefix === 'rev'
+        ? `<div class="ss-empty">No matching "Admitted" students — Admission Fees only apply to students in Admitted status</div>`
+        : `<div class="ss-empty">No matching students</div>`);
   list.classList.add('open');
 }
 
@@ -9457,6 +9592,10 @@ function ssPick(prefix, studentId) {
   document.getElementById(prefix + '-student-sel').value = s.id;
   document.getElementById(prefix + '-student-search').value = `${s.name} (${s.cls})`;
   ssClose(prefix);
+  const descEl = document.getElementById(prefix + '-desc');
+  if (descEl && descEl.dataset.ssAutoDesc) {
+    descEl.value = descEl.dataset.ssAutoDesc.replace('{name}', s.name).replace('{cls}', s.cls);
+  }
 }
 
 function ssClose(prefix) {
@@ -10220,7 +10359,7 @@ function clearStudentPayments() {
 }
 
 // ══════════════ REVENUE ══════════════
-const REV_CATS = ['Uniform Fees','Feeding Fees','Education Week','Income from Events','Income from Learning Materials','Vacation Classes','Investment Income','Donations','Others'];
+const REV_CATS = ['Uniform Fees','Admission Fees','Feeding Fees','Education Week','Income from Events','Income from Learning Materials','Vacation Classes','Investment Income','Donations','Others'];
 // Returns the base categories plus any custom ones added via Budgeting's "+ Add Account" —
 // this is what every dropdown/report/budget line should call, not the raw REV_CATS array.
 function getRevCats() { return [...REV_CATS, ...((typeof db !== 'undefined' && db.customRevCats) || [])]; }
@@ -10237,14 +10376,21 @@ function renderRevenue() {
   const termF = document.getElementById('rev-term-filter').value;
   const catF  = document.getElementById('rev-cat-filter').value;
   const modeF = document.getElementById('rev-mode-filter').value;
+  const search = (document.getElementById('rev-search')||{value:''}).value.trim().toLowerCase();
   const catSel = document.getElementById('rev-cat-filter');
   catSel.innerHTML = '<option value="">All categories</option>' + getRevCats().map(c=>`<option ${c===catF?'selected':''}>${c}</option>`).join('');
 
-  let rows = db.revenue.filter(r =>
-    (!termF || r.term === termF) &&
-    (!catF  || r.cat  === catF)  &&
-    (!modeF || (r.mode||'Cash') === modeF)
-  );
+  let rows = db.revenue.filter(r => {
+    if (termF && r.term !== termF) return false;
+    if (catF  && r.cat  !== catF)  return false;
+    if (modeF && (r.mode||'Cash') !== modeF) return false;
+    if (search) {
+      const stu = r.studentId ? (db.admissions||[]).find(a => a.id === r.studentId) : null;
+      const hay = [r.desc, r.ref, stu ? stu.name : '', stu ? stu.id : '', stu ? stu.cls : ''].join(' ').toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
   document.getElementById('rev-count').textContent = rows.length + ' entries';
 
   const pg = paginate(rows, _revPage);
@@ -10262,9 +10408,10 @@ function renderRevenue() {
           ? `<div style="display:flex;gap:4px"><button class="btn btn-sm" style="background:var(--green);color:var(--white);font-size:11px;padding:3px 8px" onclick="approveRevenueEntry(${r.id})">✓ Approve</button><button class="btn btn-sm btn-danger" style="font-size:11px;padding:3px 8px" onclick="rejectRevenueEntry(${r.id})">✕ Reject</button></div>`
           : `<span class="badge" style="background:var(--amber-light);color:var(--amber)">⏳ Pending</span>`)
       : (canEdit ? `<button class="btn btn-sm btn-danger" onclick="deleteRevenue(${r.id})">✕</button>` : '');
+    const stu = r.studentId ? (db.admissions||[]).find(a => a.id === r.studentId) : null;
     return `<tr ${isPending ? 'style="opacity:0.7;background:var(--amber-light)"' : ''}>
       <td style="color:var(--muted)">${i+1}</td>
-      <td>${r.date||'—'}</td><td>${esc(r.desc)}${isPending && canApprove ? ' <span class="badge" style="background:var(--amber-light);color:var(--amber);font-size:9px">⏳ Pending</span>' : ''}</td><td>${esc(r.ref||'—')}</td>
+      <td>${r.date||'—'}</td><td>${esc(r.desc)}${stu ? ` <span style="color:var(--muted);font-size:10px">— ${esc(stu.cls)} · ${esc(stu.id)}</span>` : ''}${isPending && canApprove ? ' <span class="badge" style="background:var(--amber-light);color:var(--amber);font-size:9px">⏳ Pending</span>' : ''}</td><td>${esc(r.ref||'—')}</td>
       <td>${r.term}</td><td>${esc(r.cat)}</td>
       <td>${modeSelect}</td>
       <td style="font-weight:500">GHS ${fmt(r.amount)}</td>
@@ -10312,15 +10459,51 @@ function openRevenueModal() {
   document.getElementById('rev-cat-sel').innerHTML = getRevCats().map(c => `<option>${c}</option>`).join('');
   document.getElementById('rev-mode-sel').value = 'Cash';
   document.getElementById('rev-bankacct-wrap').style.display = 'none';
+  document.getElementById('rev-student-search').value = '';
+  document.getElementById('rev-student-sel').value = '';
+  document.getElementById('rev-desc').value = '';
+  revCatChanged();
   document.getElementById('revenue-modal').classList.add('open');
+}
+
+// Category = Admission Fees → show the student search (same typeahead Payment Tracker
+// uses) instead of asking for the payer's name to be typed by hand, and mark the
+// Description field so ssPick() auto-fills it once a student is chosen (see ssPick()).
+function revCatChanged() {
+  const cat = document.getElementById('rev-cat-sel').value;
+  const isAdm = cat === 'Admission Fees';
+  document.getElementById('rev-student-wrap').style.display = isAdm ? '' : 'none';
+  const descEl = document.getElementById('rev-desc');
+  if (isAdm) {
+    descEl.dataset.ssAutoDesc = 'Admission Fee — {name} ({cls})';
+  } else {
+    delete descEl.dataset.ssAutoDesc;
+    document.getElementById('rev-student-search').value = '';
+    document.getElementById('rev-student-sel').value = '';
+  }
 }
 
 function saveRevenue() {
   if (!canEditCurrentPage('revenue')) { toast('⛔ You have view-only access to Revenue Tracker'); return; }
+  const cat  = document.getElementById('rev-cat-sel').value;
+  const isAdm = cat === 'Admission Fees';
+  const studentId = isAdm ? document.getElementById('rev-student-sel').value : null;
+  if (isAdm && !studentId) { toast('⚠ Search and select the student this admission fee is for', 'error'); return; }
+  // Admission Fees only apply to students currently in "Admitted" status (the
+  // typeahead already only offers Admitted students — see ssActiveStudents() —
+  // but re-check here too, since the hidden field could hold a stale ID if the
+  // student's status changed after being picked, or between opening the form
+  // and saving it).
+  if (isAdm) {
+    const student = (db.admissions || []).find(a => a.id === studentId);
+    if (!student || student.status !== 'Admitted') {
+      toast('⛔ This student is not in "Admitted" status — Admission Fees can only be recorded for Admitted students', 'error');
+      return;
+    }
+  }
   const desc = document.getElementById('rev-desc').value.trim();
   const amount = parseFloat(document.getElementById('rev-amount').value)||0;
   if (!desc || !amount) { toast('⚠ Description and amount required'); return; }
-  const cat  = document.getElementById('rev-cat-sel').value;
   const mode = document.getElementById('rev-mode-sel').value;
   const bankAccountId = mode === 'Bank' ? document.getElementById('rev-bankacct-sel').value : null;
   const date = document.getElementById('rev-date').value;
@@ -10330,22 +10513,32 @@ function saveRevenue() {
     id: newId,
     date, desc, ref: document.getElementById('rev-ref').value,
     term: document.getElementById('rev-term-sel').value,
-    cat, mode, bankAccountId,
+    cat, mode, bankAccountId, studentId,
     amount, notes: document.getElementById('rev-notes').value,
     status: isPending ? 'pending' : 'approved',
     submittedBy: currentUser.username
   });
   if (!isPending) {
-    const revAcct = findAccountByCategory(cat, 'Revenue');
     postJournalEntry(date, 'Revenue: ' + desc, [
       { account: cashAccountForMode(mode), debit: amount, credit: 0 },
-      { account: revAcct ? revAcct.code : '4010', debit: 0, credit: amount }
+      { account: revenueAccountCode(cat), debit: 0, credit: amount }
     ], 'revenue', newId);
   }
   saveDb();
   closeModal('revenue-modal');
   renderRevenue();
   toast(isPending ? '⏳ Revenue entry submitted — awaiting approval before it posts to the ledger' : '✅ Revenue entry saved');
+}
+
+// The Chart of Accounts entries don't carry a 'category' field, so findAccountByCategory()
+// never actually matches any Revenue Tracker category today — every entry (any category)
+// falls back to 4010 Tuition Fees. Admission Fees already has its own GL account (4020,
+// same one postAdmissionFeeJournal() posts to for admissions), so route it there explicitly;
+// every other category keeps the existing fallback behaviour unchanged.
+function revenueAccountCode(cat) {
+  if (cat === 'Admission Fees') return '4020';
+  const acct = findAccountByCategory(cat, 'Revenue');
+  return acct ? acct.code : '4010';
 }
 
 function approveRevenueEntry(id) {
@@ -10355,10 +10548,9 @@ function approveRevenueEntry(id) {
   r.status = 'approved';
   r.approvedBy = currentUser.username;
   r.approvedAt = today();
-  const revAcct = findAccountByCategory(r.cat, 'Revenue');
   postJournalEntry(r.date, 'Revenue: ' + r.desc, [
     { account: cashAccountForMode(r.mode), debit: r.amount, credit: 0 },
-    { account: revAcct ? revAcct.code : '4010', debit: 0, credit: r.amount }
+    { account: revenueAccountCode(r.cat), debit: 0, credit: r.amount }
   ], 'revenue', r.id);
   saveDb();
   renderRevenue();
@@ -10902,7 +11094,10 @@ function renderWeeklyReport() {
 
   // Revenue received: tuition fee payments (Payment Tracker log) + Other Revenue
   const tuitionEntries = (db.txHistory || []).filter(t => t.type === 'payment' && inWeek(t.date));
-  const otherRevEntries = (db.revenue || []).filter(r => isPostedFin(r) && inWeek(r.date));
+  // "Admission Fees" category entries are pulled out and combined with the
+  // registration-based admission fee below, so they aren't counted twice.
+  const otherRevEntries = (db.revenue || []).filter(r => isPostedFin(r) && inWeek(r.date) && r.cat !== 'Admission Fees');
+  const admRevEntries = (db.revenue || []).filter(r => isPostedFin(r) && inWeek(r.date) && r.cat === 'Admission Fees');
   const tuitionTotal  = tuitionEntries.reduce((a,t) => a + (t.amount||0), 0);
   const otherRevTotal = otherRevEntries.reduce((a,r) => a + (r.amount||0), 0);
 
@@ -10936,7 +11131,10 @@ function renderWeeklyReport() {
   // counted on the week the student was registered. Same basis the Statement of
   // Comprehensive Income uses for its "Admissions" line, so the two agree.
   const admittedForFee = (db.admissions || []).filter(a => inWeek(a.createdDate || a.appdate));
-  const admissionTotal = admittedForFee.reduce((a,s) => a + (s.fee || 0), 0);
+  // Combines the registration-based fee with any Revenue Tracker entry filed under
+  // "Admission Fees" this week, so both sources roll into one Admission figure.
+  const admissionTotal = admittedForFee.reduce((a,s) => a + (s.fee || 0), 0)
+    + admRevEntries.reduce((a,r) => a + (r.amount||0), 0);
 
   // Feeding money that reached the General Ledger (Revenue Tracker → 'Feeding Fees').
   const FEEDING_CATS = ['Feeding Fees'];
@@ -11205,14 +11403,18 @@ function renderIncomeStatement() {
     tuition[t] = admitted.reduce((sum,s) => sum + getStudentFee(s.id, t), 0);
   });
 
-  // Admissions collected — filter by admission date if available
+  // Admissions collected — one-time registration fee plus any Revenue Tracker
+  // entry filed under "Admission Fees" for that term, both date-filtered.
   const admissions = {};
   TERMS.forEach(t => {
-    admissions[t] = db.admissions.filter(a=>a.feeTerm===t && inRange(a.date||a.admissionDate||'')).reduce((s,a)=>s+a.fee,0);
+    const fromReg = db.admissions.filter(a=>a.feeTerm===t && a.status!=='Scholarship' && a.status!=='Continuing' && inRange(a.date||a.admissionDate||'')).reduce((s,a)=>s+a.fee,0);
+    const fromRev = db.revenue.filter(r=>r.term===t && r.cat==='Admission Fees' && inRange(r.date) && isPostedFin(r)).reduce((s,r)=>s+(r.amount||0),0);
+    admissions[t] = fromReg + fromRev;
   });
 
-  // Revenue by category & term — date filtered, approved only
-  const revCats = getRevCats();
+  // Revenue by category & term — date filtered, approved only. "Admission Fees" is
+  // excluded here since it's already counted in the "Admissions" row above.
+  const revCats = getRevCats().filter(c => c !== 'Admission Fees');
   const getRevByTermCat = (t,cat) => db.revenue.filter(r=>(!t||r.term===t)&&r.cat===cat&&inRange(r.date)&&isPostedFin(r)).reduce((a,b)=>a+b.amount,0);
   const getRevByTerm = t => db.revenue.filter(r=>(!t||r.term===t)&&inRange(r.date)&&isPostedFin(r)).reduce((a,b)=>a+b.amount,0);
 
@@ -11320,8 +11522,8 @@ async function _isLoadPriorYearComparison(curRevenue, curExpenses, curNet) {
         if ((i+1) > admNum) prevTuition += fees[key] || 0;
       });
     });
-    const prevAdmFees = prevAdmitted.filter(a => a.status !== 'Scholarship' && a.status !== 'Continuing').reduce((s,a) => s + (a.fee||0), 0);
-    const prevOtherRev = (data.revenue || []).reduce((a,r) => a + (r.amount||0), 0);
+    const prevAdmFees = getAdmissionFeeTotal(data);
+    const prevOtherRev = getOtherRevenueTotal(data);
     const prevRevenue = prevTuition + prevAdmFees + prevOtherRev;
     const prevExpenses = (data.expenses || []).reduce((a,e) => a + (e.amount||0), 0);
     const prevNet = prevRevenue - prevExpenses;
@@ -12438,6 +12640,7 @@ function renderFeedingSchedule() {
 // print handling (filter tabs hidden on paper, only the selected term's
 // figures matter there).
 let _fdrActiveTerm = 'all';
+let _fdrGroupBy = 'term'; // 'week' | 'month' | 'term' — how the Schedule below is bucketed
 
 function fdrTermForDate(dateStr) {
   const terms = (db.academicCalendar && db.academicCalendar.terms) || {};
@@ -12453,6 +12656,55 @@ function switchFeedingReportTerm(term, btn) {
   document.querySelectorAll('#fdr-term-bar .stat-tab').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   renderFeedingReport();
+}
+
+// ── Weekly / Monthly / Termly grouping for the Schedule of Feeding Fee Revenue
+// & Expenses (below). Independent of the Full Year / per-term filter above —
+// that filter narrows WHICH entries are included; this controls HOW they're
+// bucketed into rows.
+function switchFeedingReportGroup(mode, btn) {
+  _fdrGroupBy = mode;
+  document.querySelectorAll('#fdr-group-bar .stat-tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderFeedingReport();
+}
+
+function fdrPeriodKey(dateStr, groupBy) {
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d)) return { key: 'zzz-unknown', label: 'Unknown date' };
+  if (groupBy === 'month') {
+    return { key: dateStr.slice(0,7), label: d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) };
+  }
+  if (groupBy === 'week') {
+    // Monday-start week containing this date
+    const dow = (d.getDay() + 6) % 7; // 0 = Monday
+    const monday = new Date(d); monday.setDate(d.getDate() - dow);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+    const short = x => x.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    return { key: monday.toISOString().slice(0,10), label: 'Week of ' + short(monday) + ' – ' + short(sunday) };
+  }
+  // Termly — falls back to Term 1 for a date outside any configured term range,
+  // same convention used everywhere else in this report.
+  const term = fdrTermForDate(dateStr) || 'Unassigned';
+  return { key: term, label: term };
+}
+
+// Buckets the already-filtered General Ledger revenue/expense entries into the
+// rows for the Schedule table (and its matching chart) per the current
+// Weekly/Monthly/Termly grouping.
+function fdrBuildSchedule(revEntries, expEntries, groupBy) {
+  const buckets = {};
+  revEntries.forEach(r => {
+    const { key, label } = fdrPeriodKey(r.date, groupBy);
+    if (!buckets[key]) buckets[key] = { label, revenue: 0, expense: 0 };
+    buckets[key].revenue += r.amount || 0;
+  });
+  expEntries.forEach(r => {
+    const { key, label } = fdrPeriodKey(r.date, groupBy);
+    if (!buckets[key]) buckets[key] = { label, revenue: 0, expense: 0 };
+    buckets[key].expense += r.amount || 0;
+  });
+  return Object.keys(buckets).sort().map(k => ({ key: k, ...buckets[k] }));
 }
 
 function renderFeedingReport() {
@@ -12519,11 +12771,10 @@ function renderFeedingReport() {
   const glFeedingRevenue = glRevenueEntries.reduce((a,r) => a + r.amount, 0);
   const glFeedingExpense = glExpenseEntries.reduce((a,r) => a + r.amount, 0);
   const glFeedingNet = glFeedingRevenue - glFeedingExpense;
-  const glByTerm = TERMS.map(t => ({
-    term: t,
-    revenue: (db.revenue || []).filter(r => r.cat==='Feeding Fees' && r.status!=='pending' && r.term===t).reduce((a,r)=>a+r.amount,0),
-    expense: (db.expenses || []).filter(r => r.cat==='Feeding Expenses' && r.status!=='pending' && r.term===t).reduce((a,r)=>a+r.amount,0)
-  }));
+  // Schedule rows — respects _fdrGroupBy (Weekly/Monthly/Termly); the entries
+  // fed in are already scoped by the Full Year / per-term filter above.
+  const scheduleRows = fdrBuildSchedule(glRevenueEntries, glExpenseEntries, _fdrGroupBy);
+  const groupLabel = _fdrGroupBy === 'week' ? 'Week' : _fdrGroupBy === 'month' ? 'Month' : 'Term';
 
   const termTabs = TERMS.map(t =>
     `<button class="stat-tab ${_fdrActiveTerm===t?'active':''}" onclick="switchFeedingReportTerm('${t}',this)">📅 ${t}</button>`
@@ -12586,14 +12837,41 @@ function renderFeedingReport() {
     </div>
 
     <div class="kpi-grid kpi-grid-3" style="margin-bottom:16px">
-      <div class="kpi-card green"><div class="kpi-label">Feeding Revenue (GL)</div><div class="kpi-value">GHS ${fmt(glFeedingRevenue)}</div><div class="kpi-sub">${glRevenueEntries.length} entr${glRevenueEntries.length===1?'y':'ies'}</div></div>
-      <div class="kpi-card red"><div class="kpi-label">Feeding Expenses (GL)</div><div class="kpi-value">GHS ${fmt(glFeedingExpense)}</div><div class="kpi-sub">${glExpenseEntries.length} entr${glExpenseEntries.length===1?'y':'ies'}</div></div>
-      <div class="kpi-card ${glFeedingNet>=0?'green':'red'}"><div class="kpi-label">Net ${glFeedingNet>=0?'Surplus':'Deficit'}</div><div class="kpi-value">GHS ${fmt(Math.abs(glFeedingNet))}</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Revenue from Feeding Fee</div><div class="kpi-value">GHS ${fmt(glFeedingRevenue)}</div><div class="kpi-sub">${glRevenueEntries.length} entr${glRevenueEntries.length===1?'y':'ies'}</div></div>
+      <div class="kpi-card red"><div class="kpi-label">Feeding Expenses</div><div class="kpi-value">GHS ${fmt(glFeedingExpense)}</div><div class="kpi-sub">${glExpenseEntries.length} entr${glExpenseEntries.length===1?'y':'ies'}</div></div>
+      <div class="kpi-card ${glFeedingNet>=0?'green':'red'}"><div class="kpi-label">Net ${glFeedingNet>=0?'Surplus':'Deficit'}</div><div class="kpi-value">GHS ${fmt(Math.abs(glFeedingNet))}</div><div class="kpi-sub">${glFeedingNet>=0?'Revenue exceeds Feeding Expenses':'Revenue is less than Feeding Expenses'}</div></div>
     </div>
 
     <div class="card" style="margin-bottom:20px">
-      <div class="stat-section-title">📊 Revenue vs Expenses by Term</div>
+      <div class="stat-section-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <span>📑 Schedule of Feeding Fee Revenue &amp; Expenses</span>
+        <div class="stat-tab-bar" id="fdr-group-bar" style="margin:0">
+          <button class="stat-tab ${_fdrGroupBy==='week'?'active':''}" onclick="switchFeedingReportGroup('week',this)">📆 Weekly</button>
+          <button class="stat-tab ${_fdrGroupBy==='month'?'active':''}" onclick="switchFeedingReportGroup('month',this)">🗓️ Monthly</button>
+          <button class="stat-tab ${_fdrGroupBy==='term'?'active':''}" onclick="switchFeedingReportGroup('term',this)">📅 Termly</button>
+        </div>
+      </div>
       <div style="padding:12px 16px"><canvas id="fdr-gl-bar" height="180"></canvas></div>
+      <table>
+        <thead><tr><th>${groupLabel}</th><th>Revenue from Feeding Fee</th><th>Feeding Expenses</th><th>Net Surplus / (Deficit)</th></tr></thead>
+        <tbody>
+          ${scheduleRows.length ? scheduleRows.map(row => {
+            const net = row.revenue - row.expense;
+            return `<tr>
+              <td>${esc(row.label)}</td>
+              <td style="color:var(--green)">GHS ${fmt(row.revenue)}</td>
+              <td style="color:var(--red)">GHS ${fmt(row.expense)}</td>
+              <td style="font-weight:600;color:${net>=0?'var(--green)':'var(--red)'}">${net>=0?'Surplus':'Deficit'} of GHS ${fmt(Math.abs(net))}</td>
+            </tr>`;
+          }).join('') : `<tr><td colspan="4" class="empty-state">No Feeding Fee revenue or Feeding Expenses posted for this period.</td></tr>`}
+        </tbody>
+        ${scheduleRows.length ? `<tfoot><tr>
+          <td style="font-weight:700">Total</td>
+          <td style="font-weight:700;color:var(--green)">GHS ${fmt(glFeedingRevenue)}</td>
+          <td style="font-weight:700;color:var(--red)">GHS ${fmt(glFeedingExpense)}</td>
+          <td style="font-weight:700;color:${glFeedingNet>=0?'var(--green)':'var(--red)'}">${glFeedingNet>=0?'Surplus':'Deficit'} of GHS ${fmt(Math.abs(glFeedingNet))}</td>
+        </tr></tfoot>` : ''}
+      </table>
     </div>
 
     <div style="font-size:11px;color:var(--muted);padding:8px 4px">
@@ -12623,10 +12901,10 @@ function renderFeedingReport() {
   fdrChart('fdr-gl-bar', {
     type: 'bar',
     data: {
-      labels: glByTerm.map(g => g.term),
+      labels: scheduleRows.map(g => g.label),
       datasets: [
-        { label: 'Revenue', data: glByTerm.map(g => g.revenue), backgroundColor: '#2d7b51', borderRadius: 4 },
-        { label: 'Expenses', data: glByTerm.map(g => g.expense), backgroundColor: '#b84040', borderRadius: 4 }
+        { label: 'Revenue from Feeding Fee', data: scheduleRows.map(g => g.revenue), backgroundColor: '#2d7b51', borderRadius: 4 },
+        { label: 'Feeding Expenses', data: scheduleRows.map(g => g.expense), backgroundColor: '#b84040', borderRadius: 4 }
       ]
     },
     options: {
@@ -13733,21 +14011,24 @@ function renderStats(activeTerm) {
   });
   const totalTuition = activeTerms.reduce((a, t) => a + (tuitionByTerm[t]||0), 0);
 
-  // Admissions fees by active terms
+  // Admissions fees by active terms — combines the registration-based fee with any
+  // Revenue Tracker entry filed under "Admission Fees" for that term.
   const admByTerm = {};
-  TERMS.forEach(t => { admByTerm[t] = db.admissions.filter(a=>a.feeTerm===t).reduce((s,a)=>s+a.fee,0); });
+  TERMS.forEach(t => { admByTerm[t] = getAdmissionFeeTotal(db, t); });
   const totalAdmissions = activeTerms.reduce((a, t) => a + (admByTerm[t]||0), 0);
 
-  const totalOtherRevenue = db.revenue.filter(r => (!filterTerm || r.term === filterTerm) && isPostedFin(r)).reduce((a,b)=>a+b.amount,0);
+  const totalOtherRevenue = getOtherRevenueTotal(db, filterTerm);
   const totalExpenses     = db.expenses.filter(r => (!filterTerm || r.term === filterTerm) && isPostedFin(r)).reduce((a,b)=>a+b.amount,0);
 
   // Total Income = Tuition billed + Admissions fees + Other revenue
   const totalIncome = totalTuition + totalAdmissions + totalOtherRevenue;
   const netResult   = totalIncome - totalExpenses;
 
-  // Revenue by category (other revenue tracker — for category breakdown chart)
+  // Revenue by category (other revenue tracker — for category breakdown chart).
+  // "Admission Fees" entries are excluded here since they're already counted in
+  // totalAdmissions above, via admByTerm.
   const REV_CAT_TOTALS = {};
-  db.revenue.filter(r=>(!filterTerm||r.term===filterTerm)&&isPostedFin(r)).forEach(r=>{ REV_CAT_TOTALS[r.cat] = (REV_CAT_TOTALS[r.cat]||0)+r.amount; });
+  db.revenue.filter(r=>(!filterTerm||r.term===filterTerm)&&isPostedFin(r)&&r.cat!=='Admission Fees').forEach(r=>{ REV_CAT_TOTALS[r.cat] = (REV_CAT_TOTALS[r.cat]||0)+r.amount; });
   const maxRev = Math.max(...Object.values(REV_CAT_TOTALS), 1);
 
   // Expense by category
@@ -13757,7 +14038,7 @@ function renderStats(activeTerm) {
 
   // Revenue by term (other revenue tracker)
   const revByTerm = {};
-  TERMS.forEach(t=>{ revByTerm[t] = db.revenue.filter(r=>r.term===t&&isPostedFin(r)).reduce((a,b)=>a+b.amount,0); });
+  TERMS.forEach(t=>{ revByTerm[t] = getOtherRevenueTotal(db, t); });
   const expByTerm = {};
   TERMS.forEach(t=>{ expByTerm[t] = db.expenses.filter(r=>r.term===t&&isPostedFin(r)).reduce((a,b)=>a+b.amount,0); });
 
@@ -13812,7 +14093,7 @@ function renderStats(activeTerm) {
   const maxStatusCount = Math.max(...Object.values(statusCounts),1);
 
   // ── Admission stats ──
-  const admFees = admitted.reduce((a,b)=>a+b.fee,0);
+  const admFees = getAdmissionFeeTotal(db);
 
   // Pulled out of the template so the chart-rendering code below (which runs
   // after innerHTML is set) can reuse the exact same computed data instead
@@ -14873,15 +15154,15 @@ function buildIncomeAoa() {
   const tuition = {}, admissions = {};
   TERMS.forEach(t => {
     tuition[t]    = admitted.reduce((s,x)=>s+((db.payments[x.id+'|'+t]||{paid:0}).paid),0);
-    admissions[t] = db.admissions.filter(a=>a.feeTerm===t).reduce((s,a)=>s+a.fee,0);
+    admissions[t] = getAdmissionFeeTotal(db, t);
   });
-  const getRevByTermCat = (t,cat) => db.revenue.filter(r=>(!t||r.term===t)&&r.cat===cat).reduce((a,b)=>a+b.amount,0);
+  const getRevByTermCat = (t,cat) => db.revenue.filter(r=>(!t||r.term===t)&&r.cat===cat&&isPostedFin(r)).reduce((a,b)=>a+b.amount,0);
   const getExpByTermCat = (t,cat) => db.expenses.filter(r=>(!t||r.term===t)&&r.cat===cat).reduce((a,b)=>a+b.amount,0);
 
   const revRows = {
     'Tuition Fees': TERMS.map(t=>tuition[t]),
     'Admissions': TERMS.map(t=>admissions[t]),
-    ...Object.fromEntries(getRevCats().map(c=>[c, TERMS.map(t=>getRevByTermCat(t,c))]))
+    ...Object.fromEntries(getRevCats().filter(c=>c!=='Admission Fees').map(c=>[c, TERMS.map(t=>getRevByTermCat(t,c))]))
   };
   const expRows = Object.fromEntries(getExpCats().map(c=>[c, TERMS.map(t=>getExpByTermCat(t,c))]));
   const totalRevPerTerm = TERMS.map((_,i)=>Object.values(revRows).reduce((s,v)=>s+v[i],0));
@@ -16079,6 +16360,7 @@ function requireRole(...roles) {
 // this is exactly the set they could already reach prior to Access Control existing,
 // kept as the fallback so nothing changes for a school that never touches this page.
 const TEACHER_DEFAULT_PAGES = [
+  'teacherdashboard',
   'grades','skillsassessment','promotion','academiccalendar','reportcard','classanalytics',
   'attendance','attendancereport','staffattendance','timetable','subjects','myappraisal','myworkspace','staffdirectory',
   'schoolstructure','staffdatabase','training','parentdatabase'
@@ -16171,11 +16453,12 @@ function showApp(user) {
         window._notifIntervalStarted = true;
         setInterval(() => { renderNotifBell(); checkUrgentNotifToast(); updateWorkflowNavBadge(); }, 5 * 60 * 1000); // every 5 minutes
       }
-      // Teacher / Class Teacher land on Grades by default — done here, AFTER the
-      // correct active year's data has loaded, so they never see a stale/wrong-year
-      // render (see applyRoleUI for why this isn't triggered at login time instead).
+      // Teacher / Class Teacher land on their My Dashboard by default — done here,
+      // AFTER the correct active year's data has loaded, so they never see a
+      // stale/wrong-year render (see applyRoleUI for why this isn't triggered at
+      // login time instead).
       if (currentUser && (currentUser.role === 'Teacher' || currentUser.role === 'Class Teacher')) {
-        navigate('grades');
+        navigate('teacherdashboard');
       }
     });
 
@@ -16233,11 +16516,13 @@ function applyRoleUI(role) {
     'nav-section-analytics', 'nav-section-announcements', 'nav-section-workflow',
     'nav-section-export'
   ];
+  const teacherHomeSection = document.getElementById('nav-section-teacherhome');
   if (role === 'Teacher' || role === 'Class Teacher') {
     teacherHiddenSections.forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = 'none';
     });
+    if (teacherHomeSection) teacherHomeSection.style.display = '';
     // Auto-expand Academic nav. NOTE: we deliberately do NOT navigate('grades') here —
     // at this point the shared active-year check and initDb() data load for the correct
     // year haven't finished yet (both are async Firebase calls). Navigating immediately
@@ -16252,6 +16537,7 @@ function applyRoleUI(role) {
       const el = document.getElementById(id);
       if (el) el.style.display = '';
     });
+    if (teacherHomeSection) teacherHomeSection.style.display = 'none';
   }
 }
 
@@ -20385,6 +20671,469 @@ function renderStaffAttendance() {
     </div>`;
 }
 
+// ══════════════ STAFF ATTENDANCE REPORT ══════════════
+// Read-only analytics over db.staffAttendance — mirrors renderAttendanceReport()'s
+// tab/filter/chart pattern, but for staff clock-in records instead of student
+// attendance, grouped by department (e.dept) instead of by class.
+function renderStaffAttendanceReport() {
+  const pageId = 'staffattendancereport', innerId = 'satr-inner';
+  ensurePage(pageId, innerId);
+  const el = document.getElementById(innerId);
+  if (!el) return;
+
+  let activeTab = 'overview';   // overview | bydept | bystaff
+  let filterDept = '__ALL__';
+  let filterRange = '30';       // days back or 'all'
+  const chartInstances = {};
+
+  // ── helpers ──────────────────────────────────────────────
+  function allDates() { return Object.keys(db.staffAttendance || {}).sort(); }
+
+  function inRange(dateStr) {
+    if (filterRange === 'all') return true;
+    const days = parseInt(filterRange);
+    const dt = new Date(dateStr + 'T00:00:00');
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    return dt >= cutoff;
+  }
+
+  function activeStaff() {
+    return (db.employees || []).filter(e => e.status === 'Active').sort((a,b) => a.name.localeCompare(b.name));
+  }
+
+  function getRec(date, empId) {
+    return ((db.staffAttendance || {})[date] || {})[empId] || null;
+  }
+
+  function deptOf(e) { return e.dept || 'Unassigned'; }
+
+  function deptList() {
+    return Array.from(new Set(activeStaff().map(deptOf))).sort();
+  }
+
+  // Per-employee summary {P, L, A, total, rate, avgArrival} over filtered dates
+  function empSummary(empId) {
+    const dates = allDates().filter(inRange);
+    let P=0, L=0, A=0; const arrivalMins = [];
+    dates.forEach(d => {
+      const r = getRec(d, empId);
+      if (!r || !r.status) return;
+      if (r.status === 'Present') P++;
+      else if (r.status === 'Late') L++;
+      else if (r.status === 'Absent') A++;
+      if (r.in) {
+        const parts = r.in.split(':');
+        const h = parseInt(parts[0],10), m = parseInt(parts[1],10);
+        if (!isNaN(h) && !isNaN(m)) arrivalMins.push(h*60+m);
+      }
+    });
+    const total = P+L+A;
+    const avgArrival = arrivalMins.length ? Math.round(arrivalMins.reduce((s,v)=>s+v,0)/arrivalMins.length) : null;
+    return { P, L, A, total, days: total, rate: total>0 ? Math.round((P/total)*100) : null, avgArrival };
+  }
+
+  function minsToTime(mins) {
+    if (mins === null || mins === undefined) return '—';
+    const h = Math.floor(mins/60), m = mins%60;
+    return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+  }
+
+  // Per-department aggregate
+  function deptSummary(dept) {
+    const staff = activeStaff().filter(e => dept==='__ALL__' ? true : deptOf(e)===dept);
+    let P=0, L=0, A=0;
+    staff.forEach(e => { const s = empSummary(e.id); P+=s.P; L+=s.L; A+=s.A; });
+    const total = P+L+A;
+    return { dept, staff: staff.length, dates: allDates().filter(inRange).length, P, L, A, total, rate: total>0 ? Math.round((P/total)*100) : null };
+  }
+
+  // Daily overall Present-rate trend (last 20 days in range)
+  function overallTrend(dept) {
+    const dates = allDates().filter(inRange).slice(-20);
+    const staff = activeStaff().filter(e => dept==='__ALL__' ? true : deptOf(e)===dept);
+    return dates.map(d => {
+      let p=0, total=0;
+      staff.forEach(e => {
+        const r = getRec(d, e.id);
+        if (r && r.status) { total++; if (r.status==='Present') p++; }
+      });
+      return { date: d, rate: total>0 ? Math.round((p/total)*100) : 0, p, total };
+    });
+  }
+
+  function rateBadge(rate) {
+    if (rate === null) return '<span class="ar-badge" style="background:var(--cream2);color:var(--muted)">No data</span>';
+    if (rate >= 80) return `<span class="ar-badge ar-badge-green">${rate}%</span>`;
+    if (rate >= 60) return `<span class="ar-badge ar-badge-amber">${rate}%</span>`;
+    return `<span class="ar-badge ar-badge-red">${rate}%</span>`;
+  }
+
+  function rateColor(rate) {
+    if (!rate) return '#9ca3af';
+    if (rate >= 80) return 'var(--green)';
+    if (rate >= 60) return 'var(--amber)';
+    return 'var(--red)';
+  }
+
+  function destroyCharts() {
+    Object.values(chartInstances).forEach(c => { try { c.destroy(); } catch(e){} });
+    Object.keys(chartInstances).forEach(k => delete chartInstances[k]);
+  }
+
+  function drawDonut(canvasId, P, L, A) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !window.Chart) return;
+    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+    chartInstances[canvasId] = new Chart(canvas, {
+      type: 'doughnut',
+      data: {
+        labels: ['Present','Late','Absent'],
+        datasets: [{ data: [P,L,A],
+          backgroundColor: ['#2d7b51','#97640d','#b84040'],
+          borderWidth: 2, borderColor: '#fff' }]
+      },
+      options: {
+        cutout: '68%', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: {
+          label: ctx => ` ${ctx.label}: ${ctx.parsed}`
+        }}}
+      }
+    });
+  }
+
+  function drawLine(canvasId, trendData) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !window.Chart) return;
+    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+    const labels = trendData.map(t => {
+      const d = new Date(t.date+'T00:00:00');
+      return (d.getMonth()+1)+'/'+d.getDate();
+    });
+    chartInstances[canvasId] = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Present Rate',
+          data: trendData.map(t=>t.rate),
+          borderColor: '#2d7b51', backgroundColor: 'rgba(46,125,82,0.08)',
+          fill: true, tension: 0.35, pointRadius: 4, pointBackgroundColor:'#2d7b51'
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks:{font:{size:10}}, grid:{display:false} },
+          y: { min:0, max:100, ticks:{callback:v=>v+'%',font:{size:10}}, grid:{color:'rgba(0,0,0,0.05)'} }
+        }
+      }
+    });
+  }
+
+  function drawHBar(canvasId, labels, data) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !window.Chart) return;
+    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+    chartInstances[canvasId] = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label:'Present Rate (%)',
+          data,
+          backgroundColor: data.map(v => v>=80?'rgba(46,125,82,0.75)':v>=60?'rgba(184,122,16,0.75)':'rgba(184,64,64,0.75)'),
+          borderRadius: 5
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins:{ legend:{display:false} },
+        scales:{
+          x:{min:0,max:100,ticks:{callback:v=>v+'%',font:{size:10}},grid:{color:'rgba(0,0,0,0.05)'}},
+          y:{ticks:{font:{size:11}},grid:{display:false}}
+        }
+      }
+    });
+  }
+
+  // ── OVERVIEW TAB ──────────────────────────────────────────
+  function drawOverview() {
+    const depts = deptList();
+    let gP=0, gL=0, gA=0;
+    depts.forEach(d => { const ds = deptSummary(d); gP+=ds.P; gL+=ds.L; gA+=ds.A; });
+    const gTotal = gP+gL+gA;
+    const gRate  = gTotal>0 ? Math.round((gP/gTotal)*100) : 0;
+    const trend  = overallTrend('__ALL__');
+    const cmpData = depts.map(d => { const ds = deptSummary(d); return ds.rate ?? 0; });
+
+    return `
+      <div class="ar-kpi-grid">
+        <div class="kpi-card gold">
+          <div class="kpi-label">Overall Rate</div>
+          <div class="kpi-value" style="color:${rateColor(gRate)}">${gRate}%</div>
+          <div class="kpi-sub">All staff combined</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-label">Total Present</div>
+          <div class="kpi-value">${gP.toLocaleString()}</div>
+          <div class="kpi-sub">Staff-day slots</div>
+        </div>
+        <div class="kpi-card" style="border-top:3px solid var(--amber)">
+          <div class="kpi-label">Total Late</div>
+          <div class="kpi-value" style="color:var(--amber)">${gL.toLocaleString()}</div>
+          <div class="kpi-sub">Staff-day slots</div>
+        </div>
+        <div class="kpi-card" style="border-top:3px solid var(--red)">
+          <div class="kpi-label">Total Absent</div>
+          <div class="kpi-value" style="color:var(--red)">${gA.toLocaleString()}</div>
+          <div class="kpi-sub">Staff-day slots</div>
+        </div>
+      </div>
+
+      <div class="ar-chart-row">
+        <div class="ar-chart-card">
+          <div class="ar-chart-title">📈 Present-Rate Trend (last ${Math.min(trend.length,20)} days)</div>
+          <div class="ar-chart-canvas-wrap"><canvas id="satr-trend-chart"></canvas></div>
+        </div>
+        <div class="ar-chart-card">
+          <div class="ar-chart-title">🍩 Overall Breakdown</div>
+          <div style="display:flex;align-items:center;gap:20px;height:220px">
+            <div style="width:160px;height:160px;flex-shrink:0"><canvas id="satr-donut-chart"></canvas></div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div class="ar-donut-item"><div class="ar-donut-dot" style="background:var(--green)"></div><span><b>${gP}</b> Present (${gTotal>0?Math.round((gP/gTotal)*100):0}%)</span></div>
+              <div class="ar-donut-item"><div class="ar-donut-dot" style="background:var(--amber)"></div><span><b>${gL}</b> Late (${gTotal>0?Math.round((gL/gTotal)*100):0}%)</span></div>
+              <div class="ar-donut-item"><div class="ar-donut-dot" style="background:var(--red)"></div><span><b>${gA}</b> Absent (${gTotal>0?Math.round((gA/gTotal)*100):0}%)</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ar-chart-card" style="margin-bottom:18px">
+        <div class="ar-chart-title">🏢 Department Present Rates</div>
+        <div class="ar-chart-canvas-wrap" style="height:${Math.max(180, depts.length*36)}px">
+          <canvas id="satr-dept-hbar"></canvas>
+        </div>
+      </div>
+    `;
+  }
+
+  // ── BY DEPARTMENT TAB ────────────────────────────────────
+  function drawByDept() {
+    const depts = deptList();
+    const dept = depts.includes(filterDept) ? filterDept : (depts[0] || '__ALL__');
+    const staff = activeStaff().filter(e => deptOf(e) === dept);
+    const ds = deptSummary(dept);
+    const trend = overallTrend(dept);
+
+    const rows = staff.map(e => {
+      const sm = empSummary(e.id);
+      const rateBar = sm.total > 0
+        ? `<div class="ar-rate-bar"><div class="ar-rate-fill" style="width:${sm.rate}%;background:${rateColor(sm.rate)}"></div></div>` : '';
+      return `<tr>
+        <td><div style="font-weight:500;color:var(--navy)">${esc(e.name)}</div><div style="font-size:10px;color:var(--muted)">${esc(e.role||'')}</div></td>
+        <td>${sm.P}</td><td>${sm.L}</td><td>${sm.A}</td>
+        <td>${sm.days}</td>
+        <td>${minsToTime(sm.avgArrival)}</td>
+        <td>${rateBadge(sm.rate)}${rateBar}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">No staff in ${esc(dept)}</td></tr>`;
+
+    return `
+      <div class="ar-kpi-grid">
+        <div class="kpi-card gold"><div class="kpi-label">Department</div><div class="kpi-value" style="font-size:18px">${esc(dept)}</div><div class="kpi-sub">${ds.staff} staff · ${ds.dates} days</div></div>
+        <div class="kpi-card green"><div class="kpi-label">Present</div><div class="kpi-value">${ds.P}</div><div class="kpi-sub">slots</div></div>
+        <div class="kpi-card" style="border-top:3px solid var(--red)"><div class="kpi-label">Absent</div><div class="kpi-value" style="color:var(--red)">${ds.A}</div><div class="kpi-sub">slots</div></div>
+        <div class="kpi-card" style="border-top:3px solid var(--gold)"><div class="kpi-label">Rate</div><div class="kpi-value" style="color:${rateColor(ds.rate)}">${ds.rate!==null?ds.rate+'%':'–'}</div><div class="kpi-sub">present rate</div></div>
+      </div>
+
+      <div class="ar-chart-row">
+        <div class="ar-chart-card">
+          <div class="ar-chart-title">📈 Daily Trend — ${esc(dept)}</div>
+          <div class="ar-chart-canvas-wrap"><canvas id="satr-dept-trend"></canvas></div>
+        </div>
+        <div class="ar-chart-card">
+          <div class="ar-chart-title">🍩 ${esc(dept)} Breakdown</div>
+          <div style="display:flex;align-items:center;gap:20px;height:220px">
+            <div style="width:160px;height:160px;flex-shrink:0"><canvas id="satr-dept-donut"></canvas></div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div class="ar-donut-item"><div class="ar-donut-dot" style="background:var(--green)"></div><b>${ds.P}</b>&nbsp;Present</div>
+              <div class="ar-donut-item"><div class="ar-donut-dot" style="background:var(--amber)"></div><b>${ds.L}</b>&nbsp;Late</div>
+              <div class="ar-donut-item"><div class="ar-donut-dot" style="background:var(--red)"></div><b>${ds.A}</b>&nbsp;Absent</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ar-student-table">
+        <table>
+          <thead><tr>
+            <th>Staff</th><th>Present</th><th>Late</th><th>Absent</th><th>Days Tracked</th><th>Avg Arrival</th><th style="min-width:130px">Rate</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+
+      <div class="ar-chart-card" style="margin-top:16px">
+        <div class="ar-chart-title">📊 Staff-by-Staff Present Rate — ${esc(dept)}</div>
+        <div class="ar-chart-canvas-wrap" style="height:${Math.max(200, staff.length*32)}px">
+          <canvas id="satr-staff-bar"></canvas>
+        </div>
+      </div>
+    `;
+  }
+
+  // ── BY STAFF TAB ──────────────────────────────────────────
+  function drawByStaff() {
+    const allStaff = activeStaff().filter(e => filterDept==='__ALL__' || deptOf(e)===filterDept);
+    const rows = allStaff.map(e => {
+      const sm = empSummary(e.id);
+      const rateBar = sm.total > 0
+        ? `<div class="ar-rate-bar"><div class="ar-rate-fill" style="width:${sm.rate}%;background:${rateColor(sm.rate)}"></div></div>` : '';
+      return `<tr>
+        <td><div style="font-weight:500;color:var(--navy)">${esc(e.name)}</div><div style="font-size:10px;color:var(--muted)">${esc(e.role||'')}</div></td>
+        <td>${esc(deptOf(e))}</td>
+        <td>${sm.P}</td><td>${sm.L}</td><td>${sm.A}</td>
+        <td>${sm.days}</td>
+        <td>${minsToTime(sm.avgArrival)}</td>
+        <td>${rateBadge(sm.rate)}${rateBar}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">No staff found</td></tr>`;
+
+    // Top latecomers/absentees — ranked by Late + Absent
+    const ranked = allStaff.map(e => {
+      const sm = empSummary(e.id);
+      return { ...e, ...sm };
+    }).sort((a,b) => ((b.L||0)+(b.A||0)) - ((a.L||0)+(a.A||0))).slice(0,10);
+
+    const barLabels = ranked.map(e=>e.name.split(' ')[0]);
+
+    return `
+      <div class="ar-chart-row">
+        <div class="ar-chart-card">
+          <div class="ar-chart-title">⚠️ Most Late / Absent (Top 10)</div>
+          <div class="ar-chart-canvas-wrap" style="height:${Math.max(200,ranked.length*32)}px">
+            <canvas id="satr-issues-hbar"></canvas>
+          </div>
+        </div>
+        <div class="ar-chart-card">
+          <div class="ar-chart-title">📊 P / L / A Breakdown (Top 10)</div>
+          <div class="ar-chart-canvas-wrap"><canvas id="satr-staff-stacked"></canvas></div>
+        </div>
+      </div>
+
+      <div class="ar-student-table">
+        <table>
+          <thead><tr>
+            <th>Staff</th><th>Dept</th><th>Present</th><th>Late</th><th>Absent</th><th>Days</th><th>Avg Arrival</th><th style="min-width:130px">Rate</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // ── MAIN DRAW ─────────────────────────────────────────────
+  function draw() {
+    destroyCharts();
+    const depts = deptList();
+
+    const deptOpts = `<option value="__ALL__">All Departments</option>` +
+      depts.map(d=>`<option value="${esc(d)}" ${d===filterDept?'selected':''}>${esc(d)}</option>`).join('');
+
+    const rangeOpts = [
+      ['7','Last 7 Days'],['14','Last 14 Days'],['30','Last 30 Days'],
+      ['60','Last 60 Days'],['all','All Time']
+    ].map(([v,l])=>`<option value="${v}" ${v===filterRange?'selected':''}>${l}</option>`).join('');
+
+    let tabContent = '';
+    if (activeTab==='overview') tabContent = drawOverview();
+    else if (activeTab==='bydept') tabContent = drawByDept();
+    else if (activeTab==='bystaff') tabContent = drawByStaff();
+
+    el.innerHTML = `
+      <div class="section-header">
+        <div>
+          <div class="section-title">Staff Attendance Report</div>
+          <div class="section-sub">Clock-in analytics for all staff — ${ACTIVE_YEAR}</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+        <div class="ar-tab-bar" style="margin-bottom:0">
+          <div class="ar-tab ${activeTab==='overview'?'active':''}" onclick="satrTab('overview')">🌐 Overview</div>
+          <div class="ar-tab ${activeTab==='bydept'?'active':''}" onclick="satrTab('bydept')">🏢 By Department</div>
+          <div class="ar-tab ${activeTab==='bystaff'?'active':''}" onclick="satrTab('bystaff')">👤 By Staff</div>
+        </div>
+        <div class="ar-filter-row" style="margin-bottom:0;margin-left:auto">
+          ${activeTab!=='overview' ? `<select onchange="satrFilterDept(this.value)">${deptOpts}</select>` : ''}
+          <select onchange="satrFilterRange(this.value)">${rangeOpts}</select>
+        </div>
+      </div>
+
+      ${tabContent}
+    `;
+
+    requestAnimationFrame(() => {
+      if (activeTab==='overview') {
+        drawLine('satr-trend-chart', overallTrend('__ALL__'));
+        let gP=0, gL=0, gA=0;
+        depts.forEach(d => { const ds = deptSummary(d); gP+=ds.P; gL+=ds.L; gA+=ds.A; });
+        drawDonut('satr-donut-chart', gP, gL, gA);
+        const cmpData = depts.map(d => { const ds = deptSummary(d); return ds.rate ?? 0; });
+        drawHBar('satr-dept-hbar', depts, cmpData);
+      } else if (activeTab==='bydept') {
+        const dept = depts.includes(filterDept) ? filterDept : (depts[0] || '__ALL__');
+        const ds = deptSummary(dept);
+        drawLine('satr-dept-trend', overallTrend(dept));
+        drawDonut('satr-dept-donut', ds.P, ds.L, ds.A);
+        const staff = activeStaff().filter(e => deptOf(e) === dept);
+        const staffLabels = staff.map(e=>e.name.split(' ')[0]);
+        const staffRates  = staff.map(e=>{ const sm=empSummary(e.id); return sm.rate??0; });
+        drawHBar('satr-staff-bar', staffLabels, staffRates);
+      } else if (activeTab==='bystaff') {
+        const allStaff = activeStaff().filter(e => filterDept==='__ALL__' || deptOf(e)===filterDept);
+        const ranked = allStaff.map(e=>{
+          const sm=empSummary(e.id); return {...e,...sm};
+        }).sort((a,b)=>((b.L||0)+(b.A||0))-((a.L||0)+(a.A||0))).slice(0,10);
+        const names = ranked.map(e=>e.name.split(' ')[0]);
+        drawHBar('satr-issues-hbar', names, ranked.map(e=>e.rate??0));
+        const canvas = document.getElementById('satr-staff-stacked');
+        if (canvas && window.Chart) {
+          if (chartInstances['satr-staff-stacked']) chartInstances['satr-staff-stacked'].destroy();
+          chartInstances['satr-staff-stacked'] = new Chart(canvas, {
+            type:'bar',
+            data:{
+              labels: names,
+              datasets:[
+                {label:'Present',data:ranked.map(e=>e.P||0),backgroundColor:'rgba(46,125,82,0.75)',borderRadius:3},
+                {label:'Late',   data:ranked.map(e=>e.L||0),backgroundColor:'rgba(184,122,16,0.75)',borderRadius:3},
+                {label:'Absent', data:ranked.map(e=>e.A||0),backgroundColor:'rgba(184,64,64,0.75)', borderRadius:3}
+              ]
+            },
+            options:{
+              responsive:true, maintainAspectRatio:false,
+              plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}},
+              scales:{
+                x:{stacked:true,ticks:{font:{size:10}},grid:{display:false}},
+                y:{stacked:true,ticks:{font:{size:10}},grid:{color:'rgba(0,0,0,0.05)'}}
+              }
+            }
+          });
+        }
+      }
+    });
+
+    window.satrTab         = t => { activeTab=t; if(t!=='overview'&&filterDept==='__ALL__') filterDept=depts[0]||'__ALL__'; draw(); };
+    window.satrFilterDept  = v => { filterDept=v; draw(); };
+    window.satrFilterRange = v => { filterRange=v; draw(); };
+  }
+
+  draw();
+}
+
 // ══════════════ TIMETABLE ══════════════
 function renderTimetable() {
   const el = document.getElementById('tt-inner');
@@ -20840,8 +21589,8 @@ function renderBoardReport() {
     totalFeesColl += c.totalPaid;
     totalBilled += c.totalBilled;
   });
-  const admFeesRev  = admitted.filter(a => a.status !== 'Scholarship' && a.status !== 'Continuing').reduce((sum,a) => sum + (a.fee||0), 0);
-  const otherRev    = (db.revenue  || []).filter(isPostedFin).reduce((a,r) => a + (r.amount||0), 0);
+  const admFeesRev  = getAdmissionFeeTotal(db);
+  const otherRev    = getOtherRevenueTotal(db);
   const totalExp    = (db.expenses || []).filter(isPostedFin).reduce((a,e) => a + (e.amount||0), 0);
   const totalRevenue = totalFeesColl + admFeesRev + otherRev;
   const netSurplus    = totalRevenue - totalExp;
@@ -22906,10 +23655,9 @@ function backfillJournalEntries() {
 
   (db.revenue || []).forEach(r => {
     if (has('revenue', r.id)) return;
-    const revAcct = findAccountByCategory(r.cat, 'Revenue');
     postJournalEntry(r.date, 'Revenue: ' + r.desc, [
       { account: cashAccountForMode(r.mode), debit: r.amount, credit: 0 },
-      { account: revAcct ? revAcct.code : '4010', debit: 0, credit: r.amount }
+      { account: revenueAccountCode(r.cat), debit: 0, credit: r.amount }
     ], 'revenue', r.id);
     mark('revenue', r.id); posted++;
   });
@@ -25164,6 +25912,51 @@ const APPRAISAL_CRITERIA = [
   { key: 'systemUsage',     label: 'System Usage — Frequent &amp; Timely Records', auto: true }
 ];
 
+// ── Role-specific KPI sets ──
+// A Teacher, a Class Teacher, and a Headteacher aren't doing the same job, so
+// rating them all on one generic list misses what each role is actually
+// responsible for. These three sets replace APPRAISAL_CRITERIA (still kept
+// above as the fallback for every other staff position — Bursar, Secretary,
+// Admin, support staff, etc.) whenever the staff member being appraised holds
+// one of these three positions.
+const APPRAISAL_CRITERIA_TEACHER = [
+  { key: 'teaching',        label: 'Lesson Delivery &amp; Teaching Quality' },
+  { key: 'punctuality',     label: 'Punctuality &amp; Attendance' },
+  { key: 'engagement',      label: 'Student Engagement &amp; Support' },
+  { key: 'subjectCoverage', label: 'Syllabus / Subject Coverage' },
+  { key: 'professionalism', label: 'Professionalism &amp; Conduct' },
+  { key: 'systemUsage',     label: 'System Usage — Frequent &amp; Timely Records', auto: true }
+];
+const APPRAISAL_CRITERIA_CLASS_TEACHER = [
+  { key: 'teaching',        label: 'Lesson Delivery &amp; Teaching Quality' },
+  { key: 'punctuality',     label: 'Punctuality &amp; Attendance' },
+  { key: 'classroom',       label: 'Classroom &amp; Class Record Management' },
+  { key: 'engagement',      label: 'Student Engagement &amp; Pastoral Care' },
+  { key: 'parentComms',     label: 'Parent Communication' },
+  { key: 'professionalism', label: 'Professionalism &amp; Conduct' },
+  { key: 'systemUsage',     label: 'System Usage — Frequent &amp; Timely Records', auto: true }
+];
+const APPRAISAL_CRITERIA_HEADTEACHER = [
+  { key: 'leadership',      label: 'Leadership &amp; Staff Supervision' },
+  { key: 'compliance',      label: 'Policy Implementation &amp; Compliance' },
+  { key: 'staffDev',        label: 'Staff Development &amp; Support' },
+  { key: 'parentRelations', label: 'Parent &amp; Community Relations' },
+  { key: 'oversight',       label: 'School Administration &amp; Record Oversight' },
+  { key: 'professionalism', label: 'Professionalism &amp; Conduct' }
+];
+
+// Matches a staff member to their KPI set. Payroll → Employee's "Role /
+// Position" field is free text (e.g. "Head Teacher", "Class Teacher — Basic 4"),
+// not a strict list, so this matches on keywords — most-specific first, so
+// "Head Teacher" doesn't accidentally match the plain "teacher" check.
+function getAppraisalCriteriaForEmployee(emp) {
+  const role = ((emp && emp.role) || '').toLowerCase();
+  if (role.includes('head')) return APPRAISAL_CRITERIA_HEADTEACHER;
+  if (role.includes('class teacher')) return APPRAISAL_CRITERIA_CLASS_TEACHER;
+  if (role.includes('teacher')) return APPRAISAL_CRITERIA_TEACHER;
+  return APPRAISAL_CRITERIA; // Bursar, Secretary, Admin, or any other position
+}
+
 // Auto-scored (not manually rated): how frequently and promptly a staff member
 // enters real records into Ecole Systems (grades, via Grade Entry's Final Exams/
 // Mid Term/Class Score/Homework categories — the clearest "did the teacher keep
@@ -25344,7 +26137,10 @@ function computeWeeklyTeacherRanking(wkStart, wkEnd) {
 }
 
 function aprOverallRating(criteria) {
-  const vals = APPRAISAL_CRITERIA.map(c => criteria[c.key] || 0).filter(v => v > 0);
+  // Reads whatever numeric ratings are present, regardless of which KPI set
+  // (Teacher / Class Teacher / Headteacher / default) produced them — each
+  // set uses different keys, so this can't be tied to one fixed criteria list.
+  const vals = Object.values(criteria || {}).filter(v => typeof v === 'number' && v > 0);
   return vals.length ? (vals.reduce((a,b)=>a+b,0) / vals.length) : 0;
 }
 
@@ -25563,8 +26359,29 @@ function openAppraisalModal() {
   document.getElementById('apr-reviewer').value = '';
   document.getElementById('apr-date').value = today();
 
+  aprEmployeeChanged(); // builds the criteria list for whichever employee is selected by default
+  document.getElementById('appraisal-modal').classList.add('open');
+}
+let _aprCriteriaValues = {};
+let _aprActiveCriteria = APPRAISAL_CRITERIA;
+
+// Rebuilds the KPI list for whichever staff member is now selected — Teacher,
+// Class Teacher, and Headteacher each get their own set (see
+// getAppraisalCriteriaForEmployee() above); previous ratings are cleared since
+// they were keyed to the previous employee's (possibly different) KPI set.
+function aprEmployeeChanged() {
+  const empId = document.getElementById('apr-employee').value;
+  const emp = (db.employees || []).find(e => e.id == empId);
+  _aprActiveCriteria = getAppraisalCriteriaForEmployee(emp);
   _aprCriteriaValues = {};
-  document.getElementById('apr-criteria-list').innerHTML = APPRAISAL_CRITERIA.map(c => c.auto
+  const heading = document.getElementById('apr-criteria-heading');
+  if (heading) heading.textContent = emp ? `KPIs for: ${emp.role || 'General Staff'}` : '';
+  renderAprCriteriaList();
+  aprRecomputeSystemUsage();
+}
+
+function renderAprCriteriaList() {
+  document.getElementById('apr-criteria-list').innerHTML = _aprActiveCriteria.map(c => c.auto
     ? `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <span style="font-size:12.5px">${c.label} <span style="color:var(--muted);font-size:10px">(auto)</span></span>
         <div id="apr-rate-${c.key}" style="font-size:11px;color:var(--muted)">Select a staff member…</div>
@@ -25576,11 +26393,8 @@ function openAppraisalModal() {
         </div>
       </div>`
   ).join('');
-
-  aprRecomputeSystemUsage();
-  document.getElementById('appraisal-modal').classList.add('open');
+  aprUpdateOverallPreview();
 }
-let _aprCriteriaValues = {};
 
 function aprSetRating(key, val) {
   _aprCriteriaValues[key] = val;
@@ -25595,7 +26409,7 @@ function aprUpdateOverallPreview() {
   const rated = Object.keys(_aprCriteriaValues).length;
   if (!rated) { el.textContent = '— rate at least one criterion —'; el.style.color = 'var(--muted)'; return; }
   const pct = aprOverallPercent(_aprCriteriaValues);
-  el.textContent = `${aprOverallRating(_aprCriteriaValues).toFixed(1)}/5 — ${pct}%  (${rated}/${APPRAISAL_CRITERIA.length} rated)`;
+  el.textContent = `${aprOverallRating(_aprCriteriaValues).toFixed(1)}/5 — ${pct}%  (${rated}/${_aprActiveCriteria.length} rated)`;
   el.style.color = aprPercentColor(pct);
 }
 
@@ -25650,6 +26464,7 @@ function saveAppraisal() {
     period: term + ' — ' + ACTIVE_YEAR.replace('_','/'), // kept for print/legacy display
     date,
     criteria: { ..._aprCriteriaValues },
+    criteriaSet: _aprActiveCriteria, // the specific KPI set (Teacher/Class Teacher/Headteacher/default) used for this record — kept so past appraisals still display correctly even if the KPI definitions change later
     strengths: document.getElementById('apr-strengths').value.trim(),
     improvements: document.getElementById('apr-improvements').value.trim(),
     goals: document.getElementById('apr-goals').value.trim(),
@@ -25695,7 +26510,8 @@ function viewAppraisal(id) {
   const a = (db.appraisals || []).find(x => x.id === id);
   if (!a) return;
   const emp = (db.employees || []).find(e => e.id == a.employeeId);
-  const criteriaRows = APPRAISAL_CRITERIA.map(c => {
+  const criteriaSet = a.criteriaSet || APPRAISAL_CRITERIA; // older appraisals predate role-specific KPI sets
+  const criteriaRows = criteriaSet.map(c => {
     const val = a.criteria[c.key] || 0;
     return `<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--border)">
       <div>${c.label}</div>
@@ -25750,7 +26566,8 @@ function renderMyAppraisal() {
   const cards = mine.map(a => {
     const pct = aprOverallPercent(a.criteria || {});
     const rating = aprOverallRating(a.criteria || {});
-    const criteriaRows = APPRAISAL_CRITERIA.map(c => {
+    const criteriaSet = a.criteriaSet || APPRAISAL_CRITERIA; // older appraisals predate role-specific KPI sets
+    const criteriaRows = criteriaSet.map(c => {
       const val = a.criteria[c.key] || 0;
       return `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px">
         <span style="color:var(--muted)">${c.label}${c.auto ? ' <span style="font-size:9px">(auto)</span>' : ''}</span>
@@ -25803,6 +26620,186 @@ function renderMyAppraisal() {
 // departments, and work contact info only. Deliberately excludes salary, SSNIT, TIN,
 // bank details, and notes (all of which live in Teachers & Staff Database, Admin-only),
 // and has no view-profile or edit controls at all.
+// ══════════════ TEACHER DASHBOARD (Teacher / Class Teacher landing page) ══════════════
+// A personalized home page built entirely from data a Teacher/Class Teacher can already
+// see elsewhere in the app (Grade Entry, Attendance, Skills Assessment, Academic Calendar,
+// My Workspace) — no financial or admin-only figures. A Class Teacher is locked to their
+// one class (lockedClassFor()); a plain Teacher (no class lock) gets a class picker, same
+// pattern as Grade Entry / Skills Assessment / Attendance.
+function tdbSetClass(c) { window._tdbSel = { cls: c }; renderTeacherDashboard(); }
+
+function tdbAttKey(cls, date) { return cls.replace(/\s/g,'_') + '|' + date; }
+
+function renderTeacherDashboard() {
+  const el = document.getElementById('tdb-inner');
+  if (!el) return;
+
+  const lockedClass = lockedClassFor();
+  const _sel = window._tdbSel || {};
+  const selClass = lockedClass || (CLASSES.includes(_sel.cls) ? _sel.cls : (CLASSES.find(c => c !== 'Creche') || CLASSES[0] || ''));
+  window._tdbSel = { cls: selClass };
+
+  const admitted = (db.admissions || []).filter(s => ['Admitted','Continuing','Scholarship'].includes(s.status));
+  const myClassStudents = admitted.filter(s => s.cls === selClass);
+
+  // ── Greeting + term status ──
+  const hr = new Date().getHours();
+  const greeting = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
+  const dateStr = new Date().toLocaleDateString('en-GH', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const cts = getCurrentTermStatus();
+  const termBit = cts.status === 'active'
+    ? cts.term + ' is in session · ' + cts.daysLeft + ' day' + (cts.daysLeft!==1?'s':'') + ' left'
+    : cts.status === 'upcoming' ? cts.term + ' begins in ' + cts.daysUntil + ' day' + (cts.daysUntil!==1?'s':'')
+    : 'Here\'s where things stand today';
+  const currentTerm = cts.term || TERMS[0];
+
+  // ── Attendance today ──
+  const todayStr = today();
+  const nsd = getNonSchoolDayEvent(todayStr);
+  const attToday = (db.attendance || {})[tdbAttKey(selClass, todayStr)] || {};
+  const attRecorded = Object.keys(attToday).length;
+  const attPresent = Object.values(attToday).filter(v => v === 'P').length;
+  const attAbsent = Object.values(attToday).filter(v => v === 'A').length;
+  const attLate = Object.values(attToday).filter(v => v === 'L').length;
+
+  // ── Grade Entry progress (Final Exams score, current term, this class) ──
+  const subs = subjectsForClass(selClass);
+  const entriesPossible = myClassStudents.length * subs.length;
+  let entriesDone = 0;
+  myClassStudents.forEach(s => subs.forEach(sub => {
+    const g = getGrade(s.id, sub.id, currentTerm);
+    if (g && g.score !== undefined && g.score !== null) entriesDone++;
+  }));
+  const gradePct = entriesPossible ? Math.round(entriesDone / entriesPossible * 100) : 0;
+  const gradeBarClass = gradePct >= 100 ? 'progress-green' : gradePct >= 40 ? 'progress-amber' : 'progress-red';
+
+  // ── Skills Assessment status (current calendar month, this class) ──
+  const MONTHS = skillMonths();
+  const now = new Date();
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const curMonthLabel = monthNames[now.getMonth()] + ' ' + now.getFullYear();
+  const selSkillMonth = MONTHS.includes(curMonthLabel) ? curMonthLabel : MONTHS[0];
+  const skSub = getSkillSubmission(selClass, selSkillMonth);
+
+  // ── Upcoming Academic Calendar events ──
+  const events = ((db.academicCalendar || {}).events || [])
+    .filter(e => e.date >= todayStr)
+    .sort((a,b) => a.date.localeCompare(b.date))
+    .slice(0, 5);
+
+  // ── My Workspace summary ──
+  const emp = getMyStaffProfile();
+  const myTrainings = emp ? (db.trainings || []).filter(t => (t.participants||[]).includes(emp.id)) : [];
+  const myAppraisals = emp ? (db.appraisals || []).filter(a => a.employeeId == emp.id && a.published) : [];
+  const unseenAppraisals = myAppraisals.filter(a => !a.viewedByTeacher).length;
+
+  // ── Quick-access tiles: whatever Academic pages this role can actually open ──
+  const quickTiles = MODULE_DEFS.academic.items.filter(it => canAccessPage(it.page));
+
+  const classPicker = lockedClass ? '' : `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+      ${CLASSES.map(c => {
+        const cnt = admitted.filter(s => s.cls === c).length;
+        return `<div class="ge-class-pill ${c===selClass?'active':''}" onclick="tdbSetClass('${c}')">${esc(c)} <span style="font-size:10px;opacity:0.7">(${cnt})</span></div>`;
+      }).join('')}
+    </div>`;
+
+  let attHtml, attCardClass;
+  if (nsd) {
+    attHtml = `<div class="kpi-value" style="font-size:15px">🚫 No school</div><div class="kpi-sub">${esc(CAL_CAT_LABELS[nsd.category])}: ${esc(nsd.title)}</div>`;
+    attCardClass = 'navy';
+  } else if (!myClassStudents.length) {
+    attHtml = `<div class="kpi-value" style="font-size:15px">—</div><div class="kpi-sub">No students in this class yet</div>`;
+    attCardClass = 'navy';
+  } else if (attRecorded === 0) {
+    attHtml = `<div class="kpi-value" style="font-size:15px">Not marked</div><div class="kpi-sub">${myClassStudents.length} student${myClassStudents.length!==1?'s':''} awaiting attendance</div>`;
+    attCardClass = 'red';
+  } else {
+    attHtml = `<div class="kpi-value">${attPresent}/${myClassStudents.length}</div><div class="kpi-sub">Present today${attAbsent?' · ' + attAbsent + ' absent':''}${attLate?' · ' + attLate + ' late':''}</div>`;
+    attCardClass = attRecorded < myClassStudents.length ? 'gold' : 'green';
+  }
+
+  const skIcon = skSub ? SKILL_SUB_ICON[skSub.status] : '';
+  const skLabel = !skSub ? 'Not submitted' : skSub.status === 'pending' ? 'Awaiting decision' : skSub.status === 'approved' ? 'Approved' : 'Returned — needs revision';
+  const skCardClass = !skSub ? 'red' : skSub.status === 'approved' ? 'green' : skSub.status === 'returned' ? 'red' : 'gold';
+
+  el.innerHTML = `
+    <div style="margin-bottom:16px">
+      <div class="section-title" style="font-size:22px">${greeting}${currentUser ? ', ' + esc(currentUser.username) : ''}.</div>
+      <div class="section-sub" style="font-size:13px">${dateStr} · ${esc(termBit)}</div>
+    </div>
+
+    ${classPicker}
+
+    <div class="kpi-grid kpi-grid-4">
+      <div class="kpi-card navy">
+        <div class="kpi-label">My Class</div>
+        <div class="kpi-value">${esc(selClass)}</div>
+        <div class="kpi-sub">${myClassStudents.length} student${myClassStudents.length!==1?'s':''}</div>
+      </div>
+      <div class="kpi-card ${attCardClass}">
+        <div class="kpi-label">Attendance Today</div>
+        ${attHtml}
+      </div>
+      <div class="kpi-card ${gradePct>=100?'green':gradePct>0?'gold':'red'}">
+        <div class="kpi-label">Grade Entry · ${esc(currentTerm)}</div>
+        <div class="kpi-value">${gradePct}%</div>
+        <div class="progress-wrap" style="margin-top:6px"><div class="progress-bar ${gradeBarClass}" style="width:${gradePct}%"></div></div>
+        <div class="kpi-sub">${entriesDone} of ${entriesPossible} entries</div>
+      </div>
+      <div class="kpi-card ${skCardClass}">
+        <div class="kpi-label">Skills Assessment · ${esc(selSkillMonth)}</div>
+        <div class="kpi-value" style="font-size:16px">${skIcon} ${esc(skLabel)}</div>
+        ${skSub && skSub.status === 'returned' && skSub.decisionNote ? `<div class="kpi-sub" style="color:var(--red)">${esc(skSub.decisionNote)}</div>` : ''}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:14px" class="dash-2col">
+      <div class="card">
+        <div class="card-header"><strong>🗓️ Upcoming on the Academic Calendar</strong></div>
+        <div style="padding:14px 16px">
+          ${events.length ? events.map(e => `
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+              <span style="font-size:18px">${CAL_CAT_ICONS[e.category] || '📌'}</span>
+              <div style="flex:1">
+                <div style="font-weight:600;font-size:13px">${esc(e.title)}</div>
+                <div style="font-size:11px;color:var(--muted)">${esc(CAL_CAT_LABELS[e.category] || e.category)} · ${esc(e.date)}${e.endDate && e.endDate !== e.date ? ' – ' + esc(e.endDate) : ''}</div>
+              </div>
+            </div>`).join('') : '<div class="empty-state" style="padding:24px 0">No upcoming events on record</div>'}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><strong>🗂️ My Workspace</strong></div>
+        <div style="padding:14px 16px">
+          ${emp ? `
+            <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+              <span style="font-size:12.5px">⭐ Appraisals shared with me</span>
+              <span style="font-weight:700">${myAppraisals.length}${unseenAppraisals ? ' <span style="color:var(--red)">(' + unseenAppraisals + ' new)</span>' : ''}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0">
+              <span style="font-size:12.5px">🎓 Trainings I've attended</span>
+              <span style="font-weight:700">${myTrainings.length}</span>
+            </div>
+            <button class="btn btn-outline btn-sm" style="width:100%;margin-top:10px" onclick="navigate('myworkspace')">Open My Workspace →</button>
+          ` : `<div class="empty-state" style="padding:16px 0;font-size:12px">Your account isn't linked to a staff profile yet.</div>`}
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><strong>⚡ Quick Access</strong></div>
+      <div style="padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px">
+        ${quickTiles.map(it => `
+          <div class="module-launcher-tile" style="cursor:pointer" onclick="navigate('${it.page}')">
+            <div class="ml-icon">${it.icon}</div>
+            <div class="ml-label">${esc(it.label)}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
 // ══════════════ MY WORKSPACE (consolidated: everything sent to a teacher) ══════════════
 // One hub for whatever's been shared with a teacher -- Appraisal results (sent via
 // sendAppraisalToTeacher) and Training records they were a participant in. Matches
@@ -25873,7 +26870,8 @@ function buildWorkspaceAppraisalTab(emp, appraisals) {
   const cards = mine.map(a => {
     const pct = aprOverallPercent(a.criteria || {});
     const rating = aprOverallRating(a.criteria || {});
-    const criteriaRows = APPRAISAL_CRITERIA.map(c => {
+    const criteriaSet = a.criteriaSet || APPRAISAL_CRITERIA; // older appraisals predate role-specific KPI sets
+    const criteriaRows = criteriaSet.map(c => {
       const val = a.criteria[c.key] || 0;
       return `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px">
         <span style="color:var(--muted)">${c.label}${c.auto ? ' <span style="font-size:9px">(auto)</span>' : ''}</span>
@@ -27320,9 +28318,11 @@ function renderBalanceSheet() {
   // Revenue = fees collected (cash basis) + other revenue
   let totalFeesColl = 0;
   admitted.forEach(s => { TERMS.forEach(t => { totalFeesColl += (db.payments[s.id+'|'+t]||{paid:0}).paid; }); });
-  // Admission fees
-  const admFees    = admitted.filter(a=>a.status!=='Scholarship' && a.status!=='Continuing').reduce((sum,a)=>sum+(a.fee||0),0);
-  const otherRev   = revenues.reduce((a,r)=>a+(r.amount||0),0);
+  // Admission fees — one-time registration fee plus any Revenue Tracker entry
+  // filed under "Admission Fees", so both sources combine into one figure.
+  const admFees    = admitted.filter(a=>a.status!=='Scholarship' && a.status!=='Continuing').reduce((sum,a)=>sum+(a.fee||0),0)
+    + revenues.filter(r=>r.cat==='Admission Fees').reduce((a,r)=>a+(r.amount||0),0);
+  const otherRev   = revenues.filter(r=>r.cat!=='Admission Fees').reduce((a,r)=>a+(r.amount||0),0);
   const totalIncome = totalFeesColl + admFees + otherRev;
   const totalExp    = expenses.reduce((a,e)=>a+(e.amount||0),0);
   const netSurplusCurrentYear = totalIncome - totalExp;
@@ -27864,8 +28864,8 @@ function computeBalanceSheetTotalsFromSnapshot(dataObj) {
   const retainedBF       = parseFloat(dataObj.bsRetainedBF || 0);
   let totalFeesColl = 0;
   admitted.forEach(s => TERMS.forEach(t => { totalFeesColl += (paymentsMap[s.id+'|'+t] || {paid:0}).paid; }));
-  const admFees   = admitted.filter(a => a.status !== 'Scholarship' && a.status !== 'Continuing').reduce((sum,a) => sum + (a.fee||0), 0);
-  const otherRev  = (dataObj.revenue  || []).filter(isPostedFin).reduce((a,r) => a + (r.amount||0), 0);
+  const admFees   = getAdmissionFeeTotal(dataObj);
+  const otherRev  = getOtherRevenueTotal(dataObj);
   const totalExp  = (dataObj.expenses || []).filter(isPostedFin).reduce((a,e) => a + (e.amount||0), 0);
   const netSurplus  = (totalFeesColl + admFees + otherRev) - totalExp;
   const totalEquity = churchInvestment + retainedBF + netSurplus;
