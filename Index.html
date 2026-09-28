@@ -4419,7 +4419,7 @@
 <div class="modal-overlay" id="revenue-modal">
   <div class="modal">
     <div class="modal-header">
-      <span class="modal-title">Add Revenue Entry</span>
+      <span class="modal-title" id="revenue-modal-title">Add Revenue Entry</span>
       <button class="modal-close" onclick="closeModal('revenue-modal')">✕</button>
     </div>
     <div class="form-grid three" style="padding:20px">
@@ -4458,7 +4458,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('revenue-modal')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveRevenue()">💾 Save Entry</button>
+      <button class="btn btn-primary" id="revenue-modal-savebtn" onclick="saveRevenue()">💾 Save Entry</button>
     </div>
   </div>
 </div>
@@ -5209,6 +5209,32 @@
           <input type="checkbox" id="gs-auto-disable-feeding" style="width:18px;height:18px;accent-color:var(--navy);cursor:pointer;flex-shrink:0;margin-top:2px">
         </div>
       </div>
+      <div class="card" style="padding:14px 16px;margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--navy)">📅 Allow date edit on Revenue &amp; Expense Trackers</div>
+            <div style="font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.6">
+              When on, the Date column on approved Revenue Tracker and Expense Tracker entries is
+              directly editable, and the linked General Ledger posting is automatically corrected to
+              match. When off, an entry's date is fixed once saved.
+            </div>
+          </div>
+          <input type="checkbox" id="gs-allow-finance-date-edit" style="width:18px;height:18px;accent-color:var(--navy);cursor:pointer;flex-shrink:0;margin-top:2px">
+        </div>
+      </div>
+      <div class="card" style="padding:14px 16px;margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--navy)">✏️ Allow editing pending transactions before approval</div>
+            <div style="font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.6">
+              When on, a pending Revenue Tracker or Expense Tracker entry shows an Edit button so its
+              details can be corrected before it's approved. When off, a pending entry can only be
+              rejected and re-entered from scratch.
+            </div>
+          </div>
+          <input type="checkbox" id="gs-allow-pending-edit" style="width:18px;height:18px;accent-color:var(--navy);cursor:pointer;flex-shrink:0;margin-top:2px">
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('general-settings-modal')">Cancel</button>
@@ -5362,7 +5388,7 @@
 <div class="modal-overlay" id="expense-modal">
   <div class="modal">
     <div class="modal-header">
-      <span class="modal-title">Add Expense Entry</span>
+      <span class="modal-title" id="expense-modal-title">Add Expense Entry</span>
       <button class="modal-close" onclick="closeModal('expense-modal')">✕</button>
     </div>
     <div class="form-grid three" style="padding:20px">
@@ -5397,7 +5423,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('expense-modal')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveExpense()">💾 Save Entry</button>
+      <button class="btn btn-primary" id="expense-modal-savebtn" onclick="saveExpense()">💾 Save Entry</button>
     </div>
   </div>
 </div>
@@ -5848,6 +5874,11 @@ const DB_SEED = {
   nextFeedingBudgetId: 1,
   // ── STUDENT SKILLS ASSESSMENT — keyed studentId|term, each a {skillKey: 1-5} rating ──
   skillsAssessments: {},
+  // Admin-managed skill parameters (Settings → Skills Setup): [{key, label, classes:[...]}] — like Subjects, each skill lists the classes it is assessed in.
+  gradeCategories: null, // admin-managed Grade Entry assessment categories per class — null → seedGradeCategories()
+  gradingSetup: null, // admin-managed grade bands / remarks / score split — null → GRADING_DEFAULT (see gradingSetup())
+  skillScales: {}, // per-class rating-scale wording, see skillScaleFor()
+  skillParams: null, // null → seeded on first use from seedSkillParams()
   skillSubmissions: [], // [{id, cls, month, status:'pending'|'approved'|'returned', version, submittedBy, submittedAt, ratings:{studentId:{skill:1-4}}, students:{studentId:name}, reviewedBy, reviewedAt, decisionNote, history:[…]}] — see submitSkillAssessment()
   nextSkillSubId: 1,
   // ── PROMOTION MANAGEMENT — class teacher proposes, headmistress approves ──
@@ -5860,7 +5891,18 @@ const DB_SEED = {
     // amount expected/owed, and the Feeding Revenue cell for that student/date
     // is locked (same treatment as a holiday), so no one can record a payment
     // against a day the child wasn't in school to be fed.
-    autoDisableFeedingOnAbsent: true
+    autoDisableFeedingOnAbsent: true,
+    // When on, the Date column on approved Revenue Tracker and Expense
+    // Tracker entries is an editable date picker (see updateRevenueDate() /
+    // updateExpenseDate()); when off, dates are fixed once saved and can
+    // only be corrected by deleting and re-entering.
+    allowFinanceDateEdit: true,
+    // When on, a pending (not-yet-approved) Revenue Tracker or Expense
+    // Tracker entry shows an ✏️ Edit button so its details can be corrected
+    // before approval (see openRevenueModal()/openExpenseModal() edit mode).
+    // When off, a pending entry can only be rejected and re-entered from
+    // scratch — it can no longer be fixed in place.
+    allowPendingEdit: true
   },
   // ── APPROVAL WORKFLOW CONFIG — which roles submit-for-approval vs approve, per workflow ──
   approvalConfig: {
@@ -6954,15 +6996,524 @@ function openGeneralSettingsModal() {
   if (!requireRole('Admin')) return;
   if (!db.generalSettings) db.generalSettings = JSON.parse(JSON.stringify(DB_SEED.generalSettings));
   document.getElementById('gs-auto-disable-feeding').checked = !!db.generalSettings.autoDisableFeedingOnAbsent;
+  document.getElementById('gs-allow-finance-date-edit').checked = db.generalSettings.allowFinanceDateEdit !== false;
+  document.getElementById('gs-allow-pending-edit').checked = db.generalSettings.allowPendingEdit !== false;
   document.getElementById('general-settings-modal').classList.add('open');
 }
 
 function saveGeneralSettings() {
   if (!db.generalSettings) db.generalSettings = {};
   db.generalSettings.autoDisableFeedingOnAbsent = document.getElementById('gs-auto-disable-feeding').checked;
+  db.generalSettings.allowFinanceDateEdit = document.getElementById('gs-allow-finance-date-edit').checked;
+  db.generalSettings.allowPendingEdit = document.getElementById('gs-allow-pending-edit').checked;
   saveDb();
   toast('✅ General settings saved');
   closeModal('general-settings-modal');
+}
+
+// ── Skills Setup (Settings → Skills Setup) — admin-managed skill parameters, per class/level ──
+function _skRefresh() { if (typeof renderSkillsAssessment === 'function' && document.getElementById('sa-inner')) renderSkillsAssessment(); }
+
+function openSkillsSetupModal() {
+  if (!requireRole('Admin')) return;
+  let ov = document.getElementById('skills-setup-modal');
+  if (!ov) { ov = document.createElement('div'); ov.className = 'modal-overlay'; ov.id = 'skills-setup-modal'; document.body.appendChild(ov); }
+  drawSkillsSetup();
+  ov.classList.add('open');
+}
+
+function drawSkillsSetup() {
+  const ov = document.getElementById('skills-setup-modal');
+  if (!ov) return;
+  const params = getSkillParams();
+  const rows = params.map((p, i) => `<tr>
+      <td style="padding:8px 12px;font-weight:500;color:var(--navy)">${esc(p.label)}</td>
+      <td style="padding:8px 8px;max-width:320px"><div style="display:flex;flex-wrap:wrap">${(p.classes || []).map(c => `<span class="sub-class-chip">${esc(c)}</span>`).join('') || '<span style="color:var(--amber);font-size:11px">Not assigned to any class</span>'}</div></td>
+      <td style="padding:8px 10px;white-space:nowrap;text-align:center">
+        <button class="btn btn-sm btn-outline" ${i===0?'disabled':''} onclick="skillMove(${i},-1)" title="Move up">↑</button>
+        <button class="btn btn-sm btn-outline" ${i===params.length-1?'disabled':''} onclick="skillMove(${i},1)" title="Move down">↓</button>
+        <button class="btn btn-sm btn-outline" onclick="skillEditOpen(${i})">✏️ Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="skillDelete(${i})">🗑️</button>
+      </td></tr>`).join('');
+  const perClass = CLASSES.map(c => `<span class="sub-class-chip" title="${skillsFor(c).map(x => esc(x.label)).join(', ') || 'none'}">${esc(c)}: <b>${skillsFor(c).length}</b></span>`).join('');
+  ov.innerHTML = `
+    <div class="modal" style="width:min(820px,96vw);max-height:92vh;display:flex;flex-direction:column">
+      <div class="modal-header">
+        <span class="modal-title">🌟 Skills Setup</span>
+        <button class="modal-close" onclick="closeModal('skills-setup-modal')">✕</button>
+      </div>
+      <div style="padding:12px 20px 0;font-size:12px;color:var(--muted);line-height:1.6">
+        Set which skills are rated on the monthly Skills Assessment — per class or a whole level, the same way subjects are assigned.
+        Order here is the column order on the assessment sheet. Removing a skill or unassigning a class hides it from that class's sheet;
+        ratings already saved are kept.
+      </div>
+      <div style="padding:8px 20px 0;display:flex;flex-wrap:wrap;gap:2px;align-items:center"><span style="font-size:11px;color:var(--muted);margin-right:6px">Skills per class:</span>${perClass}</div>
+      <div style="padding:6px 20px 0;font-size:11px;color:var(--muted)">Rating scale: ${skillScaleSummary()}</div>
+      <div style="padding:12px 20px;overflow:auto">
+        <table><thead><tr><th style="padding-left:12px">Skill</th><th>Assessed in</th><th style="text-align:center">Actions</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="3" class="empty-state">No skills defined</td></tr>'}</tbody></table>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="skillResetDefaults()">↺ Reset to defaults</button>
+        <button class="btn btn-outline" style="margin-right:auto" onclick="skillScaleOpen()">📊 Rating Scale</button>
+        <button class="btn btn-outline" onclick="closeModal('skills-setup-modal')">Close</button>
+        <button class="btn btn-primary" onclick="skillEditOpen(null)">+ Add Skill</button>
+      </div>
+    </div>`;
+}
+
+function skillMove(i, dir) {
+  const arr = getSkillParams(), j = i + dir;
+  if (j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  saveDb(); drawSkillsSetup(); _skRefresh();
+}
+
+function skillDelete(i) {
+  const arr = getSkillParams();
+  if (!confirm('Remove skill "' + arr[i].label + '" from every class? Ratings already saved are kept in storage but will no longer show.')) return;
+  arr.splice(i, 1);
+  saveDb(); drawSkillsSetup(); _skRefresh();
+  toast('🗑️ Skill removed');
+}
+
+function skillResetDefaults() {
+  if (!confirm('Reset the skill list to the built-in defaults?\n\nThis replaces your custom skills and class assignments (Nursery 1 & 2 get the 12 early-years skills; every other class gets the standard 9). Saved ratings are kept.')) return;
+  db.skillParams = seedSkillParams();
+  saveDb(); drawSkillsSetup(); _skRefresh();
+  toast('↺ Skills reset to defaults');
+}
+
+function skillEditOpen(idx) {
+  const arr = getSkillParams();
+  const editing = idx !== null && idx !== undefined ? arr[idx] : null;
+  const sel = new Set(editing ? (editing.classes || []) : []);
+  const levels = skillLevelGroups().map(g =>
+    `<button type="button" class="btn btn-sm btn-outline" onclick="skillPickLevel('${esc(g.name)}')">${esc(g.name)}</button>`).join(' ');
+  const checks = CLASSES.map(c => `<label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;cursor:pointer">
+      <input type="checkbox" class="sk-cls-cb" value="${esc(c)}" ${sel.has(c) ? 'checked' : ''}> ${esc(c)}</label>`).join('');
+  let ov = document.getElementById('skill-edit-modal');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.className = 'modal-overlay open'; ov.id = 'skill-edit-modal'; ov.style.zIndex = 1100;
+  ov.innerHTML = `
+    <div class="modal" style="width:500px">
+      <div class="modal-header"><span class="modal-title">${editing ? 'Edit Skill' : 'Add Skill'}</span>
+        <button class="modal-close" onclick="document.getElementById('skill-edit-modal').remove()">✕</button></div>
+      <div style="padding:16px 20px">
+        <div class="form-group"><label>Skill name *</label><input type="text" id="sk-edit-label" value="${editing ? esc(editing.label) : ''}" placeholder="e.g. Pencil Grip"></div>
+        <div class="form-group"><label>Assessed in</label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"><span style="font-size:11px;color:var(--muted);align-self:center">Quick select level:</span>${levels}
+            <button type="button" class="btn btn-sm btn-outline" onclick="skillPickLevel('*')">All classes</button>
+            <button type="button" class="btn btn-sm btn-outline" onclick="skillPickLevel('')">Clear</button></div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${checks}</div></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="document.getElementById('skill-edit-modal').remove()">Cancel</button>
+        <button class="btn btn-primary" onclick="skillEditSave(${editing ? idx : 'null'})">💾 Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+// Level buttons add that level's classes to the ticked set ('*' = all, '' = clear).
+function skillPickLevel(name) {
+  const cbs = [...document.querySelectorAll('#skill-edit-modal .sk-cls-cb')];
+  if (name === '') { cbs.forEach(c => { c.checked = false; }); return; }
+  if (name === '*') { cbs.forEach(c => { c.checked = true; }); return; }
+  const g = skillLevelGroups().find(x => x.name === name);
+  if (g) cbs.forEach(c => { if (g.classes.includes(c.value)) c.checked = true; });
+}
+
+function skillEditSave(idx) {
+  const label = document.getElementById('sk-edit-label').value.trim();
+  if (!label) { toast('⚠ Enter a skill name'); return; }
+  const classes = [...document.querySelectorAll('#skill-edit-modal .sk-cls-cb:checked')].map(c => c.value);
+  const arr = getSkillParams();
+  if (arr.some((p, i) => i !== idx && p.label.toLowerCase() === label.toLowerCase() && p.classes.some(c => classes.includes(c)))) {
+    if (!confirm('A skill called "' + label + '" already exists for one of these classes. Save anyway?')) return;
+  }
+  if (idx !== null && idx !== undefined) {
+    arr[idx].label = label;      // key stays the same so saved ratings still line up
+    arr[idx].classes = classes;
+  } else {
+    let base = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'skill', key = base, n = 2;
+    while (arr.some(p => p.key === key)) key = base + '_' + n++;
+    arr.push({ key, label, classes });
+  }
+  saveDb();
+  document.getElementById('skill-edit-modal').remove();
+  drawSkillsSetup(); _skRefresh();
+  toast('✅ Skill saved');
+}
+
+
+// ── Rating Scale editor (per class) ──
+function skillScaleSummary() {
+  const all = db.skillScales || {};
+  const custom = CLASSES.filter(c => all[c]);
+  const d = all.__default ? 'custom school default' : 'built-in default';
+  return custom.length ? `${d}; custom for ${custom.map(esc).join(', ')}` : `${d} for every class`;
+}
+
+function skillScaleOpen(cls) {
+  const target = cls === undefined ? '__default' : cls;
+  const all = db.skillScales || {};
+  const sc = target === '__default' ? { ...SKILL_RATING_LABELS, ...(all.__default || {}) } : skillScaleFor(target);
+  let ov = document.getElementById('skill-scale-modal');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.className = 'modal-overlay open'; ov.id = 'skill-scale-modal'; ov.style.zIndex = 1100;
+  const opts = ['__default', ...CLASSES].map(c =>
+    `<option value="${esc(c)}" ${c === target ? 'selected' : ''}>${c === '__default' ? 'All classes (school default)' : esc(c) + (all[c] ? ' — custom' : '')}</option>`).join('');
+  ov.innerHTML = `
+    <div class="modal" style="width:480px">
+      <div class="modal-header"><span class="modal-title">📊 Rating Scale</span>
+        <button class="modal-close" onclick="document.getElementById('skill-scale-modal').remove()">✕</button></div>
+      <div style="padding:16px 20px">
+        <div class="form-group"><label>Apply to</label>
+          <select id="sk-scale-target" onchange="skillScaleOpen(this.value === '__default' ? undefined : this.value)">${opts}</select></div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px">Wording for each rating level (1 is lowest, 4 is highest). A class without its own wording uses the school default.</div>
+        ${[1,2,3,4].map(n => `<div class="form-group"><label>Level ${n}</label><input type="text" id="sk-scale-${n}" value="${esc(sc[n])}" maxlength="40"></div>`).join('')}
+      </div>
+      <div class="modal-footer">
+        ${target !== '__default' && all[target] ? `<button class="btn btn-outline" style="margin-right:auto" onclick="skillScaleClear('${esc(target)}')">Use school default</button>` : ''}
+        <button class="btn btn-outline" onclick="document.getElementById('skill-scale-modal').remove()">Cancel</button>
+        <button class="btn btn-primary" onclick="skillScaleSave('${esc(target)}')">💾 Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+function skillScaleSave(target) {
+  const vals = {};
+  for (let n = 1; n <= 4; n++) {
+    const v = document.getElementById('sk-scale-' + n).value.trim();
+    if (!v) { toast('⚠ Every level needs a label'); return; }
+    vals[n] = v;
+  }
+  if (!db.skillScales) db.skillScales = {};
+  db.skillScales[target] = vals;
+  saveDb();
+  document.getElementById('skill-scale-modal').remove();
+  drawSkillsSetup(); _skRefresh();
+  toast('✅ Rating scale saved');
+}
+
+function skillScaleClear(target) {
+  if (db.skillScales) delete db.skillScales[target];
+  saveDb();
+  document.getElementById('skill-scale-modal').remove();
+  drawSkillsSetup(); _skRefresh();
+  toast('↺ ' + target + ' now uses the school default scale');
+}
+
+// ── Grading Setup (Settings → Grading Setup) — grade bands, remarks, score split ──
+let _gsDraft = null; // working copy while the dialog is open
+
+function openGradingSetupModal() {
+  if (!requireRole('Admin')) return;
+  const cur = gradingSetup();
+  _gsDraft = JSON.parse(JSON.stringify({ bands: cur.bands, remarks: cur.remarks, classScoreMax: cur.classScoreMax, examScoreMax: cur.examScoreMax }));
+  let ov = document.getElementById('grading-setup-modal');
+  if (!ov) { ov = document.createElement('div'); ov.className = 'modal-overlay'; ov.id = 'grading-setup-modal'; document.body.appendChild(ov); }
+  drawGradingSetup();
+  ov.classList.add('open');
+}
+
+function drawGradingSetup() {
+  const ov = document.getElementById('grading-setup-modal');
+  if (!ov || !_gsDraft) return;
+  const d = _gsDraft;
+  const inp = 'style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12.5px"';
+  const bandRows = d.bands.map((b, i) => `<tr>
+    <td style="padding:4px"><input type="number" min="0" max="100" step="any" value="${b.min}" ${inp} onchange="gsSet('bands',${i},'min',this.value)"></td>
+    <td style="padding:4px"><input type="text" value="${esc(b.grade)}" maxlength="4" ${inp} onchange="gsSet('bands',${i},'grade',this.value)"></td>
+    <td style="padding:4px"><input type="text" value="${esc(b.word)}" maxlength="30" ${inp} onchange="gsSet('bands',${i},'word',this.value)"></td>
+    <td style="padding:4px"><input type="text" value="${esc(b.label)}" maxlength="30" ${inp} onchange="gsSet('bands',${i},'label',this.value)"></td>
+    <td style="padding:4px"><select ${inp} onchange="gsSet('bands',${i},'tone',this.value)">${[['a','Green'],['b','Blue'],['c','Amber'],['d','Red']].map(([v, l]) => `<option value="${v}" ${b.tone === v ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
+    <td style="padding:4px;text-align:center"><button class="btn btn-sm btn-danger" onclick="gsRemove('bands',${i})">✕</button></td></tr>`).join('');
+  const remRows = d.remarks.map((r, i) => `<tr>
+    <td style="padding:4px;width:90px"><input type="number" min="0" max="100" step="any" value="${r.min}" ${inp} onchange="gsSet('remarks',${i},'min',this.value)"></td>
+    <td style="padding:4px"><input type="text" value="${esc(r.text)}" maxlength="120" ${inp} onchange="gsSet('remarks',${i},'text',this.value)"></td>
+    <td style="padding:4px;text-align:center;width:44px"><button class="btn btn-sm btn-danger" onclick="gsRemove('remarks',${i})">✕</button></td></tr>`).join('');
+  const total = (Number(d.classScoreMax) || 0) + (Number(d.examScoreMax) || 0);
+  ov.innerHTML = `
+    <div class="modal" style="width:min(860px,96vw);max-height:92vh;display:flex;flex-direction:column">
+      <div class="modal-header"><span class="modal-title">🎓 Grading Setup</span>
+        <button class="modal-close" onclick="closeModal('grading-setup-modal')">✕</button></div>
+      <div style="padding:14px 20px;overflow:auto">
+        <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:12px">
+          These drive every grade shown in the app — report cards, Grade Entry badges, the printed grading key and the
+          Nursery word remarks. A score gets the first band whose "From" mark it reaches, so keep the lowest band at 0.</div>
+
+        <div style="font-weight:600;color:var(--navy);font-size:13px;margin-bottom:6px">Score split (Class Score + Exam Score = total)</div>
+        <div style="display:flex;gap:12px;align-items:end;margin-bottom:16px;flex-wrap:wrap">
+          <div><label style="font-size:11px;color:var(--muted)">Class Score max</label><input type="number" min="1" value="${d.classScoreMax}" ${inp} style="width:110px;padding:5px 7px;border:1px solid var(--border);border-radius:6px" onchange="_gsDraft.classScoreMax=Number(this.value)||0;drawGradingSetup()"></div>
+          <div><label style="font-size:11px;color:var(--muted)">Exam Score max</label><input type="number" min="1" value="${d.examScoreMax}" ${inp} style="width:110px;padding:5px 7px;border:1px solid var(--border);border-radius:6px" onchange="_gsDraft.examScoreMax=Number(this.value)||0;drawGradingSetup()"></div>
+          <div style="font-size:12px;color:${total === 100 ? 'var(--green)' : 'var(--amber)'};padding-bottom:6px">Total marks: <b>${total}</b>${total === 100 ? '' : ' — grade bands assume a 100-mark total, so scores are converted to a percentage first'}</div>
+        </div>
+
+        <div style="font-weight:600;color:var(--navy);font-size:13px;margin-bottom:6px">Grade bands</div>
+        <table style="width:100%"><thead><tr><th>From (%)</th><th>Grade</th><th>Remark word (Nursery)</th><th>Printed key wording</th><th>Colour</th><th></th></tr></thead>
+          <tbody>${bandRows}</tbody></table>
+        <button class="btn btn-sm btn-outline" style="margin:6px 0 16px" onclick="gsAdd('bands')">+ Add band</button>
+
+        <div style="font-weight:600;color:var(--navy);font-size:13px;margin-bottom:6px">Overall performance remarks (by average)</div>
+        <table style="width:100%"><thead><tr><th>From (%)</th><th>Comment printed on the report card</th><th></th></tr></thead>
+          <tbody>${remRows}</tbody></table>
+        <button class="btn btn-sm btn-outline" style="margin:6px 0 4px" onclick="gsAdd('remarks')">+ Add remark</button>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" style="margin-right:auto" onclick="gsReset()">↺ Reset to defaults</button>
+        <button class="btn btn-outline" onclick="closeModal('grading-setup-modal')">Cancel</button>
+        <button class="btn btn-primary" onclick="gsSave()">💾 Save</button>
+      </div>
+    </div>`;
+}
+
+function gsSet(list, i, field, v) {
+  const row = _gsDraft[list][i];
+  row[field] = (field === 'min') ? Number(v) : String(v).trim();
+}
+function gsRemove(list, i) {
+  if (_gsDraft[list].length <= 1) { toast('⚠ Keep at least one row'); return; }
+  _gsDraft[list].splice(i, 1); drawGradingSetup();
+}
+function gsAdd(list) {
+  _gsDraft[list].push(list === 'bands' ? { min: 0, grade: '', word: '', label: '', tone: 'd' } : { min: 0, text: '' });
+  drawGradingSetup();
+}
+function gsReset() {
+  if (!confirm('Reset grade bands, remarks and score split to the built-in defaults? (Nothing is saved until you press Save.)')) return;
+  _gsDraft = JSON.parse(JSON.stringify(GRADING_DEFAULT)); drawGradingSetup();
+}
+function gsSave() {
+  const d = _gsDraft;
+  const bad = m => { toast('⚠ ' + m, 'error'); return true; };
+  for (const b of d.bands) {
+    if (isNaN(b.min) || b.min < 0 || b.min > 100) return bad('Band "From" marks must be between 0 and 100');
+    if (!b.grade) return bad('Every band needs a grade letter');
+    if (!b.word) b.word = b.grade;
+    if (!b.label) b.label = b.word;
+  }
+  const mins = d.bands.map(b => b.min);
+  if (new Set(mins).size !== mins.length) return bad('Two bands have the same "From" mark');
+  if (Math.min(...mins) !== 0) return bad('The lowest band must start at 0 so every score gets a grade');
+  for (const r of d.remarks) {
+    if (isNaN(r.min) || r.min < 0 || r.min > 100) return bad('Remark "From" marks must be between 0 and 100');
+    if (!r.text) return bad('Every remark needs a comment');
+  }
+  const rm = d.remarks.map(r => r.min);
+  if (new Set(rm).size !== rm.length) return bad('Two remarks have the same "From" mark');
+  if (Math.min(...rm) !== 0) return bad('The lowest remark must start at 0');
+  if (!(d.classScoreMax > 0) || !(d.examScoreMax > 0)) return bad('Class Score and Exam Score maximums must be above 0');
+  d.bands.sort((x, y) => y.min - x.min); d.remarks.sort((x, y) => y.min - x.min);
+  db.gradingSetup = JSON.parse(JSON.stringify(d));
+  saveDb();
+  closeModal('grading-setup-modal');
+  toast('✅ Grading setup saved — report cards and Grade Entry now use it');
+  const active = document.querySelector('.page.active');
+  if (active && active.id) { try { navigate(active.id.replace('page-', '')); } catch (e) {} }
+}
+
+// ── Assessment Categories (Settings → Assessment Categories) — Grade Entry categories per class ──
+function openGradeCatsModal() {
+  if (!requireRole('Admin')) return;
+  let ov = document.getElementById('gradecats-modal');
+  if (!ov) { ov = document.createElement('div'); ov.className = 'modal-overlay'; ov.id = 'gradecats-modal'; document.body.appendChild(ov); }
+  drawGradeCats();
+  ov.classList.add('open');
+}
+
+function drawGradeCats() {
+  const ov = document.getElementById('gradecats-modal');
+  if (!ov) return;
+  const cats = getGradeCategories();
+  const rows = cats.map((c, i) => `<tr>
+      <td style="padding:8px 12px;font-weight:500;color:var(--navy)">${esc(c.name)} ${(!c.core && c.feedsReport) ? (c.weight > 0 ? `<span class="badge badge-paid" title="Share of the report card total">Report card · ${c.weight}%</span>` : `<span class="badge badge-partial" title="Ticked but no percentage set yet — it is ignored until you set one">Set a % below</span>`) : ''} ${c.core ? '<span class="badge badge-continuing" title="Feeds the report card total — always on for every class">Core</span>' : ''}</td>
+      <td style="padding:8px 10px;text-align:center">${c.core ? '<span style="color:var(--muted);font-size:11px">Grading Setup</span>' : 'out of ' + (c.max || 100)}</td>
+      <td style="padding:8px 8px;max-width:300px"><div style="display:flex;flex-wrap:wrap">${c.core ? '<span style="font-size:11px;color:var(--muted)">All classes</span>' : ((c.classes || []).map(x => `<span class="sub-class-chip">${esc(x)}</span>`).join('') || '<span style="color:var(--amber);font-size:11px">Not assigned to any class</span>')}</div></td>
+      <td style="padding:8px 10px;white-space:nowrap;text-align:center">
+        <button class="btn btn-sm btn-outline" ${i===0?'disabled':''} onclick="gradeCatMove(${i},-1)">↑</button>
+        <button class="btn btn-sm btn-outline" ${i===cats.length-1?'disabled':''} onclick="gradeCatMove(${i},1)">↓</button>
+        ${c.core ? '' : `<button class="btn btn-sm btn-outline" onclick="gradeCatEdit(${i})">✏️ Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="gradeCatDelete(${i})">🗑️</button>`}
+      </td></tr>`).join('');
+  ov.innerHTML = `
+    <div class="modal" style="width:min(820px,96vw);max-height:92vh;display:flex;flex-direction:column">
+      <div class="modal-header"><span class="modal-title">📝 Assessment Categories</span>
+        <button class="modal-close" onclick="closeModal('gradecats-modal')">✕</button></div>
+      <div style="padding:12px 20px 0;font-size:12px;color:var(--muted);line-height:1.6">
+        The tabs teachers see on Grade Entry, set per class the same way subjects are assigned. Add your own (Quiz, Project, Test 1 …),
+        choose which classes use it and what it is scored out of. use <b>Report Card Weighting</b> below to choose what percentage of the report card each category counts for —
+        Final Exams, Class Score, Mid Term Exams, Homework or any you add. Categories left unticked stay supplementary records. Order here is the tab order.</div>
+      <div style="padding:12px 20px;overflow:auto">
+        <table><thead><tr><th style="padding-left:12px">Category</th><th style="text-align:center">Scored</th><th>Used in</th><th style="text-align:center">Actions</th></tr></thead>
+        <tbody>${rows}</tbody></table>
+        ${rwPanelHtml(cats)}
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" style="margin-right:auto" onclick="gradeCatReset()">↺ Reset to defaults</button>
+        <button class="btn btn-outline" onclick="closeModal('gradecats-modal')">Close</button>
+        <button class="btn btn-primary" onclick="gradeCatEdit(null)">+ Add Category</button>
+      </div>
+    </div>`;
+  rwUpdateTotal();
+}
+
+// ── Report Card Weighting panel ──
+let _rwDraft = {};
+function rwInit(cats) {
+  const w = reportWeights();
+  _rwDraft = {};
+  cats.forEach(c => {
+    if (c.core) _rwDraft[c.key] = { feeds: true, weight: Math.round((c.key === 'Class Score' ? w.classPct : w.examPct) * 10) / 10 };
+    else _rwDraft[c.key] = { feeds: !!c.feedsReport, weight: c.feedsReport ? (c.weight || 0) : 0 };
+  });
+}
+function rwTotal() { return Object.values(_rwDraft).reduce((a, d) => a + (d.feeds ? (Number(d.weight) || 0) : 0), 0); }
+function rwUpdateTotal() {
+  const t = Math.round(rwTotal() * 100) / 100, ok = Math.abs(t - 100) < 0.01;
+  const el = document.getElementById('rw-total');
+  if (el) { el.textContent = t + '%'; el.style.color = ok ? 'var(--green)' : 'var(--red)'; }
+  const hint = document.getElementById('rw-hint');
+  if (hint) hint.textContent = ok ? '✓ Adds up to 100%' : (t < 100 ? (100 - t).toFixed(1).replace(/\.0$/, '') + '% still to allocate' : (t - 100).toFixed(1).replace(/\.0$/, '') + '% over — reduce a weight');
+}
+function rwSet(key, field, val) {
+  if (!_rwDraft[key]) return;
+  if (field === 'feeds') {
+    _rwDraft[key].feeds = !!val;
+    const inp = document.getElementById('rw-w-' + key.replace(/[^a-zA-Z0-9]/g, '_'));
+    if (inp) inp.disabled = !val;
+  } else _rwDraft[key].weight = Number(val) || 0;
+  rwUpdateTotal();
+}
+function rwPanelHtml(cats) {
+  rwInit(cats);
+  const rows = cats.map(c => {
+    const d = _rwDraft[c.key], id = 'rw-w-' + c.key.replace(/[^a-zA-Z0-9]/g, '_');
+    return `<tr>
+      <td style="padding:6px 12px;color:var(--navy);font-weight:500">${esc(c.name)} ${c.core ? '<span class="badge badge-continuing">Core</span>' : ''}</td>
+      <td style="text-align:center"><input type="checkbox" ${d.feeds ? 'checked' : ''} ${c.core ? 'disabled' : ''} onchange="rwSet('${esc(c.key)}','feeds',this.checked)"></td>
+      <td style="text-align:center"><input type="number" id="${id}" min="0" max="100" step="0.5" value="${d.weight}" ${d.feeds ? '' : 'disabled'} oninput="rwSet('${esc(c.key)}','weight',this.value)" style="width:80px;text-align:right;padding:5px 7px;border:1px solid var(--border);border-radius:6px"> %</td>
+    </tr>`;
+  }).join('');
+  return `<div style="margin-top:18px;padding:14px 16px;border:1px solid var(--border);border-radius:10px;background:var(--cream2)">
+    <div style="font-weight:700;color:var(--navy);margin-bottom:4px">⚖️ Report Card Weighting</div>
+    <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">What percentage of each student's report card total comes from each category. Final Exams and Class Score are always included; tick any other category to count it too. The percentages should add up to 100. A category with no score entered for a student is left out for that student, and the rest are re-balanced.</div>
+    <table style="background:var(--white);border-radius:8px"><thead><tr><th style="padding-left:12px">Category</th><th style="text-align:center">Counts towards report card</th><th style="text-align:center">Percentage</th></tr></thead><tbody>${rows}</tbody></table>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap">
+      <div style="font-size:13px"><b>Total:</b> <span id="rw-total" style="font-weight:700"></span> <span id="rw-hint" style="font-size:11.5px;color:var(--muted);margin-left:6px"></span></div>
+      <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="rwSave()">💾 Save weighting</button>
+    </div>
+  </div>`;
+}
+function rwSave() {
+  const t = Math.round(rwTotal() * 100) / 100;
+  if (Math.abs(t - 100) > 0.01) { toast('⚠ The percentages must add up to 100 (currently ' + t + '%)'); return; }
+  const cats = getGradeCategories();
+  for (const c of cats) {
+    const d = _rwDraft[c.key]; if (!d) continue;
+    if (c.core) { if (!(d.weight > 0)) { toast('⚠ ' + c.name + ' needs a percentage above 0'); return; } }
+    else if (d.feeds && !(d.weight > 0)) { toast('⚠ Enter a percentage for ' + c.name + ' or untick it'); return; }
+  }
+  cats.forEach(c => {
+    const d = _rwDraft[c.key]; if (!d) return;
+    if (c.core) c.weight = d.weight;
+    else { c.feedsReport = !!d.feeds; c.weight = d.feeds ? d.weight : 0; }
+  });
+  saveDb(); drawGradeCats(); _gcRefresh();
+  toast('✅ Report card weighting saved');
+}
+
+function _gcRefresh() { if (document.getElementById('ge-inner') && document.getElementById('ge-inner').innerHTML) { try { renderGradeEntry(); } catch (e) {} } }
+
+function gradeCatMove(i, dir) {
+  const arr = getGradeCategories(), j = i + dir;
+  if (j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  saveDb(); drawGradeCats(); _gcRefresh();
+}
+
+function gradeCatDelete(i) {
+  const arr = getGradeCategories();
+  if (!confirm('Remove "' + arr[i].name + '" from every class? Scores already entered are kept in storage but will no longer show.')) return;
+  arr.splice(i, 1);
+  saveDb(); drawGradeCats(); _gcRefresh();
+  toast('🗑️ Category removed');
+}
+
+function gradeCatReset() {
+  if (!confirm('Reset to the four default categories (Final Exams, Mid Term Exams, Class Score, Homework) for all classes? Custom categories and the Report Card Weighting are cleared; scores already entered are kept.')) return;
+  db.gradeCategories = seedGradeCategories();
+  saveDb(); drawGradeCats(); _gcRefresh();
+  toast('↺ Categories reset');
+}
+
+function gradeCatEdit(idx) {
+  const arr = getGradeCategories();
+  const editing = idx !== null && idx !== undefined ? arr[idx] : null;
+  const sel = new Set(editing ? (editing.classes || []) : []);
+  const levels = skillLevelGroups().map(g =>
+    `<button type="button" class="btn btn-sm btn-outline" onclick="gradeCatPickLevel('${esc(g.name)}')">${esc(g.name)}</button>`).join(' ');
+  const checks = CLASSES.map(c => `<label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;cursor:pointer">
+      <input type="checkbox" class="gc-cls-cb" value="${esc(c)}" ${sel.has(c) ? 'checked' : ''}> ${esc(c)}</label>`).join('');
+  let ov = document.getElementById('gradecat-edit-modal');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.className = 'modal-overlay open'; ov.id = 'gradecat-edit-modal'; ov.style.zIndex = 1100;
+  ov.innerHTML = `
+    <div class="modal" style="width:500px">
+      <div class="modal-header"><span class="modal-title">${editing ? 'Edit Category' : 'Add Category'}</span>
+        <button class="modal-close" onclick="document.getElementById('gradecat-edit-modal').remove()">✕</button></div>
+      <div style="padding:16px 20px">
+        <div class="form-group"><label>Category name *</label><input type="text" id="gc-edit-name" value="${editing ? esc(editing.name) : ''}" placeholder="e.g. Quiz 1, Project, Oral Test" maxlength="40"></div>
+        <div class="form-group"><label>Scored out of *</label><input type="number" id="gc-edit-max" min="1" value="${editing ? (editing.max || 100) : 100}" style="width:120px"></div>
+        <div style="font-size:11.5px;color:var(--muted);background:var(--cream2);border-radius:8px;padding:9px 12px;line-height:1.5">To make this category count towards the report card, set its percentage under <b>Report Card Weighting</b> in the Assessment Categories window.</div>
+        </div>
+        <div class="form-group"><label>Used in</label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"><span style="font-size:11px;color:var(--muted);align-self:center">Quick select level:</span>${levels}
+            <button type="button" class="btn btn-sm btn-outline" onclick="gradeCatPickLevel('*')">All classes</button>
+            <button type="button" class="btn btn-sm btn-outline" onclick="gradeCatPickLevel('')">Clear</button></div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${checks}</div></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="document.getElementById('gradecat-edit-modal').remove()">Cancel</button>
+        <button class="btn btn-primary" onclick="gradeCatSave(${editing ? idx : 'null'})">💾 Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+function gradeCatPickLevel(name) {
+  const cbs = [...document.querySelectorAll('#gradecat-edit-modal .gc-cls-cb')];
+  if (name === '') { cbs.forEach(c => { c.checked = false; }); return; }
+  if (name === '*') { cbs.forEach(c => { c.checked = true; }); return; }
+  const g = skillLevelGroups().find(x => x.name === name);
+  if (g) cbs.forEach(c => { if (g.classes.includes(c.value)) c.checked = true; });
+}
+
+function gradeCatSave(idx) {
+  const name = document.getElementById('gc-edit-name').value.trim();
+  const max = Number(document.getElementById('gc-edit-max').value);
+  if (!name) { toast('⚠ Enter a category name'); return; }
+  if (!(max > 0)) { toast('⚠ "Scored out of" must be above 0'); return; }
+  const classes = [...document.querySelectorAll('#gradecat-edit-modal .gc-cls-cb:checked')].map(c => c.value);
+  const arr = getGradeCategories();
+  if (arr.some((c, i) => i !== idx && c.name.toLowerCase() === name.toLowerCase())) { toast('⚠ A category with that name already exists'); return; }
+  if (idx !== null && idx !== undefined) {
+    // key never changes, so scores already entered stay attached after a rename
+    Object.assign(arr[idx], { name, max, classes });
+  } else {
+    let base = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'cat', key = 'cat_' + base, n = 2;
+    while (arr.some(c => c.key === key)) key = 'cat_' + base + '_' + n++;
+    arr.push({ key, name, classes, max, feedsReport: false, weight: 0 });
+  }
+  saveDb();
+  document.getElementById('gradecat-edit-modal').remove();
+  drawGradeCats(); _gcRefresh();
+  toast('✅ Category saved');
 }
 
 // ── Sync status indicator ──
@@ -7019,6 +7570,20 @@ function refreshSaveSnapshot() {
   _lastSavedSnapshot = snap;
 }
 
+// Recursively replaces `undefined` with `null` throughout an object/array —
+// see the comment inside saveDb() for why this specific bug (Firebase
+// silently dropping null-valued keys, which come back as undefined on
+// re-read) needs guarding against right before every write, not just at
+// the one call site that happened to surface it.
+function sanitizeUndefined(value) {
+  if (value === undefined) return null;
+  if (value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map(sanitizeUndefined);
+  const out = {};
+  Object.keys(value).forEach(k => { out[k] = sanitizeUndefined(value[k]); });
+  return out;
+}
+
 function saveDb(bypassLock) {
   if (db.yearLocked && !bypassLock) {
     toast(`🔒 ${ACTIVE_YEAR.replace('_','/')} is locked — no changes can be saved. Ask an admin to unlock it first.`, 'error');
@@ -7056,8 +7621,19 @@ function saveDb(bypassLock) {
   // FB_LOCKED_KEYS so this write never touches the Cloud-Function-only
   // subtrees (those are written server-side via saveEmployee/deleteEmployee/
   // runPayroll/deletePayrollRunLine instead).
+  //
+  // sanitizeUndefined() matters here for a subtle reason: Firebase strips any
+  // key stored as null on write, so reading that record back down later gives
+  // an object where the field is simply ABSENT — accessing it in JS then
+  // returns undefined, not null. If that undefined ever gets copied into a
+  // new object (e.g. `bankAccountId: someOtherRecord.bankAccountId`) and
+  // handed to fbDb.ref().update(), Firebase throws SYNCHRONOUSLY — before
+  // .then()/.catch() even attach — so the save silently vanishes with no
+  // toast, no rollback, nothing but a console error the user never sees.
+  // Sanitizing right before the write closes off that entire failure class
+  // for every feature, present and future, not just the one that surfaced it.
   const updates = {};
-  changedKeys.forEach(key => { updates[`${FB_PATH}/${key}`] = db[key]; });
+  changedKeys.forEach(key => { updates[`${FB_PATH}/${key}`] = sanitizeUndefined(db[key]); });
 
   return fbDb.ref().update(updates)
     .then(() => {
@@ -7158,11 +7734,17 @@ function initDb(callback) {
       db.feedingBudgetRequests = data.feedingBudgetRequests || [];
       db.nextFeedingBudgetId = data.nextFeedingBudgetId ?? 1;
       db.skillSubmissions = data.skillSubmissions || [];
+      db.skillScales = data.skillScales || {};
+      db.gradingSetup = data.gradingSetup || null;
+      db.gradeCategories = Array.isArray(data.gradeCategories) ? data.gradeCategories : null;
+      db.skillParams = Array.isArray(data.skillParams) ? data.skillParams : null; // seeded lazily by getSkillParams()
       db.nextSkillSubId = data.nextSkillSubId ?? 1;
       db.promotionLists = data.promotionLists || [];
       db.nextPromotionListId = data.nextPromotionListId ?? 1;
       db.generalSettings = data.generalSettings || JSON.parse(JSON.stringify(DB_SEED.generalSettings));
       if (db.generalSettings.autoDisableFeedingOnAbsent === undefined) db.generalSettings.autoDisableFeedingOnAbsent = true;
+      if (db.generalSettings.allowFinanceDateEdit === undefined) db.generalSettings.allowFinanceDateEdit = true;
+      if (db.generalSettings.allowPendingEdit === undefined) db.generalSettings.allowPendingEdit = true;
       db.approvalConfig = data.approvalConfig || JSON.parse(JSON.stringify(DB_SEED.approvalConfig));
       if (!db.approvalConfig.pettyCash) db.approvalConfig.pettyCash = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.pettyCash));
       if (!db.approvalConfig.finance) db.approvalConfig.finance = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.finance));
@@ -7632,6 +8214,9 @@ const MODULE_DEFS = {
       { icon:'👥', label:'Manage Users',       action:'openManageUsersModal', adminOnly:true },
       { icon:'🏫', label:'School Details',     action:'openSchoolDetailsModal', adminOnly:true },
       { icon:'⚙️', label:'General Settings',   action:'openGeneralSettingsModal', adminOnly:true },
+      { icon:'🌟', label:'Skills Setup',       action:'openSkillsSetupModal', adminOnly:true },
+      { icon:'🎓', label:'Grading Setup',      action:'openGradingSetupModal', adminOnly:true },
+      { icon:'📝', label:'Assessment Categories', action:'openGradeCatsModal', adminOnly:true },
       { icon:'✅', label:'Approval Workflow',  action:'openApprovalWorkflowModal', adminOnly:true },
       { icon:'🔒', label: () => isYearLocked() ? '🔓 Unlock Academic Year' : '🔒 Lock Academic Year', action:'toggleYearLock', adminOnly:true },
       { icon:'🎟️', label:'Fee Discounts & Exemptions', action:'openFeeDiscountsModal', adminOnly:true },
@@ -10522,15 +11107,21 @@ function renderRevenue() {
       <option value="Bank" ${mode==='Bank'?'selected':''}>🏦 Bank</option>
       <option value="MoMo" ${mode==='MoMo'?'selected':''}>📱 MoMo</option>
     </select>` : `<span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:500;background:${modeBg};color:var(--white)">${mode==='Cash'?'💵':mode==='Bank'?'🏦':'📱'} ${mode}</span>`;
+    const dateCell = (canEdit && !isPending && db.generalSettings && db.generalSettings.allowFinanceDateEdit !== false)
+      ? `<input type="date" value="${r.date||''}" onchange="updateRevenueDate(${r.id}, this.value)" style="font-size:11.5px;padding:3px 5px;border:1px solid var(--border);border-radius:5px;font-family:inherit;background:var(--white);color:inherit">`
+      : (r.date||'—');
+    const pendEdit = canEdit && (!db.generalSettings || db.generalSettings.allowPendingEdit !== false);
     const actionCell = isPending
-      ? (canApprove
-          ? `<div style="display:flex;gap:4px"><button class="btn btn-sm" style="background:var(--green);color:var(--white);font-size:11px;padding:3px 8px" onclick="approveRevenueEntry(${r.id})">✓ Approve</button><button class="btn btn-sm btn-danger" style="font-size:11px;padding:3px 8px" onclick="rejectRevenueEntry(${r.id})">✕ Reject</button></div>`
-          : `<span class="badge" style="background:var(--amber-light);color:var(--amber)">⏳ Pending</span>`)
+      ? `<div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${pendEdit ? `<button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick="openRevenueModal(${r.id})">✏️ Edit</button>` : ''}
+          ${canApprove ? `<button class="btn btn-sm" style="background:var(--green);color:var(--white);font-size:11px;padding:3px 8px" onclick="approveRevenueEntry(${r.id})">✓ Approve</button><button class="btn btn-sm btn-danger" style="font-size:11px;padding:3px 8px" onclick="rejectRevenueEntry(${r.id})">✕ Reject</button>` : ''}
+          ${!pendEdit && !canApprove ? `<span class="badge" style="background:var(--amber-light);color:var(--amber)">⏳ Pending</span>` : ''}
+        </div>`
       : (canEdit ? `<button class="btn btn-sm btn-danger" onclick="deleteRevenue(${r.id})">✕</button>` : '');
     const stu = r.studentId ? (db.admissions||[]).find(a => a.id === r.studentId) : null;
     return `<tr ${isPending ? 'style="opacity:0.7;background:var(--amber-light)"' : ''}>
       <td style="color:var(--muted)">${i+1}</td>
-      <td>${r.date||'—'}</td><td>${esc(r.desc)}${stu ? ` <span style="color:var(--muted);font-size:10px">— ${esc(stu.cls)} · ${esc(stu.id)}</span>` : ''}${isPending && canApprove ? ' <span class="badge" style="background:var(--amber-light);color:var(--amber);font-size:9px">⏳ Pending</span>' : ''}</td><td>${esc(r.ref||'—')}</td>
+      <td>${dateCell}</td><td>${esc(r.desc)}${stu ? ` <span style="color:var(--muted);font-size:10px">— ${esc(stu.cls)} · ${esc(stu.id)}</span>` : ''}${isPending && canApprove ? ' <span class="badge" style="background:var(--amber-light);color:var(--amber);font-size:9px">⏳ Pending</span>' : ''}</td><td>${esc(r.ref||'—')}</td>
       <td>${r.term}</td><td>${esc(r.cat)}</td>
       <td>${modeSelect}</td>
       <td style="font-weight:500">GHS ${fmt(r.amount)}</td>
@@ -10572,16 +11163,39 @@ function renderRevenue() {
     </div>`;
 }
 
-function openRevenueModal() {
+let _editingRevenueId = null;
+
+function openRevenueModal(id) {
   if (!canEditCurrentPage('revenue')) { toast('⛔ You have view-only access to Revenue Tracker'); return; }
-  document.getElementById('rev-date').value = today();
-  document.getElementById('rev-cat-sel').innerHTML = getRevCats().map(c => `<option>${c}</option>`).join('');
-  document.getElementById('rev-mode-sel').value = 'Cash';
-  document.getElementById('rev-bankacct-wrap').style.display = 'none';
-  document.getElementById('rev-student-search').value = '';
-  document.getElementById('rev-student-sel').value = '';
-  document.getElementById('rev-desc').value = '';
+  const rec = id ? (db.revenue || []).find(r => r.id === id) : null;
+  if (id && !rec) return;
+  if (rec && rec.status !== 'pending') {
+    toast('⛔ Only pending entries can be fully edited — an approved entry\'s date or payment mode can still be corrected inline in the table', 'error');
+    return;
+  }
+  if (rec && db.generalSettings && db.generalSettings.allowPendingEdit === false) {
+    toast('⛔ Editing pending entries is turned off in General Settings', 'error');
+    return;
+  }
+  _editingRevenueId = rec ? rec.id : null;
+  document.getElementById('revenue-modal-title').textContent = rec ? 'Edit Revenue Entry (Pending)' : 'Add Revenue Entry';
+  document.getElementById('revenue-modal-savebtn').textContent = rec ? '💾 Save Changes' : '💾 Save Entry';
+  document.getElementById('rev-date').value = rec ? rec.date : today();
+  document.getElementById('rev-cat-sel').innerHTML = getRevCats().map(c => `<option ${rec && c===rec.cat ? 'selected' : ''}>${c}</option>`).join('');
+  document.getElementById('rev-mode-sel').value = rec ? (rec.mode || 'Cash') : 'Cash';
+  toggleBankAcctField('rev-mode-sel','rev-bankacct-wrap','rev-bankacct-sel');
+  if (rec && rec.mode === 'Bank' && rec.bankAccountId) document.getElementById('rev-bankacct-sel').value = rec.bankAccountId;
+  document.getElementById('rev-desc').value = rec ? rec.desc : '';
+  document.getElementById('rev-ref').value = rec ? (rec.ref || '') : '';
+  document.getElementById('rev-term-sel').value = rec ? rec.term : TERMS[0];
+  document.getElementById('rev-amount').value = rec ? rec.amount : '';
+  document.getElementById('rev-notes').value = rec ? (rec.notes || '') : '';
   revCatChanged();
+  if (rec && rec.studentId) {
+    const stu = (db.admissions || []).find(a => a.id === rec.studentId);
+    document.getElementById('rev-student-search').value = stu ? `${stu.name} (${stu.id})` : rec.studentId;
+    document.getElementById('rev-student-sel').value = rec.studentId;
+  }
   document.getElementById('revenue-modal').classList.add('open');
 }
 
@@ -10626,6 +11240,25 @@ function saveRevenue() {
   const mode = document.getElementById('rev-mode-sel').value;
   const bankAccountId = mode === 'Bank' ? document.getElementById('rev-bankacct-sel').value : null;
   const date = document.getElementById('rev-date').value;
+  if (_editingRevenueId) {
+    const rec = (db.revenue || []).find(r => r.id === _editingRevenueId);
+    if (!rec) { _editingRevenueId = null; closeModal('revenue-modal'); return; }
+    Object.assign(rec, {
+      date, desc, ref: document.getElementById('rev-ref').value,
+      term: document.getElementById('rev-term-sel').value,
+      cat, mode, bankAccountId, studentId,
+      amount, notes: document.getElementById('rev-notes').value,
+      editedBy: currentUser.username, editedAt: today()
+    });
+    // Still pending — nothing posted to the ledger yet, so there's no
+    // journal entry to correct.
+    _editingRevenueId = null;
+    saveDb();
+    closeModal('revenue-modal');
+    renderRevenue();
+    toast('✅ Pending entry updated');
+    return;
+  }
   const newId = db.nextRevId++;
   const isPending = (db.approvalConfig?.finance?.needsApprovalRoles || []).includes(currentUser.role);
   db.revenue.push({
@@ -10649,11 +11282,11 @@ function saveRevenue() {
   toast(isPending ? '⏳ Revenue entry submitted — awaiting approval before it posts to the ledger' : '✅ Revenue entry saved');
 }
 
-// The Chart of Accounts entries don't carry a 'category' field, so findAccountByCategory()
-// never actually matches any Revenue Tracker category today — every entry (any category)
-// falls back to 4010 Tuition Fees. Admission Fees already has its own GL account (4020,
-// same one postAdmissionFeeJournal() posts to for admissions), so route it there explicitly;
-// every other category keeps the existing fallback behaviour unchanged.
+// Admission Fees is intercepted here rather than left to findAccountByCategory()'s
+// generic per-category lookup, so it always lands on the same 4020 account that
+// postAdmissionFeeJournal() uses for the one-time registration fee — keeping both
+// entry points for an admission fee on one unified GL balance instead of splitting
+// it across 4020 and a separate auto-generated "Admission Fees (Revenue)" sub-account.
 function revenueAccountCode(cat) {
   if (cat === 'Admission Fees') return '4020';
   const acct = findAccountByCategory(cat, 'Revenue');
@@ -10699,9 +11332,41 @@ function updateRevenueMode(id, newMode) {
   const rec = db.revenue.find(r => r.id === id);
   if (!rec) return;
   rec.mode = newMode;
+  // Re-post to the GL so the debited Cash/Bank/MoMo account matches the
+  // corrected mode — without this the ledger keeps the original account,
+  // silently diverging from what the Revenue Tracker now shows.
+  if (rec.status !== 'pending') {
+    removeJournalEntriesFor('revenue', rec.id);
+    postJournalEntry(rec.date, 'Revenue: ' + rec.desc, [
+      { account: cashAccountForMode(rec.mode), debit: rec.amount, credit: 0 },
+      { account: revenueAccountCode(rec.cat), debit: 0, credit: rec.amount }
+    ], 'revenue', rec.id);
+  }
   saveDb();
   renderRevenue();
   toast('✅ Receipt mode updated');
+}
+
+function updateRevenueDate(id, newDate) {
+  if (!canEditCurrentPage('revenue')) { toast('⛔ You have view-only access to Revenue Tracker'); return; }
+  if (db.generalSettings && db.generalSettings.allowFinanceDateEdit === false) { toast('⛔ Date editing is turned off in General Settings'); renderRevenue(); return; }
+  if (!newDate) { toast('⚠ Date cannot be empty'); renderRevenue(); return; }
+  const rec = db.revenue.find(r => r.id === id);
+  if (!rec) return;
+  rec.date = newDate;
+  if (rec.status !== 'pending') {
+    // Re-post the linked General Ledger entry under the corrected date so
+    // the Trial Balance / General Ledger / Income Statement date filters
+    // stay in sync with the Revenue Tracker.
+    removeJournalEntriesFor('revenue', id);
+    postJournalEntry(newDate, 'Revenue: ' + rec.desc, [
+      { account: cashAccountForMode(rec.mode || 'Cash'), debit: rec.amount, credit: 0 },
+      { account: revenueAccountCode(rec.cat), debit: 0, credit: rec.amount }
+    ], 'revenue', id);
+  }
+  saveDb();
+  renderRevenue();
+  toast('✅ Date updated');
 }
 
 // ══════════════ EXPENSES ══════════════
@@ -10739,14 +11404,20 @@ function renderExpenses() {
       <option value="Bank" ${mode==='Bank'?'selected':''}>🏦 Bank</option>
       <option value="MoMo" ${mode==='MoMo'?'selected':''}>📱 MoMo</option>
     </select>` : `<span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:500;${mode==='Bank'?'background:var(--navy);color:var(--white)':'background:#e67e22;color:var(--white)'}">${mode==='Cash'?'💵':mode==='Bank'?'🏦':'📱'} ${mode}</span>`;
+    const dateCell = (canEdit && !isPending && db.generalSettings && db.generalSettings.allowFinanceDateEdit !== false)
+      ? `<input type="date" value="${r.date||''}" onchange="updateExpenseDate(${r.id}, this.value)" style="font-size:11.5px;padding:3px 5px;border:1px solid var(--border);border-radius:5px;font-family:inherit;background:var(--white);color:inherit">`
+      : (r.date||'—');
+    const pendEdit = canEdit && (!db.generalSettings || db.generalSettings.allowPendingEdit !== false);
     const actionCell = isPending
-      ? (canApprove
-          ? `<div style="display:flex;gap:4px"><button class="btn btn-sm" style="background:var(--green);color:var(--white);font-size:11px;padding:3px 8px" onclick="approveExpenseEntry(${r.id})">✓ Approve</button><button class="btn btn-sm btn-danger" style="font-size:11px;padding:3px 8px" onclick="rejectExpenseEntry(${r.id})">✕ Reject</button></div>`
-          : `<span class="badge" style="background:var(--amber-light);color:var(--amber)">⏳ Pending</span>`)
+      ? `<div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${pendEdit ? `<button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick="openExpenseModal(${r.id})">✏️ Edit</button>` : ''}
+          ${canApprove ? `<button class="btn btn-sm" style="background:var(--green);color:var(--white);font-size:11px;padding:3px 8px" onclick="approveExpenseEntry(${r.id})">✓ Approve</button><button class="btn btn-sm btn-danger" style="font-size:11px;padding:3px 8px" onclick="rejectExpenseEntry(${r.id})">✕ Reject</button>` : ''}
+          ${!pendEdit && !canApprove ? `<span class="badge" style="background:var(--amber-light);color:var(--amber)">⏳ Pending</span>` : ''}
+        </div>`
       : (canEdit ? `<button class="btn btn-sm btn-danger" onclick="deleteExpense(${r.id})">✕</button>` : '');
     return `<tr ${isPending ? 'style="opacity:0.7;background:var(--amber-light)"' : ''}>
       <td style="color:var(--muted)">${i+1}</td>
-      <td>${r.date||'—'}</td><td>${esc(r.desc)}${isPending && canApprove ? ' <span class="badge" style="background:var(--amber-light);color:var(--amber);font-size:9px">⏳ Pending</span>' : ''}</td><td>${esc(r.ref||'—')}</td>
+      <td>${dateCell}</td><td>${esc(r.desc)}${isPending && canApprove ? ' <span class="badge" style="background:var(--amber-light);color:var(--amber);font-size:9px">⏳ Pending</span>' : ''}</td><td>${esc(r.ref||'—')}</td>
       <td>${r.term}</td><td>${esc(r.cat)}</td>
       <td>${modeSelect}</td>
       <td style="font-weight:500;color:var(--red)">GHS ${fmt(r.amount)}</td>
@@ -10783,12 +11454,33 @@ function renderExpenses() {
     </div>`;
 }
 
-function openExpenseModal() {
+let _editingExpenseId = null;
+
+function openExpenseModal(id) {
   if (!canEditCurrentPage('expenses')) { toast('⛔ You have view-only access to Expense Tracker'); return; }
-  document.getElementById('exp-date').value = today();
-  document.getElementById('exp-cat-sel').innerHTML = getExpCats().map(c => `<option>${c}</option>`).join('');
-  document.getElementById('exp-mode-sel').value = 'Cash';
-  document.getElementById('exp-bankacct-wrap').style.display = 'none';
+  const rec = id ? (db.expenses || []).find(r => r.id === id) : null;
+  if (id && !rec) return;
+  if (rec && rec.status !== 'pending') {
+    toast('⛔ Only pending entries can be fully edited — an approved entry\'s date or payment mode can still be corrected inline in the table', 'error');
+    return;
+  }
+  if (rec && db.generalSettings && db.generalSettings.allowPendingEdit === false) {
+    toast('⛔ Editing pending entries is turned off in General Settings', 'error');
+    return;
+  }
+  _editingExpenseId = rec ? rec.id : null;
+  document.getElementById('expense-modal-title').textContent = rec ? 'Edit Expense Entry (Pending)' : 'Add Expense Entry';
+  document.getElementById('expense-modal-savebtn').textContent = rec ? '💾 Save Changes' : '💾 Save Entry';
+  document.getElementById('exp-date').value = rec ? rec.date : today();
+  document.getElementById('exp-cat-sel').innerHTML = getExpCats().map(c => `<option ${rec && c===rec.cat ? 'selected' : ''}>${c}</option>`).join('');
+  document.getElementById('exp-mode-sel').value = rec ? (rec.mode || 'Cash') : 'Cash';
+  toggleBankAcctField('exp-mode-sel','exp-bankacct-wrap','exp-bankacct-sel');
+  if (rec && rec.mode === 'Bank' && rec.bankAccountId) document.getElementById('exp-bankacct-sel').value = rec.bankAccountId;
+  document.getElementById('exp-desc').value = rec ? rec.desc : '';
+  document.getElementById('exp-ref').value = rec ? (rec.ref || '') : '';
+  document.getElementById('exp-term-sel').value = rec ? rec.term : TERMS[0];
+  document.getElementById('exp-amount').value = rec ? rec.amount : '';
+  document.getElementById('exp-notes').value = rec ? (rec.notes || '') : '';
   document.getElementById('expense-modal').classList.add('open');
 }
 
@@ -10801,6 +11493,25 @@ function saveExpense() {
   const mode = document.getElementById('exp-mode-sel').value;
   const bankAccountId = mode === 'Bank' ? document.getElementById('exp-bankacct-sel').value : null;
   const date = document.getElementById('exp-date').value;
+  if (_editingExpenseId) {
+    const rec = (db.expenses || []).find(r => r.id === _editingExpenseId);
+    if (!rec) { _editingExpenseId = null; closeModal('expense-modal'); return; }
+    Object.assign(rec, {
+      date, desc, ref: document.getElementById('exp-ref').value,
+      term: document.getElementById('exp-term-sel').value,
+      cat, mode, bankAccountId,
+      amount, notes: document.getElementById('exp-notes').value,
+      editedBy: currentUser.username, editedAt: today()
+    });
+    // Still pending — nothing posted to the ledger yet, so there's no
+    // journal entry to correct.
+    _editingExpenseId = null;
+    saveDb();
+    closeModal('expense-modal');
+    renderExpenses();
+    toast('✅ Pending entry updated');
+    return;
+  }
   const newId = db.nextExpId++;
   const isPending = (db.approvalConfig?.finance?.needsApprovalRoles || []).includes(currentUser.role);
   db.expenses.push({
@@ -10988,7 +11699,7 @@ function approveFeedingBudgetRequest(id) {
     id: newId,
     date, desc: `Monthly Feeding Expenditure Budget — ${rec.monthLabel}`, ref: rec.id,
     term: termForDate(date),
-    cat: 'Feeding Expenses', mode: rec.mode, bankAccountId: rec.bankAccountId,
+    cat: 'Feeding Expenses', mode: rec.mode, bankAccountId: rec.bankAccountId || null,
     amount: rec.amount, notes: fullNotes,
     status: 'approved',
     submittedBy: rec.requestedBy
@@ -11147,6 +11858,30 @@ function updateExpenseMode(id, newMode) {
   const bankExp = db.expenses.filter(r=>(r.mode||'Cash')==='Bank').reduce((a,b)=>a+b.amount,0);
   renderExpenses();
   toast('✅ Payment mode updated');
+}
+
+
+function updateExpenseDate(id, newDate) {
+  if (!canEditCurrentPage('expenses')) { toast('⛔ You have view-only access to Expense Tracker'); return; }
+  if (db.generalSettings && db.generalSettings.allowFinanceDateEdit === false) { toast('⛔ Date editing is turned off in General Settings'); renderExpenses(); return; }
+  if (!newDate) { toast('⚠ Date cannot be empty'); renderExpenses(); return; }
+  const rec = db.expenses.find(r => r.id === id);
+  if (!rec) return;
+  rec.date = newDate;
+  if (rec.status !== 'pending') {
+    // Re-post the linked General Ledger entry under the corrected date so
+    // the Trial Balance / General Ledger / Income Statement date filters
+    // stay in sync with the Expense Tracker.
+    const expAcct = findAccountByCategory(rec.cat, 'Expense');
+    removeJournalEntriesFor('expense', id);
+    postJournalEntry(newDate, 'Expense: ' + rec.desc, [
+      { account: expAcct ? expAcct.code : '5300', debit: rec.amount, credit: 0 },
+      { account: cashAccountForMode(rec.mode || 'Cash'), debit: 0, credit: rec.amount }
+    ], 'expense', id);
+  }
+  saveDb();
+  renderExpenses();
+  toast('✅ Date updated');
 }
 
 
@@ -17996,8 +18731,71 @@ function gradeKey(studentId, subjectId, term) {
   return studentId + '|' + subjectId + '|' + term;
 }
 
-function getGrade(studentId, subjectId, term) {
-  return (db.grades || {})[gradeKey(studentId, subjectId, term)] || null;
+// Returns the term grade used everywhere (report cards, positions, promotion,
+// analytics). When one or more Assessment Categories are ticked "Feeds the report
+// card", their scores are blended into `score` (as a % of the possible points) —
+// see blendedTermScore(). Pass raw=true to get the stored core record untouched
+// (Grade Entry uses that so editing never sees blended numbers).
+function getGrade(studentId, subjectId, term, raw) {
+  const g = (db.grades || {})[gradeKey(studentId, subjectId, term)] || null;
+  if (raw) return g;
+  const blended = blendedTermScore(studentId, subjectId, term, g);
+  if (blended === null) return g;
+  return { ...(g || {}), score: blended.score, _blend: blended };
+}
+
+// ── Report Card Weighting (Settings → Assessment Categories → Report Card Weighting) ──
+// Each category that feeds the report card carries a `weight` = its PERCENTAGE of the
+// term total (Final Exams, Class Score, Mid Term, Homework, or any added category; the
+// weights are meant to add up to 100). Core categories default to the Grading Setup
+// split (e.g. 50/50) until an admin saves their own.
+function reportWeights() {
+  const gs = gradingSetup();
+  const cats = Array.isArray(db.gradeCategories) ? db.gradeCategories : [];
+  const core = k => cats.find(c => c.core && c.key === k);
+  const explicit = c => c && typeof c.weight === 'number' && c.weight > 0;
+  const classPct = explicit(core('Class Score')) ? core('Class Score').weight : gs.classScoreMax / gs.totalMax * 100;
+  const examPct  = explicit(core('Final Exams')) ? core('Final Exams').weight : gs.examScoreMax / gs.totalMax * 100;
+  const feeders  = cats.filter(c => !c.core && c.feedsReport && c.weight > 0);
+  const active   = explicit(core('Class Score')) || explicit(core('Final Exams')) || feeders.length > 0;
+  return { classPct, examPct, feeders, active, gs };
+}
+
+// Blends a student's scores for one subject/term into a single % using the weights
+// above. Only components that actually have a score are counted (weights are
+// re-normalised over what's present — a missing Homework is left out, not zero).
+// Returns null when no weighting is configured, so behaviour is unchanged until an
+// admin opts in.
+function blendedTermScore(studentId, subjectId, term, rawGrade) {
+  const w = reportWeights();
+  if (!w.active) return null;
+  const student = (db.admissions || []).find(a => a.id === studentId);
+  if (!student) return null;
+  const gs = w.gs;
+  let points = 0, possible = 0;
+  const parts = [];
+  const add = (key, name, score, max, weight) => {
+    if (!(weight > 0) || !(max > 0)) return;
+    const pts = Math.min(score, max) / max * weight;
+    points += pts; possible += weight;
+    parts.push({ key, name, score, max, weight, points: Math.round(pts * 10) / 10 });
+  };
+  if (rawGrade) {
+    const hasSplit = rawGrade.classScore !== undefined || rawGrade.examScore !== undefined;
+    if (hasSplit) {
+      if (rawGrade.classScore !== undefined) add('Class Score', 'Class Score', rawGrade.classScore, gs.classScoreMax, w.classPct);
+      if (rawGrade.examScore  !== undefined) add('Final Exams', 'Final Exams', rawGrade.examScore,  gs.examScoreMax,  w.examPct);
+    } else if (rawGrade.score !== undefined) {
+      // older record with only a single composite score — treat it as Class + Exam together
+      add('Composite', 'Class + Exam', rawGrade.score, gs.totalMax, w.classPct + w.examPct);
+    }
+  }
+  (db.gradeCategories || []).filter(c => !c.core && c.feedsReport && c.weight > 0 && (c.classes || []).includes(student.cls)).forEach(c => {
+    const comp = (db.gradeComponents || {})[gradeComponentKey(studentId, subjectId, term, c.key)];
+    if (comp) add(c.key, c.name, comp.score, c.max > 0 ? c.max : 100, c.weight);
+  });
+  if (!possible) return null;
+  return { score: Math.round(points / possible * 100), points, possible, parts };
 }
 
 function setGrade(studentId, subjectId, term, score, remarks, classScore, examScore) {
@@ -18043,32 +18841,73 @@ function classHasReportCard(cls) {
   return cls !== 'Creche';
 }
 
-// ── KG 1 / KG 2 report card grading scale — distinct from the letter-grade
-// bands (A/B/C/D) used by every other class. Matches the school's printed
-// KG terminal report grading key exactly. ──
-function scoreToGradeKG(score) {
-  if (score === null || score === undefined) return { g: '—', cls: 'grade-d' };
-  if (score >= 90) return { g: 'A+', cls: 'grade-a' };
-  if (score >= 80) return { g: 'A',  cls: 'grade-a' };
-  if (score >= 70) return { g: 'B',  cls: 'grade-b' };
-  if (score >= 60) return { g: 'C',  cls: 'grade-c' };
-  if (score >= 50) return { g: 'D',  cls: 'grade-c' };
-  if (score >= 40) return { g: 'E',  cls: 'grade-d' };
-  return { g: 'F', cls: 'grade-d' };
+// ── GRADING SETUP — grade bands, remarks and score split are admin-managed
+// (Settings → Grading Setup) and stored in db.gradingSetup. The values below are only
+// the starting point used until an admin saves their own. ──
+const GRADING_DEFAULT = {
+  // One band per row, highest first. `grade` = letter on report cards, `word` = the
+  // one-word remark Nursery report cards print instead of scores, `label` = wording in
+  // the printed grading key, `tone` (a/b/c/d) = colour family.
+  bands: [
+    { min: 90, grade: 'A+', word: 'Excellent',         label: 'Excellent',    tone: 'a' },
+    { min: 80, grade: 'A',  word: 'Very Good',         label: 'Very Good',    tone: 'a' },
+    { min: 70, grade: 'B',  word: 'Good',              label: 'Good',         tone: 'b' },
+    { min: 60, grade: 'C',  word: 'Satisfactory',      label: 'Satisfactory', tone: 'c' },
+    { min: 50, grade: 'D',  word: 'Average',           label: 'Average',      tone: 'c' },
+    { min: 40, grade: 'E',  word: 'Needs Improvement', label: 'Pass',         tone: 'd' },
+    { min: 0,  grade: 'F',  word: 'Poor',              label: 'Fail',         tone: 'd' },
+  ],
+  // Overall-average comment on report cards: the first row whose `min` the average reaches.
+  remarks: [
+    { min: 80, text: 'Excellent performance. Keep it up!' },
+    { min: 70, text: 'Good performance. Room for improvement.' },
+    { min: 55, text: 'Satisfactory. Needs more effort.' },
+    { min: 0,  text: 'Below average. Requires urgent attention.' },
+  ],
+  // Composite score = Class Score + Exam Score, so the two maxima add up to the total marks.
+  classScoreMax: 50,
+  examScoreMax: 50,
+};
+function gradingSetup() {
+  const g = db.gradingSetup || {};
+  const bands = (Array.isArray(g.bands) && g.bands.length ? g.bands : GRADING_DEFAULT.bands).slice().sort((x, y) => y.min - x.min);
+  const remarks = (Array.isArray(g.remarks) && g.remarks.length ? g.remarks : GRADING_DEFAULT.remarks).slice().sort((x, y) => y.min - x.min);
+  const num = (v, d) => (Number(v) > 0 ? Number(v) : d);
+  const classScoreMax = num(g.classScoreMax, GRADING_DEFAULT.classScoreMax);
+  const examScoreMax  = num(g.examScoreMax,  GRADING_DEFAULT.examScoreMax);
+  return { bands, remarks, classScoreMax, examScoreMax, totalMax: classScoreMax + examScoreMax };
 }
-
+// The band a percentage falls in (bands are highest-first; the last band catches everything below).
+function gradeBandFor(score) {
+  if (score === null || score === undefined || isNaN(score)) return null;
+  const bands = gradingSetup().bands;
+  return bands.find(b => score >= b.min) || bands[bands.length - 1];
+}
+function scoreToGradeKG(score) {
+  const b = gradeBandFor(score);
+  return b ? { g: b.grade, cls: 'grade-' + b.tone } : { g: '—', cls: 'grade-d' };
+}
 // Nursery 1 / Nursery 2 report cards drop numeric scores entirely — a word-based
 // remark per subject is more developmentally appropriate at that age.
 function scoreToRemarkWord(score) {
-  if (score === null || score === undefined) return '';
-  if (score >= 90) return 'Excellent';
-  if (score >= 80) return 'Very Good';
-  if (score >= 70) return 'Good';
-  if (score >= 60) return 'Satisfactory';
-  if (score >= 50) return 'Average';
-  if (score >= 40) return 'Needs Improvement';
-  return 'Poor';
+  const b = gradeBandFor(score);
+  return b ? b.word : '';
 }
+function overallRemark(avg) {
+  if (avg === null || avg === undefined) return 'No grades entered yet.';
+  const r = gradingSetup().remarks;
+  return (r.find(x => avg >= x.min) || r[r.length - 1]).text;
+}
+// "100 to 90 = Excellent (A+), 89 to 80 = Very Good (A), … and 39 to 0 = Fail (F)"
+function gradingKeyText() {
+  const bands = gradingSetup().bands;
+  const parts = bands.map((b, i) => {
+    const hi = i === 0 ? 100 : Math.ceil(bands[i - 1].min) - 1;
+    return `${hi} to ${b.min} = ${b.label || b.word} (${b.grade})`;
+  });
+  return parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts.join('');
+}
+function gradingRemarkKeyText() { return gradingSetup().bands.map(b => b.word).join(' · '); }
 
 // 1-based rank of a student's overall average within their own class for a term.
 // Ties are ranked sequentially (dense sort of averages, descending). Returns
@@ -18163,19 +19002,26 @@ function renderKGReportCard(s, term, opts) {
     const total = g ? g.score : null;
     const pos = total !== null ? subjectPosition(s.id, s.cls, sub.id, term) : null;
     const grade = scoreToGradeKG(total);
-    return { sub, cs, ex, total, pos, grade };
+    const parts = (g && g._blend) ? g._blend.parts : [];
+    const pt = k => { const p = parts.find(x => x.key === k); return p ? p.points : null; };
+    // With weighting on, the Class/Exam columns show the points each earned towards the total
+    return { sub, cs: g && g._blend ? (pt('Class Score') !== null ? pt('Class Score') : (pt('Composite') !== null ? pt('Composite') : cs)) : cs, ex: g && g._blend ? pt('Final Exams') : ex, total, pos, grade, parts };
   });
+  // Assessment Categories ticked "Feeds the report card" get their own columns
+  // (points earned out of their weight) so the card still adds up visibly.
+  const feedCats = (db.gradeCategories || []).filter(c => !c.core && c.feedsReport && c.weight > 0 && (c.classes || []).includes(s.cls));
+  const rw = reportWeights();
+  const classHead = rw.active ? Math.round(rw.classPct * 10) / 10 : 50;
+  const examHead  = rw.active ? Math.round(rw.examPct * 10) / 10 : 50;
+  const feedHead = feedCats.map(c => `<th>${esc(c.name)}<br>(${c.weight}%)</th>`).join('');
+  const feedCells = r => feedCats.map(c => { const p = (r.parts || []).find(x => x.key === c.key); return `<td>${p ? p.points : ''}</td>`; }).join('');
   const overallPos = classOverallPosition(s.id, s.cls, term);
   const totalStudents = (db.admissions || []).filter(x => x.cls === s.cls && ['Admitted','Continuing','Scholarship'].includes(x.status)).length;
   const avgScore = (() => {
     const vals = rows.map(r => r.total).filter(v => v !== null);
     return vals.length ? Math.round(vals.reduce((a,v)=>a+v,0)/vals.length) : null;
   })();
-  const remark = avgScore === null ? 'No grades entered yet.'
-    : avgScore >= 80 ? 'Excellent performance. Keep it up!'
-    : avgScore >= 70 ? 'Good performance. Room for improvement.'
-    : avgScore >= 55 ? 'Satisfactory. Needs more effort.'
-    : 'Below average. Requires urgent attention.';
+  const remark = overallRemark(avgScore);
   const att = kgAttendanceSummary(s.id, s.cls, term);
   const promotedTo = kgPromotedTo(s.id, s.cls);
   const nextTermBegins = kgNextTermBegins(term);
@@ -18195,11 +19041,12 @@ function renderKGReportCard(s, term, opts) {
         <td class="kg-rc-subject">${esc(r.sub.name)}</td>
         <td>${r.cs !== null ? r.cs : ''}</td>
         <td>${r.ex !== null ? r.ex : ''}</td>
+        ${feedCells(r)}
         <td style="font-weight:700">${r.total !== null ? r.total : ''}</td>
         <td>${r.pos !== null ? ordinal(r.pos) : ''}</td>
         <td style="font-weight:700">${r.total !== null ? r.grade.g : ''}</td>
         <td></td>
-      </tr>`).join('') || `<tr><td colspan="7" style="color:#9ca3af">No subjects assigned to ${esc(s.cls)}</td></tr>`;
+      </tr>`).join('') || `<tr><td colspan="${7 + feedCats.length}" style="color:#9ca3af">No subjects assigned to ${esc(s.cls)}</td></tr>`;
 
   const htCommentLine = canEditHt
     ? `<div class="kg-rc-field"><b>Headteacher's Remarks:</b>
@@ -18242,7 +19089,7 @@ function renderKGReportCard(s, term, opts) {
           <tr>
             ${isNursery
               ? '<th>Subjects</th><th>Remarks</th>'
-              : '<th>Subjects</th><th>Class Score<br>(50%)</th><th>Exam Score<br>(50%)</th><th>Total Score<br>(100%)</th><th>Position</th><th>Grade</th><th>Remarks</th>'}
+              : `<th>Subjects</th><th>Class Score<br>(${classHead}%)</th><th>Exam Score<br>(${examHead}%)</th>${feedHead}<th>Total Score<br>(100%)</th><th>Position</th><th>Grade</th><th>Remarks</th>`}
           </tr>
         </thead>
         <tbody>${tableRows}</tbody>
@@ -18263,8 +19110,8 @@ function renderKGReportCard(s, term, opts) {
 
       <div class="kg-rc-grading-box">
         ${isNursery
-          ? 'Remarks Key: Excellent · Very Good · Good · Satisfactory · Average · Needs Improvement · Poor'
-          : 'Grading Scheme: 100 to 90 = Excellent (A+), 89 to 80 = Very Good (A), 79 to 70 = Good (B), 69 to 60 = Satisfactory (C), 59 to 50 = Average (D), 49 to 40 = Pass (E) and 39 to 0 = Fail (F)'}
+          ? 'Remarks Key: ' + gradingRemarkKeyText()
+          : 'Grading Scheme: ' + gradingKeyText()}
       </div>
     </div>`;
 }
@@ -18542,12 +19389,11 @@ function exportOneReportCardPDF(studentId) {
 }
 
 function scoreToLetterGrade(score) {
-  if (score === null || score === undefined) return {g:'—', cls:'ge-grade-D', colorCls:'grade-d'};
-  if (score >= 80) return {g:'A', cls:'ge-grade-A', colorCls:'grade-a'};
-  if (score >= 70) return {g:'B', cls:'ge-grade-B', colorCls:'grade-b'};
-  if (score >= 55) return {g:'C', cls:'ge-grade-C', colorCls:'grade-c'};
-  return {g:'D', cls:'ge-grade-D', colorCls:'grade-d'};
+  const b = gradeBandFor(score);
+  if (!b) return { g: '—', cls: 'ge-grade-D', colorCls: 'grade-d' };
+  return { g: b.grade, cls: 'ge-grade-' + b.tone.toUpperCase(), colorCls: 'grade-' + b.tone };
 }
+const GRADE_TONE_BG = { a: 'var(--green-light)', b: '#e8f0fe', c: 'var(--amber-light)', d: 'var(--red-light)' };
 
 function classAverage(studentId, cls, term) {
   const subs = subjectsForClass(cls);
@@ -18567,7 +19413,31 @@ function classAverage(studentId, cls, term) {
 // completely unchanged from before this filter existed. The other three are
 // supplementary tracking only: stored separately in db.gradeComponents and
 // don't feed report cards or any calculation outside Grade Entry itself.
-const GRADE_CATEGORIES = ['Final Exams', 'Mid Term Exams', 'Class Score', 'Homework'];
+// The list is admin-managed per class (Settings → Assessment Categories), like Subjects.
+// "Final Exams" and "Class Score" are the two CORE categories: they feed the report card's
+// composite score, so they're always present for every class (their maximums are set in
+// Grading Setup). Every other category is supplementary — scored out of its own `max` and
+// stored in db.gradeComponents under its `key`.
+function seedGradeCategories() {
+  const all = () => [...CLASSES];
+  return [
+    { key: 'Final Exams',    name: 'Final Exams',    classes: all(), core: true },
+    { key: 'Mid Term Exams', name: 'Mid Term Exams', classes: all(), max: 100 },
+    { key: 'Class Score',    name: 'Class Score',    classes: all(), core: true },
+    { key: 'Homework',       name: 'Homework',       classes: all(), max: 100 },
+  ];
+}
+function getGradeCategories() {
+  if (!Array.isArray(db.gradeCategories)) db.gradeCategories = seedGradeCategories();
+  return db.gradeCategories;
+}
+function gradeCategoriesFor(cls) {
+  return getGradeCategories().filter(c => c.core || (c.classes || []).includes(cls));
+}
+function gradeCategoryMax(key) {
+  const c = getGradeCategories().find(x => x.key === key);
+  return c && c.max > 0 ? c.max : 100;
+}
 
 function gradeComponentKey(studentId, subjectId, term, category) {
   return studentId + '|' + subjectId + '|' + term + '|' + category;
@@ -18606,7 +19476,7 @@ function classComponentAverage(studentId, cls, term, category) {
 function classScoreFieldAverage(studentId, cls, term, field) {
   const subs = subjectsForClass(cls);
   if (!subs.length) return null;
-  const scores = subs.map(sub => { const g = getGrade(studentId, sub.id, term); return g && g[field] !== undefined ? g[field] : null; }).filter(v => v !== null);
+  const scores = subs.map(sub => { const g = getGrade(studentId, sub.id, term, true); return g && g[field] !== undefined ? g[field] : null; }).filter(v => v !== null);
   return scores.length ? Math.round(scores.reduce((a,v)=>a+v,0) / scores.length) : null;
 }
 
@@ -18616,12 +19486,17 @@ function renderGradeEntry() {
   const lockedClass = lockedClassFor();
   let selClass = lockedClass || CLASSES[0] || '';
   let selTerm  = TERMS[0];
-  let selCategory = GRADE_CATEGORIES[0];
+  let selCategory = 'Final Exams';
 
   function draw() {
     const canEdit = canEditCurrentPage('grades');
     const students = admitted.filter(s => s.cls === selClass);
     const subs = subjectsForClass(selClass);
+    const cats = gradeCategoriesFor(selClass);
+    if (!cats.some(c => c.key === selCategory)) selCategory = cats[0].key; // e.g. the class changed
+    const selCat = cats.find(c => c.key === selCategory);
+    const catName = selCat.name;
+    const catMax = selCat.core ? 100 : (selCat.max > 0 ? selCat.max : 100);
 
     // Class pills — hidden for a Class Teacher locked to a single class
     const pills = lockedClass ? '' : CLASSES.map(c => {
@@ -18639,12 +19514,13 @@ function renderGradeEntry() {
     // separately, not used anywhere else).
     const isScoreSplit = (selCategory === 'Final Exams' || selCategory === 'Class Score');
     const kgField = selCategory === 'Final Exams' ? 'examScore' : 'classScore';
+    const splitMax = kgField === 'examScore' ? gradingSetup().examScoreMax : gradingSetup().classScoreMax;
     const subHeaders = subs.map(s =>
       `<th style="min-width:90px;padding:10px 8px">
         <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
           <span style="width:8px;height:8px;border-radius:50%;background:${s.color};display:inline-block"></span>
           <span>${s.code}</span>
-          ${isScoreSplit ? '<span style="font-size:9px;font-weight:400;color:var(--muted)">/ 50</span>' : ''}
+          ${isScoreSplit ? `<span style="font-size:9px;font-weight:400;color:var(--muted)">/ ${splitMax}</span>` : (catMax !== 100 ? `<span style="font-size:9px;font-weight:400;color:var(--muted)">/ ${catMax}</span>` : '')}
         </div>
       </th>`
     ).join('');
@@ -18653,36 +19529,36 @@ function renderGradeEntry() {
       const cells = subs.map(sub => {
         if (isScoreSplit) {
           // Final Exams / Class Score — a single 0–50 input, same format either way.
-          const g = getGrade(s.id, sub.id, selTerm);
+          const g = getGrade(s.id, sub.id, selTerm, true);
           const val = g && g[kgField] !== undefined ? g[kgField] : '';
-          const inputClass = (g && g[kgField] !== undefined) ? (g[kgField]>=40?'score-a':g[kgField]>=35?'score-b':g[kgField]>=28?'score-c':'score-d') : '';
+          const inputClass = (g && g[kgField] !== undefined) ? ('score-' + (gradeBandFor(g[kgField] / splitMax * 100) || { tone: 'd' }).tone) : '';
           const csArg = kgField === 'classScore' ? 'this.value' : 'null';
           const exArg = kgField === 'examScore'  ? 'this.value' : 'null';
           return `<td style="text-align:center;padding:6px 4px">
             <input type="number" class="ge-score-input ${inputClass}"
-              min="0" max="50" value="${val}" ${canEdit?'':'disabled'}
+              min="0" max="${splitMax}" value="${val}" ${canEdit?'':'disabled'}
               onchange="geSetScoreKG('${s.id}','${sub.id}','${selTerm}',${csArg},${exArg})"
-              title="${esc(sub.name)} — ${esc(selCategory)} (out of 50)">
+              title="${esc(sub.name)} — ${esc(catName)} (out of ${splitMax})">
           </td>`;
         }
         // Mid Term Exams / Homework — supplementary tracking, a single 0–100 input,
         // stored separately and not used anywhere else in the app.
         const gc = getGradeComponent(s.id, sub.id, selTerm, selCategory);
         const cVal = gc ? gc.score : '';
-        const inputClass = gc ? (gc.score>=80?'score-a':gc.score>=70?'score-b':gc.score>=55?'score-c':'score-d') : '';
+        const inputClass = gc ? ('score-' + (gradeBandFor(gc.score / catMax * 100) || { tone: 'd' }).tone) : '';
         return `<td style="text-align:center;padding:6px 4px">
           <input type="number" class="ge-score-input ${inputClass}"
-            min="0" max="100" value="${cVal}" ${canEdit?'':'disabled'}
+            min="0" max="${catMax}" value="${cVal}" ${canEdit?'':'disabled'}
             onchange="geSetScoreComponent('${s.id}','${sub.id}','${selTerm}','${selCategory}',this.value,this)"
-            title="${esc(sub.name)} — ${esc(selCategory)}">
+            title="${esc(sub.name)} — ${esc(catName)}${catMax !== 100 ? ' (out of ' + catMax + ')' : ''}">
         </td>`;
       }).join('');
 
       const rawAvg = isScoreSplit ? classScoreFieldAverage(s.id, selClass, selTerm, kgField) : classComponentAverage(s.id, selClass, selTerm, selCategory);
-      const avg = isScoreSplit && rawAvg !== null ? Math.round(rawAvg * 2) : rawAvg; // project 0–50 onto 0–100 for the grade badge
+      const avg = rawAvg === null ? null : (isScoreSplit ? Math.round(rawAvg / splitMax * 100) : Math.round(rawAvg / catMax * 100)); // project onto 0–100 for the grade badge
       const {g: ag, cls: acls} = scoreToLetterGrade(avg);
       const avgChip = avg !== null
-        ? `<span class="ge-avg-chip ${acls}" style="background:${avg>=80?'var(--green-light)':avg>=70?'#e8f0fe':avg>=55?'var(--amber-light)':'var(--red-light)'}">${isScoreSplit ? rawAvg + '/50' : avg + '%'} ${ag}</span>`
+        ? `<span class="ge-avg-chip ${acls}" style="background:${GRADE_TONE_BG[(gradeBandFor(avg) || { tone: 'd' }).tone]}">${isScoreSplit ? rawAvg + '/' + splitMax : (catMax !== 100 ? rawAvg + '/' + catMax : avg + '%')} ${ag}</span>`
         : `<span style="color:var(--muted);font-size:12px">—</span>`;
 
       return `<tr>
@@ -18699,8 +19575,8 @@ function renderGradeEntry() {
       `<button class="ge-subject-tab ${t===selTerm?'active':''}" onclick="geSetTerm('${t}')">${t}</button>`
     ).join('');
 
-    const categoryTabs = GRADE_CATEGORIES.map(c =>
-      `<button class="ge-subject-tab ${c===selCategory?'active':''}" onclick="geSetCategory('${esc(c)}')">${esc(c)}</button>`
+    const categoryTabs = cats.map(c =>
+      `<button class="ge-subject-tab ${c.key===selCategory?'active':''}" onclick="geSetCategory('${esc(c.key)}')">${esc(c.name)}</button>`
     ).join('');
 
     el.innerHTML = `
@@ -18734,7 +19610,7 @@ function renderGradeEntry() {
         ? `<div class="empty-state"><div class="icon">📭</div>No students in ${selClass}</div>`
         : `<div class="card">
             <div class="card-header">
-              <span class="card-title">📋 ${selClass} — ${selTerm} · ${esc(selCategory)}</span>
+              <span class="card-title">📋 ${selClass} — ${selTerm} · ${esc(catName)}</span>
               <span style="font-size:11px;color:var(--muted)">${students.length} student${students.length!==1?'s':''} · ${subs.length} subject${subs.length!==1?'s':''}</span>
             </div>
             <div style="overflow-x:auto">
@@ -18754,8 +19630,8 @@ function renderGradeEntry() {
 
       <div style="margin-top:12px;font-size:11px;color:var(--muted)">
         ${isScoreSplit
-          ? `<b>${esc(selCategory)}</b> — enter each subject's score out of 50; it auto-sums with the other half (Final Exams + Class Score) into the report card's Total Score. Grading: A+ = 90–100 · A = 80–89 · B = 70–79 · C = 60–69 · D = 50–59 · E = 40–49 · F = 0–39 (based on the combined total)`
-          : `You're entering <b>${esc(selCategory)}</b> scores — a supplementary record only. This doesn't feed report cards, promotion, or averages elsewhere in the app; switch to "Final Exams" or "Class Score" to enter the official scores.`}
+          ? `<b>${esc(catName)}</b> — enter each subject's score out of ${splitMax}; it auto-sums with the other half (Final Exams + Class Score) into the report card's Total Score. Grading: ${gradingKeyText()} (based on the combined total)`
+          : `You're entering <b>${esc(catName)}</b> scores${catMax !== 100 ? ' (out of ' + catMax + ')' : ''} — a supplementary record only. This doesn't feed report cards, promotion, or averages elsewhere in the app; switch to "Final Exams" or "Class Score" to enter the official scores.`}
       </div>`;
 
     window.geSetClass = c => { if (lockedClass) return; selClass = c; draw(); };
@@ -18773,18 +19649,20 @@ function renderGradeEntry() {
     // separately from the official Final Exams score (see setGradeComponent()).
     window.geSetScoreComponent = (sid, subId, term, category, val, inp) => {
       if (!canEditCurrentPage('grades')) { toast('⛔ You have view-only access to Grade Entry'); draw(); return; }
-      const score = val === '' ? null : Math.max(0, Math.min(100, Number(val)));
+      const cmax = gradeCategoryMax(category);
+      const score = val === '' ? null : Math.max(0, Math.min(cmax, Number(val)));
       setGradeComponent(sid, subId, term, category, score);
-      inp.className = 'ge-score-input' + (score===null?'':score>=80?' score-a':score>=70?' score-b':score>=55?' score-c':' score-d');
+      inp.className = 'ge-score-input' + (score===null ? '' : ' score-' + (gradeBandFor(score / cmax * 100) || { tone: 'd' }).tone);
+      if (score !== null && String(score) !== String(val)) inp.value = score; // clamped to this category's maximum
       toast('✅ Score saved');
     };
     // KG 1 / KG 2 only — two inputs (Class Score, Exam Score), each 0–50,
     // auto-summed into the composite score used everywhere else in the app.
     window.geSetScoreKG = (sid, subId, term, classVal, examVal) => {
       if (!canEditCurrentPage('grades')) { toast('⛔ You have view-only access to Grade Entry'); draw(); return; }
-      const g = getGrade(sid, subId, term) || {};
-      const cs = classVal !== null ? (classVal === '' ? null : Math.max(0, Math.min(50, Number(classVal)))) : (g.classScore !== undefined ? g.classScore : null);
-      const ex = examVal !== null ? (examVal === '' ? null : Math.max(0, Math.min(50, Number(examVal)))) : (g.examScore !== undefined ? g.examScore : null);
+      const g = getGrade(sid, subId, term, true) || {};
+      const cs = classVal !== null ? (classVal === '' ? null : Math.max(0, Math.min(gradingSetup().classScoreMax, Number(classVal)))) : (g.classScore !== undefined ? g.classScore : null);
+      const ex = examVal !== null ? (examVal === '' ? null : Math.max(0, Math.min(gradingSetup().examScoreMax, Number(examVal)))) : (g.examScore !== undefined ? g.examScore : null);
       if (cs === null && ex === null) {
         setGrade(sid, subId, term, null, '');
       } else {
@@ -18803,7 +19681,10 @@ function renderGradeEntry() {
 }
 
 // ══════════════ SKILLS ASSESSMENT ══════════════
-const SKILLS_LIST = [
+// Built-in starter skill sets — these only SEED db.skillParams the first time
+// (or when an admin presses "Reset to defaults"). After that, the admin owns the
+// list via Settings → Skills Setup, exactly like Subject Management.
+const SKILLS_DEFAULT_SET = [
   { key: 'reading',    label: 'Reading' },
   { key: 'writing',    label: 'Writing' },
   { key: 'spelling',   label: 'Spelling' },
@@ -18814,8 +19695,74 @@ const SKILLS_LIST = [
   { key: 'speaking',   label: 'English Speaking Fluency' },
   { key: 'homework',   label: 'Home Work Completion Rate' },
 ];
+const SKILLS_NURSERY_SET = [
+  { key: 'alphabet_identification', label: 'Alphabet Identification' },
+  { key: 'number_identification',   label: 'Number Identification' },
+  { key: 'shapes_identification',   label: 'Shapes Identification' },
+  { key: 'learning_pencil_grip',    label: 'Learning Pencil Grip' },
+  { key: 'colouring',               label: 'Colouring' },
+  { key: 'cutting_and_pasting',     label: 'Cutting and Pasting' },
+  { key: 'scribbling',              label: 'Scribling' },
+  { key: 'matching_pictures',       label: 'Matching pictures' },
+  { key: 'drawing',                 label: 'Drawing' },
+  { key: 'counting',                label: 'Counting' },
+  { key: 'sorting_objects',         label: 'Sorting objects' },
+  { key: 'pronunciation',           label: 'Pronunciation' },
+];
+const SKILL_NURSERY_CLASSES = ['Nursery 1', 'Nursery 2'];
+
+// Class "levels" offered as one-click selectors in the Skills Setup dialog.
+function skillLevelGroups() {
+  const has = c => CLASSES.includes(c);
+  return [
+    { name: 'Creche–Nursery', classes: ['Creche','Nursery 1','Nursery 2'].filter(has) },
+    { name: 'KG',             classes: ['KG 1','KG 2'].filter(has) },
+    { name: 'Lower Primary',  classes: ['Basic 1','Basic 2','Basic 3'].filter(has) },
+    { name: 'Upper Primary',  classes: ['Basic 4','Basic 5','Basic 6'].filter(has) },
+  ].filter(g => g.classes.length);
+}
+
+function seedSkillParams() {
+  const others = CLASSES.filter(c => !SKILL_NURSERY_CLASSES.includes(c));
+  return [
+    ...SKILLS_DEFAULT_SET.map(x => ({ ...x, classes: [...others] })),
+    ...SKILLS_NURSERY_SET.map(x => ({ ...x, classes: SKILL_NURSERY_CLASSES.filter(c => CLASSES.includes(c)) })),
+  ];
+}
+function getSkillParams() {
+  if (!Array.isArray(db.skillParams)) db.skillParams = seedSkillParams();
+  return db.skillParams;
+}
+// The skills assessed for one class (in the admin's order).
+function skillsFor(cls) {
+  return getSkillParams().filter(p => (p.classes || []).includes(cls));
+}
+// Union of skills across several classes (for cross-class reports), first-seen order.
+function skillsForClasses(clsList) {
+  const seen = new Set(), out = [];
+  (clsList || []).forEach(c => skillsFor(c).forEach(sk => { if (!seen.has(sk.key)) { seen.add(sk.key); out.push(sk); } }));
+  return out;
+}
+// Labels for keys that have since been removed/unassigned (old submissions still reference them).
+function skillLabelFor(key) {
+  const p = getSkillParams().find(x => x.key === key);
+  return p ? p.label : key;
+}
 const SKILL_RATING_LABELS = { 1:'Need Urgent Attention', 2:'Need Improvement', 3:'Good', 4:'Excellent' };
 const SKILL_RATING_CLASS  = { 1:'skill-r1', 2:'skill-r2', 3:'skill-r3', 4:'skill-r5' };
+
+// Rating-scale wording is admin-managed per class (Settings → Skills Setup → Rating Scale).
+// db.skillScales = { '__default': {1..4}, 'Nursery 1': {1..4}, … }. A class with no entry of its
+// own uses the school default, which itself falls back to the built-in wording above.
+function skillScaleFor(cls) {
+  const all = db.skillScales || {};
+  return { ...SKILL_RATING_LABELS, ...(all.__default || {}), ...((cls && all[cls]) || {}) };
+}
+function skillLegendHtml(cls) {
+  const sc = skillScaleFor(cls);
+  const col = { 1:'var(--red)', 2:'#6d28d9', 3:'#854d0e', 4:'var(--green)' };
+  return [1,2,3,4].map(n => `<span style="color:${col[n]};font-weight:600">${n} = ${esc(sc[n])}</span>`).join(' · ');
+}
 
 // Skills Assessment is entered monthly (for every role/user — teachers, class
 // teachers, etc.), not per term. Build 12 month labels spanning the academic
@@ -18834,7 +19781,13 @@ function skillMonths() {
 function skillKey(studentId, month) { return studentId + '|' + month; }
 
 function getSkillRatings(studentId, month) {
-  const raw = (db.skillsAssessments || {})[skillKey(studentId, month)] || {};
+  const raw0 = (db.skillsAssessments || {})[skillKey(studentId, month)] || {};
+  // Only the skills currently assigned to this student's class count — ratings saved
+  // under a skill that was later removed/unassigned stay in storage but are ignored.
+  const _stu = (db.admissions || []).find(a => a.id === studentId);
+  const allowed = _stu ? new Set(skillsFor(_stu.cls).map(x => x.key)) : null;
+  const raw = {};
+  Object.keys(raw0).forEach(k => { if (!allowed || allowed.has(k)) raw[k] = raw0[k]; });
   // Defensive clamp: ratings saved under the old 1–5 scale (before the 4-tier
   // Need Urgent Attention/Need Improvement/Good/Excellent scale) may still have
   // a stored 5 — treat that as the new top tier (4 = Excellent) rather than
@@ -18871,7 +19824,7 @@ function skillAverageAllMonths(studentId) {
   const all = db.skillsAssessments || {};
   const vals = [];
   skillMonths().forEach(m => {
-    const raw = all[skillKey(studentId, m)] || {};
+    const raw = getSkillRatings(studentId, m);
     Object.values(raw).forEach(v => { if (v > 0) vals.push(Math.min(v, 4)); });
   });
   return vals.length ? (vals.reduce((a,b)=>a+b,0) / vals.length) : null;
@@ -18913,18 +19866,20 @@ function renderSkillsAssessment() {
       </div>`;
     }).join('');
 
-    const skillHeaders = SKILLS_LIST.map(sk =>
+    const SK = skillsFor(selClass);
+    const SK_SCALE = skillScaleFor(selClass);
+    const skillHeaders = SK.map(sk =>
       `<th style="min-width:78px;padding:8px 4px;font-size:10.5px;text-align:center" title="${sk.label}">${sk.label}</th>`
     ).join('');
 
     const rows = students.map(s => {
       const ratings = getSkillRatings(s.id, selMonth);
-      const cells = SKILLS_LIST.map(sk => {
+      const cells = SK.map(sk => {
         const v = ratings[sk.key] || '';
         return `<td style="text-align:center;padding:4px 3px">
           <select class="skill-select ${v ? SKILL_RATING_CLASS[v] : ''}" onchange="saSetRating('${s.id}','${sk.key}',this.value,this)" title="${sk.label}" ${locked ? 'disabled' : ''}>
             <option value="">—</option>
-            ${[1,2,3,4].map(n => `<option value="${n}" ${String(v)===String(n)?'selected':''}>${n} · ${SKILL_RATING_LABELS[n]}</option>`).join('')}
+            ${[1,2,3,4].map(n => `<option value="${n}" ${String(v)===String(n)?'selected':''}>${n} · ${esc(SK_SCALE[n])}</option>`).join('')}
           </select>
         </td>`;
       }).join('');
@@ -18949,7 +19904,7 @@ function renderSkillsAssessment() {
     ).join('');
 
     // Class-wide average per skill, for a quick "where does this class need help" view
-    const classAvgRow = SKILLS_LIST.map(sk => {
+    const classAvgRow = SK.map(sk => {
       const vals = students.map(s => (getSkillRatings(s.id, selMonth)[sk.key])).filter(v => v > 0);
       const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length) : null;
       const avgColor = avg === null ? 'var(--muted)' : (avg >= 3.5 ? 'var(--green)' : avg >= 2.5 ? '#854d0e' : avg >= 1.5 ? '#6d28d9' : 'var(--red)');
@@ -18979,7 +19934,7 @@ function renderSkillsAssessment() {
         : `<div class="card">
             <div class="card-header">
               <span class="card-title">🌟 ${selClass} — ${selMonth} Skills</span>
-              <span style="font-size:11px;color:var(--muted)">${students.length} student${students.length!==1?'s':''} · rated 1 (need urgent attention) – 4 (excellent)</span>
+              <span style="font-size:11px;color:var(--muted)">${students.length} student${students.length!==1?'s':''} · rated 1 (${esc(SK_SCALE[1].toLowerCase())}) – 4 (${esc(SK_SCALE[4].toLowerCase())})</span>
             </div>
             <div style="overflow-x:auto">
               <table>
@@ -19004,7 +19959,7 @@ function renderSkillsAssessment() {
       }
 
       <div style="margin-top:12px;font-size:11px;color:var(--muted)">
-        Scale: <span style="color:var(--red);font-weight:600">1 = Need Urgent Attention</span> · <span style="color:#6d28d9;font-weight:600">2 = Need Improvement</span> · <span style="color:#854d0e;font-weight:600">3 = Good</span> · <span style="color:var(--green);font-weight:600">4 = Excellent</span> &nbsp;|&nbsp; Ratings auto-save on entry
+        Scale: ${skillLegendHtml(selClass)} &nbsp;|&nbsp; Ratings auto-save on entry
       </div>`;
 
     window.saSetClass = c => { if (lockedClass) return; selClass = c; draw(); };
@@ -19081,18 +20036,18 @@ function skRows(sub) {
   const names = sub.students || {};
   return Object.keys(sub.ratings || {}).map(id => {
     const r = sub.ratings[id] || {};
-    const vals = SKILLS_LIST.map(sk => r[sk.key]).filter(v => v > 0);
+    const vals = skillsFor(sub.cls).map(sk => r[sk.key]).filter(v => v > 0);
     return { id, name: names[id] || id, cls: sub.cls, month: sub.month, ratings: r, avg: skMean(vals), status: sub.status, subId: sub.id };
   });
 }
 function skNeedsAttention(r) {
-  return r.avg !== null && (r.avg < 2.5 || SKILLS_LIST.some(sk => r.ratings[sk.key] === 1));
+  return r.avg !== null && (r.avg < 2.5 || skillsFor(r.cls).some(sk => r.ratings[sk.key] === 1));
 }
 function skClassAverages(sub) {
   const rows = skRows(sub);
   const out = { overall: null, bySkill: {} };
   const all = [];
-  SKILLS_LIST.forEach(sk => {
+  skillsFor(sub.cls).forEach(sk => {
     const vals = rows.map(r => r.ratings[sk.key]).filter(v => v > 0);
     out.bySkill[sk.key] = skMean(vals);
     vals.forEach(v => all.push(v));
@@ -19104,7 +20059,7 @@ function skClassAverages(sub) {
 function skPool(subs, key) {
   const vals = [];
   subs.forEach(s => skRows(s).forEach(r => {
-    SKILLS_LIST.forEach(sk => { if ((!key || sk.key === key) && r.ratings[sk.key] > 0) vals.push(r.ratings[sk.key]); });
+    skillsFor(r.cls).forEach(sk => { if ((!key || sk.key === key) && r.ratings[sk.key] > 0) vals.push(r.ratings[sk.key]); });
   }));
   return skMean(vals);
 }
@@ -19125,14 +20080,14 @@ function skSnapshot(cls, month) {
   students.forEach(s => {
     names[s.id] = s.name || s.id;
     const r = getSkillRatings(s.id, month);
-    const keys = SKILLS_LIST.map(sk => sk.key).filter(k => r[k] > 0);
+    const keys = skillsFor(cls).map(sk => sk.key).filter(k => r[k] > 0);
     if (keys.length) {
       ratings[s.id] = {};
       keys.forEach(k => { ratings[s.id][k] = r[k]; });
       rated += keys.length;
     }
   });
-  return { students, names, ratings, rated, expected: students.length * SKILLS_LIST.length };
+  return { students, names, ratings, rated, expected: students.length * skillsFor(cls).length };
 }
 
 function submitSkillAssessment(cls, month) {
@@ -19269,12 +20224,13 @@ function skPageBanner(sub, cls, month) {
 function skGridHtml(sub, prevAvgs) {
   const rows = skRows(sub).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   const avgs = skClassAverages(sub);
-  const head = SKILLS_LIST.map(sk => `<th style="min-width:60px;padding:8px 4px;font-size:10px;text-align:center">${esc(sk.label)}</th>`).join('');
+  const SK = skillsFor(sub.cls);
+  const head = SK.map(sk => `<th style="min-width:60px;padding:8px 4px;font-size:10px;text-align:center">${esc(sk.label)}</th>`).join('');
   const body = rows.map(r => {
-    const cells = SKILLS_LIST.map(sk => {
+    const cells = SK.map(sk => {
       const v = r.ratings[sk.key];
       const c = v ? skColor(v) : null;
-      return `<td style="text-align:center;padding:5px 3px;font-size:12px;font-weight:600;${c ? `background:${c.bg};color:${c.fg}` : 'color:var(--muted)'}" title="${v ? esc(SKILL_RATING_LABELS[v]) : 'Not rated'}">${v || '—'}</td>`;
+      return `<td style="text-align:center;padding:5px 3px;font-size:12px;font-weight:600;${c ? `background:${c.bg};color:${c.fg}` : 'color:var(--muted)'}" title="${v ? esc(skillScaleFor(sub.cls)[v]) : 'Not rated'}">${v || '—'}</td>`;
     }).join('');
     const c = skColor(r.avg);
     return `<tr><td style="padding:6px 12px;white-space:nowrap;font-size:12.5px">${esc(r.name)}${skNeedsAttention(r) ? ' <span title="Needs attention" style="color:var(--red)">⚠</span>' : ''}</td>${cells}<td style="text-align:center;font-weight:700;font-size:12px;background:${c.bg};color:${c.fg}">${r.avg === null ? '—' : r.avg.toFixed(1)}</td></tr>`;
@@ -19285,7 +20241,7 @@ function skGridHtml(sub, prevAvgs) {
     const up = d > 0.049, down = d < -0.049;
     return `<div style="font-size:9.5px;font-weight:600;color:${up ? 'var(--green)' : down ? 'var(--red)' : 'var(--muted)'}">${up ? '▲' : down ? '▼' : '•'} ${Math.abs(d).toFixed(1)}</div>`;
   };
-  const foot = SKILLS_LIST.map(sk => {
+  const foot = SK.map(sk => {
     const a = avgs.bySkill[sk.key];
     const c = skColor(a);
     return `<td style="text-align:center;padding:5px 3px;font-size:12px;font-weight:700;background:${c.bg};color:${c.fg}">${a === null ? '—' : a.toFixed(1)}${prevAvgs ? deltaHtml(a, prevAvgs.bySkill[sk.key]) : ''}</td>`;
@@ -19310,7 +20266,7 @@ function openSkillReview(id) {
   const avgs = skClassAverages(sub);
   const rows = skRows(sub);
   const flagged = rows.filter(skNeedsAttention).sort((a, b) => a.avg - b.avg);
-  const skillList = SKILLS_LIST.map(sk => ({ label: sk.label, avg: avgs.bySkill[sk.key] })).filter(x => x.avg !== null).sort((a, b) => a.avg - b.avg);
+  const skillList = skillsFor(sub.cls).map(sk => ({ label: sk.label, avg: avgs.bySkill[sk.key] })).filter(x => x.avg !== null).sort((a, b) => a.avg - b.avg);
   const weakest = skillList[0], strongest = skillList[skillList.length - 1];
   const canDecide = isSkillsApprover() && sub.status === 'pending';
   const canReopen = isSkillsApprover() && sub.status === 'approved';
@@ -19415,9 +20371,11 @@ function skrExportCsv() {
   const { curRows } = skrData();
   if (!curRows.length) { toast('Nothing to export for this selection'); return; }
   const q = v => '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"';
-  const lines = [['Class', 'Month', 'Student ID', 'Student', ...SKILLS_LIST.map(sk => sk.label), 'Average', 'Status'].map(q).join(',')];
+  const SKX = skillsForClasses([...new Set(curRows.map(r => r.cls))]);
+  const lines = [['Class', 'Month', 'Student ID', 'Student', ...SKX.map(sk => sk.label), 'Average', 'Status'].map(q).join(',')];
   curRows.forEach(r => {
-    lines.push([r.cls, r.month, r.id, r.name, ...SKILLS_LIST.map(sk => r.ratings[sk.key] || ''), r.avg === null ? '' : r.avg.toFixed(2), SKILL_SUB_LABELS[r.status] || r.status].map(q).join(','));
+    const _ok = new Set(skillsFor(r.cls).map(x => x.key));
+    lines.push([r.cls, r.month, r.id, r.name, ...SKX.map(sk => _ok.has(sk.key) ? (r.ratings[sk.key] || '') : 'n/a'), r.avg === null ? '' : r.avg.toFixed(2), SKILL_SUB_LABELS[r.status] || r.status].map(q).join(','));
   });
   const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
@@ -19437,7 +20395,7 @@ function renderSkillsReport() {
   // ── KPIs ──
   const inScopeAll = all.filter(s => inCls(s) && (S.month === 'all' || s.month === S.month));
   const cnt = st => inScopeAll.filter(s => s.status === st).length;
-  const allVals = curRows.flatMap(r => SKILLS_LIST.map(sk => r.ratings[sk.key]).filter(v => v > 0));
+  const allVals = curRows.flatMap(r => skillsFor(r.cls).map(sk => r.ratings[sk.key]).filter(v => v > 0));
   const overall = skMean(allVals);
   const goodPct = allVals.length ? Math.round(allVals.filter(v => v >= 3).length / allVals.length * 100) : null;
   const uniqueStudents = new Set(curRows.map(r => r.id)).size;
@@ -19447,21 +20405,22 @@ function renderSkillsReport() {
   // ── Class comparison heatmap ──
   const classes = [...new Set(cur.map(s => s.cls))].sort((a, b) => CLASSES.indexOf(a) - CLASSES.indexOf(b));
   const cell = (avg, extra) => { const c = skColor(avg); return `<td style="text-align:center;padding:7px 4px;font-size:12px;font-weight:600;background:${c.bg};color:${c.fg};${extra || ''}">${avg === null ? '—' : avg.toFixed(1)}</td>`; };
+  const SKU = skillsForClasses(classes); // union of the skills used by the classes being compared
   const classData = classes.map(c => {
     const subs = cur.filter(s => s.cls === c);
-    const bySkill = SKILLS_LIST.map(sk => skPool(subs, sk.key));
+    const bySkill = SKU.map(sk => skPool(subs, sk.key));
     const valid = bySkill.filter(v => v !== null);
     const lowest = valid.length ? Math.min(...valid) : null;
     return { cls: c, subs, bySkill, lowest, overall: skPool(subs), students: new Set(subs.flatMap(skRows).map(r => r.id)).size };
   });
-  const classHead = SKILLS_LIST.map(sk => `<th style="min-width:64px;padding:8px 4px;font-size:10px;text-align:center">${esc(sk.label)}</th>`).join('');
+  const classHead = SKU.map(sk => `<th style="min-width:64px;padding:8px 4px;font-size:10px;text-align:center">${esc(sk.label)}</th>`).join('');
   const classBody = classData.map(d => `<tr>
       <td style="padding:7px 12px;font-weight:600;white-space:nowrap">${esc(d.cls)}</td>
       <td style="text-align:center;font-size:12px;color:var(--muted)">${d.students}</td>
       ${d.bySkill.map(v => cell(v, v !== null && v === d.lowest && d.bySkill.filter(x => x === d.lowest).length === 1 ? 'box-shadow:inset 0 0 0 2px var(--navy)' : '')).join('')}
       ${cell(d.overall, 'border-left:2px solid var(--border);font-weight:700')}
     </tr>`).join('');
-  const allRow = classData.length > 1 ? `<tr style="background:var(--cream2)"><td style="padding:7px 12px;font-weight:700">All classes</td><td style="text-align:center;font-size:12px;color:var(--muted)">${uniqueStudents}</td>${SKILLS_LIST.map(sk => cell(skPool(cur, sk.key))).join('')}${cell(overall, 'border-left:2px solid var(--border);font-weight:700')}</tr>` : '';
+  const allRow = classData.length > 1 ? `<tr style="background:var(--cream2)"><td style="padding:7px 12px;font-weight:700">All classes</td><td style="text-align:center;font-size:12px;color:var(--muted)">${uniqueStudents}</td>${SKU.map(sk => cell(skPool(cur, sk.key))).join('')}${cell(overall, 'border-left:2px solid var(--border);font-weight:700')}</tr>` : '';
 
   // ── Trend across months ──
   const trendMonths = MONTHS.filter(m => scoped.some(s => s.month === m));
@@ -19471,7 +20430,8 @@ function renderSkillsReport() {
     if (Math.abs(d) < 0.05) return '<td style="text-align:center;color:var(--muted);font-size:12px">• steady</td>';
     return `<td style="text-align:center;font-size:12px;font-weight:700;color:${d > 0 ? 'var(--green)' : 'var(--red)'}">${d > 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(1)}</td>`;
   };
-  const skillMonthRows = SKILLS_LIST.map(sk => {
+  const SKS = skillsForClasses([...new Set(scoped.map(s => s.cls))]);
+  const skillMonthRows = SKS.map(sk => {
     const vals = trendMonths.map(m => skPool(scoped.filter(s => s.month === m), sk.key));
     const nn = vals.filter(v => v !== null);
     return `<tr><td style="padding:7px 12px;white-space:nowrap;font-size:12.5px">${esc(sk.label)}</td>${vals.map(v => cell(v)).join('')}${arrow(nn[0] === undefined ? null : nn[0], nn.length ? nn[nn.length - 1] : null)}</tr>`;
@@ -19491,7 +20451,7 @@ function renderSkillsReport() {
     watch.push({
       ...r,
       delta: (p && p.avg !== null && r.avg !== null) ? r.avg - p.avg : null,
-      focus: SKILLS_LIST.filter(sk => r.ratings[sk.key] > 0 && r.ratings[sk.key] <= 2).map(sk => ({ label: sk.label, v: r.ratings[sk.key] }))
+      focus: skillsFor(r.cls).filter(sk => r.ratings[sk.key] > 0 && r.ratings[sk.key] <= 2).map(sk => ({ label: sk.label, v: r.ratings[sk.key] }))
     });
   });
   const attentionList = watch.filter(skNeedsAttention).sort((a, b) => a.avg - b.avg);
@@ -19615,7 +20575,7 @@ function renderSkillsReport() {
       datasets = cl.map((c, i) => ({ label: c, data: trendMonths.map(m => { const v = skPool(scoped.filter(s => s.cls === c && s.month === m)); return v === null ? null : +v.toFixed(2); }), borderColor: palette[i % palette.length], backgroundColor: palette[i % palette.length], tension: .25, spanGaps: true }));
     } else {
       datasets = [{ label: 'Overall', data: overallByMonth.map(v => v === null ? null : +v.toFixed(2)), borderColor: palette[0], backgroundColor: palette[0], borderWidth: 4, tension: .25, spanGaps: true }]
-        .concat(SKILLS_LIST.map((sk, i) => ({ label: sk.label, data: trendMonths.map(m => { const v = skPool(scoped.filter(s => s.month === m), sk.key); return v === null ? null : +v.toFixed(2); }), borderColor: palette[(i + 1) % palette.length], backgroundColor: palette[(i + 1) % palette.length], borderWidth: 1.5, tension: .25, spanGaps: true })));
+        .concat(SKS.map((sk, i) => ({ label: sk.label, data: trendMonths.map(m => { const v = skPool(scoped.filter(s => s.month === m), sk.key); return v === null ? null : +v.toFixed(2); }), borderColor: palette[(i + 1) % palette.length], backgroundColor: palette[(i + 1) % palette.length], borderWidth: 1.5, tension: .25, spanGaps: true })));
     }
     window._skrCharts.trend = new Chart(cv2, {
       type: 'line',
@@ -22496,11 +23456,8 @@ function getStudentScore(studentId, subject, term) {
 }
 
 function scoreToGrade(s) {
-  if (s === null || s === undefined) return {g:'—', cls:'grade-d'};
-  if (s>=80) return {g:'A', cls:'grade-a'};
-  if (s>=70) return {g:'B', cls:'grade-b'};
-  if (s>=55) return {g:'C', cls:'grade-c'};
-  return {g:'D', cls:'grade-d'};
+  const b = gradeBandFor(s);
+  return b ? { g: b.grade, cls: 'grade-' + b.tone } : { g: '—', cls: 'grade-d' };
 }
 
 const RC_SUBJECTS = ['English Language','Mathematics','Science','Social Studies','ICT','RME','Creative Arts','Physical Education'];
@@ -22795,7 +23752,7 @@ function renderReportCard() {
       }).join('');
       const initials = s.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
       const avgDisplay = s.avg !== null ? s.avg + '%' : 'N/A';
-      const remark = s.avg===null?'No grades entered yet.':s.avg>=80?'Excellent performance. Keep it up!':s.avg>=70?'Good performance. Room for improvement.':s.avg>=55?'Satisfactory. Needs more effort.':'Below average. Requires urgent attention.';
+      const remark = overallRemark(s.avg);
 
       // Headteacher comment
       const htKey = s.id + '|' + filterTerm;
@@ -23186,12 +24143,12 @@ function renderStudentRecords() {
       <table class="sr-table">
         <thead><tr><th>Skill</th><th>Rating</th></tr></thead>
         <tbody>
-          ${SKILLS_LIST.map(sk => {
+          ${skillsFor(s.cls).map(sk => {
             const v = ratings[sk.key];
             return `
             <tr>
               <td>${esc(sk.label)}</td>
-              <td>${v ? `<span class="skill-badge ${SKILL_RATING_CLASS[v]}">${v} — ${esc(SKILL_RATING_LABELS[v])}</span>` : '<span style="color:var(--muted)">Not assessed</span>'}</td>
+              <td>${v ? `<span class="skill-badge ${SKILL_RATING_CLASS[v]}">${v} — ${esc(skillScaleFor(s.cls)[v])}</span>` : '<span style="color:var(--muted)">Not assessed</span>'}</td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -23221,11 +24178,7 @@ function renderStudentRecords() {
 
     const p = performanceSummary(s, term);
     const avgDisplay = p.avg !== null ? p.avg + '%' : 'N/A';
-    const remark = p.avg === null ? 'No grades entered yet.'
-      : p.avg >= 80 ? 'Excellent performance. Keep it up!'
-      : p.avg >= 70 ? 'Good performance. Room for improvement.'
-      : p.avg >= 55 ? 'Satisfactory. Needs more effort.'
-      : 'Below average. Requires urgent attention.';
+    const remark = overallRemark(p.avg);
     const htKey = s.id + '|' + term;
     const htText = (db.htComments || {})[htKey] || '';
 
@@ -24487,8 +25440,16 @@ function getChartOfAccounts() {
     { code:'5200', name:'Depreciation',                   type:'Expense', normal:'debit' },
     { code:'5300', name:'Bank Charges',                   type:'Expense', normal:'debit' },
   ];
-  // One sub-account per existing Revenue category (4100+)
+  // One sub-account per existing Revenue category (4100+). Admission Fees is
+  // skipped — it already has its own dedicated account (4020) that both Revenue
+  // Tracker entries and Admission Registration post to (see revenueAccountCode()),
+  // so a second "Admission Fees (Revenue)" sub-account here would just sit at a
+  // permanent zero balance and confuse the Chart of Accounts / Trial Balance with
+  // a duplicate-looking line. Skipping it (rather than filtering it out before
+  // the loop) leaves every other category's code exactly where it already was,
+  // so historical journal entries posted under those codes don't get relabelled.
   getRevCats().forEach((cat, i) => {
+    if (cat === 'Admission Fees') return;
     accounts.push({ code: '41' + String(i+1).padStart(2,'0'), name: cat + ' (Revenue)', type:'Revenue', normal:'credit', category: cat });
   });
   // One sub-account per existing Expense category (5400+)
