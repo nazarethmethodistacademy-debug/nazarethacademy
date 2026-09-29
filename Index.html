@@ -3514,6 +3514,7 @@
           <div class="section-title">Payment Tracker</div>
           <div class="section-sub">Track termly fee payments per student</div>
         </div>
+        <button class="btn btn-outline" onclick="openDuplicatePaymentsModal()">🔍 Find Duplicate Payments</button>
         <button class="btn btn-primary" id="pay-record-btn" onclick="openPaymentModal()">+ Record Payment</button>
       </div>
       <!-- Carry-forward arrears notice (shown only when arrears exist) -->
@@ -4300,12 +4301,24 @@
         <label>Term 3 — Fee: <span id="edit-pay-t3-fee" style="color:var(--navy);font-weight:600"></span> <span id="edit-pay-t3-tag"></span></label>
         <input type="number" id="edit-pay-t3" placeholder="0.00" min="0">
       </div>
+      <div class="form-group">
+        <label>If this changes the total paid — received/refunded via *</label>
+        <select id="edit-pay-method" onchange="toggleBankAcctField('edit-pay-method','edit-pay-bankacct-wrap','edit-pay-bankacct-sel')">
+          <option value="">— Select method —</option>
+          <option value="Cash">Cash</option>
+          <option value="Bank">Bank</option>
+        </select>
+      </div>
+      <div class="form-group" id="edit-pay-bankacct-wrap" style="display:none"><label>Bank Account</label>
+        <select id="edit-pay-bankacct-sel"></select>
+      </div>
       <div class="form-group full">
         <label>Notes (applies to all terms)</label>
         <input id="edit-pay-notes" placeholder="Receipt number, method, remarks…">
       </div>
     </div>
     <div style="padding:0 20px 16px">
+      <div style="font-size:11px;color:var(--muted);margin:-4px 0 8px">Any change here is logged as an adjustment and posted to the General Ledger and cash-revenue reports (Weekly Report, Bank Reconciliation, etc.), exactly like a normal payment.</div>
       <div id="edit-pay-summary" style="background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--muted)"></div>
     </div>
     <div class="modal-footer">
@@ -5874,6 +5887,7 @@ const DB_SEED = {
   nextFeedingBudgetId: 1,
   // ── STUDENT SKILLS ASSESSMENT — keyed studentId|term, each a {skillKey: 1-5} rating ──
   skillsAssessments: {},
+  skillComments: {}, // { 'studentId|month': { skillKey: 'comment text' } } — teacher remarks per skill parameter, alongside the 1-4 rating
   // Admin-managed skill parameters (Settings → Skills Setup): [{key, label, classes:[...]}] — like Subjects, each skill lists the classes it is assessed in.
   gradeCategories: null, // admin-managed Grade Entry assessment categories per class — null → seedGradeCategories()
   gradingSetup: null, // admin-managed grade bands / remarks / score split — null → GRADING_DEFAULT (see gradingSetup())
@@ -7729,6 +7743,7 @@ function initDb(callback) {
       db.trainings     = data.trainings     || [];
       db.nextTrainingId = data.nextTrainingId ?? 1;
       db.skillsAssessments = data.skillsAssessments || {};
+      db.skillComments = data.skillComments || {};
       db.staffLeave = data.staffLeave || [];
       db.nextLeaveId = data.nextLeaveId ?? 1;
       db.feedingBudgetRequests = data.feedingBudgetRequests || [];
@@ -7855,6 +7870,7 @@ function initDb(callback) {
           grades:      renderGradeEntry,
           skillsassessment: renderSkillsAssessment,
           skillsreport: renderSkillsReport,
+          skillsdetailed: renderSkillsDetailed,
           promotion: renderPromotionManagement,
           academiccalendar: renderAcademicCalendar,
           attendance:  renderAttendance,
@@ -8108,7 +8124,7 @@ const pageTitles = {
   schoolstructure:'School Structure', staffdatabase:'Teachers & Staff Database', parentdatabase:'Parent Database', appraisals:'Performance Appraisal', training:'Training & Development',
   feeschedule:'Fee Schedule', stats:'Statistical Report', myappraisal:'My Appraisal', myworkspace:'My Workspace', staffdirectory:'Staff Directory', accesscontrol:'Access Control',
   export:'Export to Excel', backup:'Backup & Restore',
-  balancesheet:'Balance Sheet', assetmanagement:'Asset Management', cashflow:'Statement of Cash Flows', reportcard:'Report Cards', classanalytics:'Class Analytics', skillsreport:'Student Assessment Report',
+  balancesheet:'Balance Sheet', assetmanagement:'Asset Management', cashflow:'Statement of Cash Flows', reportcard:'Report Cards', classanalytics:'Class Analytics', skillsreport:'Student Assessment Report', skillsdetailed:'Skill Assessment — Detailed',
   grades:'Grade Entry', skillsassessment:'Skills Assessment', promotion:'Promotion Management', academiccalendar:'Academic Calendar', attendance:'Attendance Register', attendancereport:'Attendance Report', staffattendance:'Staff Attendance', staffleave:'Staff Leave', staffattendancereport:'Staff Attendance Report', timetable:'Class Timetable', subjects:'Subject Management',
   announce_pta:'Announcements — PTA', announce_graduation:'Announcements — Graduation',
   announce_midterms:'Announcements — Mid Terms', announce_events:'Announcements — Events',
@@ -8177,6 +8193,7 @@ const MODULE_DEFS = {
     items: [
       { icon:'🧑‍🎓', label:'Student Records',             page:'studentrecords' },
       { icon:'📊', label:'Student Assessment Report',     page:'skillsreport' },
+      { icon:'🔎', label:'Skill Assessment — Detailed',   page:'skillsdetailed' },
       { icon:'📈', label:'Staff Attendance Report',       page:'staffattendancereport' },
       { icon:'🧠', label:'Academic Intelligence Dashboard', page:'academicintelligence' },
       { icon:'🤖', label:'AI Assistant',                  page:'aiassistant' },
@@ -8318,6 +8335,7 @@ const _dynamicPages = {
   grades:           'ge-inner',
   skillsassessment: 'sa-inner',
   skillsreport:     'skr-inner',
+  skillsdetailed:   'skd-inner',
   promotion:        'pr-inner',
   academiccalendar: 'ac-inner',
   attendance:       'att-inner',
@@ -8433,6 +8451,7 @@ function navigate(page) {
   if (page === 'grades') renderGradeEntry();
   if (page === 'skillsassessment') renderSkillsAssessment();
   if (page === 'skillsreport') renderSkillsReport();
+  if (page === 'skillsdetailed') renderSkillsDetailed();
   if (page === 'promotion') renderPromotionManagement();
   if (page === 'academiccalendar') renderAcademicCalendar();
   if (page === 'attendance') renderAttendance();
@@ -8460,6 +8479,96 @@ function navigate(page) {
 
 // ══════════════ TRANSACTION HISTORY ══════════════
 
+
+// A near-identical payment (same student, term, amount, date, method) logged in the
+// last 2 minutes is very likely an accidental double-submit (slow save + a second
+// click, or a double-tap) rather than a genuine second payment — those virtually
+// never share the exact same amount, date AND method by coincidence. Returns true
+// if the caller should proceed.
+function confirmNotDuplicatePayment(sid, term, amount, date, method) {
+  const cutoff = Date.now() - 2 * 60 * 1000;
+  const dupe = (db.txHistory || []).find(t => t.type === 'payment' && t.studentId === sid && t.term === term &&
+    Number(t.amount) === Number(amount) && t.date === date && t.method === method && (t.timestamp || 0) > cutoff);
+  if (!dupe) return true;
+  const s = db.admissions.find(a => a.id === sid);
+  return confirm(`⚠ A payment of GHS ${fmt(amount)} for ${s ? s.name : sid} (${term}) was just recorded moments ago.\n\nRecord this as a SEPARATE payment anyway? Press Cancel if this looks like an accidental double-click.`);
+}
+
+
+// ── Find Duplicate Payments (Payment Tracker → 🔍 Find Duplicate Payments) ──
+// Groups payment log entries that share student, term, amount, date AND method — the
+// same combination confirmNotDuplicatePayment() warns about at entry time. Genuine
+// distinct payments essentially never collide on all four at once, so a group here is
+// almost always an accidental double-submit that slipped through before this check
+// existed. Nothing is ever auto-deleted — an admin reviews and removes extras by hand.
+function findDuplicatePaymentGroups() {
+  const groups = {};
+  (db.txHistory || []).forEach(t => {
+    if (t.type !== 'payment') return;
+    const key = [t.studentId, t.term, t.amount, t.date, t.method].join('|');
+    (groups[key] = groups[key] || []).push(t);
+  });
+  return Object.values(groups).filter(g => g.length > 1).sort((a, b) => (b[0].date || '').localeCompare(a[0].date || ''));
+}
+
+function openDuplicatePaymentsModal() {
+  if (!requireRole('Admin')) return;
+  let ov = document.getElementById('dup-payments-modal');
+  if (!ov) { ov = document.createElement('div'); ov.className = 'modal-overlay'; ov.id = 'dup-payments-modal'; document.body.appendChild(ov); }
+  drawDuplicatePayments();
+  ov.classList.add('open');
+}
+
+function drawDuplicatePayments() {
+  const ov = document.getElementById('dup-payments-modal');
+  if (!ov) return;
+  const groups = findDuplicatePaymentGroups();
+  const fmtTime = ts => ts ? new Date(ts).toLocaleString('en-GH', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
+  const body = groups.length ? groups.map(g => {
+    const t0 = g[0];
+    const s = db.admissions.find(a => a.id === t0.studentId);
+    const rows = g.map(t => `<tr>
+        <td style="padding:6px 8px;color:var(--muted);font-size:11.5px">${fmtTime(t.timestamp)}</td>
+        <td style="padding:6px 8px;font-size:11.5px">${esc(t.recordedBy || '—')}${t.notes ? ' · ' + esc(t.notes) : ''}${t.ref ? ' · Ref: ' + esc(t.ref) : ''}</td>
+        <td style="padding:6px 8px;text-align:right"><button class="btn btn-sm btn-danger" onclick="deleteDuplicatePayment(${t.id})">🗑️ Remove this one</button></td>
+      </tr>`).join('');
+    return `<div class="card" style="margin-bottom:14px">
+      <div style="padding:10px 14px;background:var(--amber-light);border-radius:8px 8px 0 0;font-size:13px">
+        <b>${esc(s ? s.name : t0.studentId)}</b> (${esc(t0.studentId)}) — ${esc(t0.term)} — GHS ${fmt(t0.amount)} via ${esc(t0.method)} on ${esc(t0.date)}
+        <span style="color:var(--red);font-weight:600;margin-left:6px">${g.length}× identical entries</span>
+      </div>
+      <table style="width:100%"><tbody>${rows}</tbody></table>
+    </div>`;
+  }).join('') : '<div class="empty-state">✅ No duplicate payments found — every payment has a unique student + term + amount + date + method combination.</div>';
+  ov.innerHTML = `
+    <div class="modal" style="width:min(760px,96vw);max-height:88vh;display:flex;flex-direction:column">
+      <div class="modal-header"><span class="modal-title">🔍 Find Duplicate Payments</span>
+        <button class="modal-close" onclick="closeModal('dup-payments-modal')">✕</button></div>
+      <div style="padding:12px 20px 0;font-size:12px;color:var(--muted);line-height:1.6">
+        A payment now warns before saving if an identical one (same student, term, amount, date and method) was just
+        recorded moments earlier — the usual cause is a slow save being double-clicked. This finds any that slipped
+        through before that check existed. Nothing is deleted automatically; remove the extra row(s) yourself,
+        keeping the one that reflects what was actually received.
+      </div>
+      <div style="padding:14px 20px;overflow:auto">${body}</div>
+      <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('dup-payments-modal')">Close</button></div>
+    </div>`;
+}
+
+function deleteDuplicatePayment(txId) {
+  const t = (db.txHistory || []).find(x => x.id === txId);
+  if (!t) return;
+  if (!confirm(`Remove this GHS ${fmt(t.amount)} payment entry for ${t.studentId} (${t.term})?\n\nThis reduces their recorded balance paid by GHS ${fmt(t.amount)} and reverses the matching General Ledger entry. Only do this if it's a genuine duplicate — not a real second payment.`)) return;
+  const key = t.studentId + '|' + t.term;
+  if (db.payments[key]) db.payments[key].paid = Math.max(0, (db.payments[key].paid || 0) - t.amount);
+  removeJournalEntriesFor('fee', t.id);
+  db.txHistory = db.txHistory.filter(x => x.id !== txId);
+  saveDb();
+  drawDuplicatePayments();
+  if (document.getElementById('pay-inner') || document.getElementById('payments-table')) { try { renderPayments(); } catch (e) {} }
+  toast('🗑️ Duplicate payment removed');
+}
+
 function pushTxEntry({studentId, term, amount, date, ref, notes, type, method, bankAccountId}) {
   if (!db.txHistory) db.txHistory = [];
   if (!db.nextTxId) db.nextTxId = 1;
@@ -8475,6 +8584,7 @@ function pushTxEntry({studentId, term, amount, date, ref, notes, type, method, b
   return entry;
 }
 
+let _savingPayment = false;
 let _txHistorySid = null;
 
 function openTxHistoryModal(sid) {
@@ -8653,6 +8763,10 @@ function saveTxEntry() {
   const notes  = document.getElementById('tx-notes').value.trim();
   if (!amount) { toast('⚠ Enter a payment amount'); return; }
   if (!method) { toast('⚠ Select a payment method (Cash or Bank)'); return; }
+  if (!confirmNotDuplicatePayment(sid, term, amount, date, method)) return;
+  if (_savingPayment) return;
+  _savingPayment = true;
+  setTimeout(() => { _savingPayment = false; }, 1500);
   // Update payment totals
   const key = sid + '|' + term;
   if (!db.payments[key]) db.payments[key] = {paid:0, notes:''};
@@ -10885,6 +10999,10 @@ function savePayment() {
   if (!amount) { toast('⚠ Enter amount');     return; }
   if (!method) { toast('⚠ Select a payment method (Cash or Bank)'); return; }
   if (!requireTxDateWithinCalendar(date || today())) return;
+  if (!confirmNotDuplicatePayment(sid, term, amount, date || today(), method)) return;
+  if (_savingPayment) return; // guards against a double-click firing this twice before the first click finishes
+  _savingPayment = true;
+  setTimeout(() => { _savingPayment = false; }, 1500);
 
   const s = db.admissions.find(a => a.id === sid);
   const key = sid + '|' + term;
@@ -10964,7 +11082,7 @@ function openEditPaymentModal(sid) {
       document.getElementById('edit-pay-t' + termNum).style.color = '';
     }
 
-    if (i === 0) document.getElementById('edit-pay-notes').value = notes;
+    if (i === 0) { document.getElementById('edit-pay-notes').value = notes; document.getElementById('edit-pay-method').value = ''; document.getElementById('edit-pay-bankacct-wrap').style.display = 'none'; }
   });
 
   updateEditPaySummary();
@@ -11013,24 +11131,47 @@ function saveEditedPayment() {
   const sid = _editPayStudentId;
   if (!sid) return;
   const notes = document.getElementById('edit-pay-notes').value;
+  const method = document.getElementById('edit-pay-method').value;
+  const bankAccountId = method === 'Bank' ? document.getElementById('edit-pay-bankacct-sel').value : null;
+  const s = db.admissions.find(a => a.id === sid);
 
-  TERMS.forEach((t, i) => {
-    const termNum = i + 1;
+  const diffs = TERMS.map(t => {
     const key = sid + '|' + t;
-    const newPaid = parseFloat(document.getElementById('edit-pay-t' + termNum).value) || 0;
+    const newPaid = parseFloat(document.getElementById('edit-pay-t' + (TERMS.indexOf(t) + 1)).value) || 0;
     const oldPaid = db.payments[key] ? db.payments[key].paid : 0;
-    if (!db.payments[key]) db.payments[key] = {paid:0, notes:''};
+    return { t, key, newPaid, oldPaid, diff: newPaid - oldPaid };
+  });
+  const anyChange = diffs.some(d => d.diff !== 0);
+  if (anyChange && !method) { toast('⚠ Select how the difference was received or refunded (Cash or Bank)', 'error'); return; }
+  if (anyChange && method === 'Bank' && !bankAccountId) { toast('⚠ Select a bank account'); return; }
+
+  diffs.forEach(({ t, key, newPaid, diff }) => {
+    if (!db.payments[key]) db.payments[key] = { paid: 0, notes: '' };
     db.payments[key].paid = newPaid;
     db.payments[key].notes = notes;
-    // Log if value changed
-    if (newPaid !== oldPaid) {
-      const diff = newPaid - oldPaid;
-      pushTxEntry({
+    if (diff !== 0) {
+      // Log if value changed — same account treatment as a normal payment, so
+      // it posts to the General Ledger and shows in cash-revenue reports
+      // (Weekly Report, Bank Reconciliation, etc.) exactly like one would.
+      const entry = pushTxEntry({
         studentId: sid, term: t,
         amount: Math.abs(diff),
-        date: today(), ref: '', notes: (diff > 0 ? 'Adjustment (added)' : 'Adjustment (reduced)') + (notes ? ' — ' + notes : ''),
+        date: today(), ref: '', method, bankAccountId,
+        notes: (diff > 0 ? 'Adjustment (added)' : 'Adjustment (reduced)') + (notes ? ' — ' + notes : ''),
         type: diff > 0 ? 'adjustment_add' : 'adjustment_sub'
       });
+      const narration = 'Fee adjustment: ' + (s ? s.name : sid) + ' (' + t + ') ' + (diff > 0 ? '+' : '−') + 'GHS ' + fmt(Math.abs(diff));
+      if (diff > 0) {
+        postJournalEntry(entry.date, narration, [
+          { account: cashAccountForMode(method), debit: Math.abs(diff), credit: 0 },
+          { account: '4010', debit: 0, credit: Math.abs(diff) }
+        ], 'fee', entry.id);
+      } else {
+        postJournalEntry(entry.date, narration, [
+          { account: '4010', debit: Math.abs(diff), credit: 0 },
+          { account: cashAccountForMode(method), debit: 0, credit: Math.abs(diff) }
+        ], 'fee', entry.id);
+      }
     }
   });
   saveDb();
@@ -11046,13 +11187,17 @@ function clearStudentPayments() {
   const sid = _editPayStudentId;
   if (!sid) return;
   const s = db.admissions.find(a => a.id === sid);
-  if (!confirm('Clear all payment records for ' + (s ? s.name : sid) + '?')) return;
+  if (!confirm('Clear all payment records for ' + (s ? s.name : sid) + '?\n\nThis is logged and reversed in the General Ledger as a Cash refund/write-off. If the money actually left through the bank, use Edit Payment to reduce each term instead so you can pick Bank.')) return;
   TERMS.forEach(t => {
     const key = sid + '|' + t;
     const prevPaid = db.payments[key] ? db.payments[key].paid : 0;
     db.payments[key] = {paid:0, notes:''};
     if (prevPaid > 0) {
-      pushTxEntry({studentId: sid, term: t, amount: prevPaid, date: today(), ref: '', notes: 'All payments cleared by ' + (currentUser ? currentUser.username : 'admin'), type: 'clear'});
+      const entry = pushTxEntry({studentId: sid, term: t, amount: prevPaid, date: today(), ref: '', method: 'Cash', notes: 'All payments cleared by ' + (currentUser ? currentUser.username : 'admin'), type: 'clear'});
+      postJournalEntry(entry.date, 'Payments cleared: ' + (s ? s.name : sid) + ' (' + t + ')', [
+        { account: '4010', debit: prevPaid, credit: 0 },
+        { account: cashAccountForMode('Cash'), debit: 0, credit: prevPaid }
+      ], 'fee', entry.id);
     }
   });
   saveDb();
@@ -12217,8 +12362,12 @@ function renderWeeklyReport() {
     return `${parseInt(d)} ${months[parseInt(m)-1]} ${y}`;
   };
 
-  // Revenue received: tuition fee payments (Payment Tracker log) + Other Revenue
-  const tuitionEntries = (db.txHistory || []).filter(t => t.type === 'payment' && inWeek(t.date));
+  // Revenue received: tuition fee payments AND corrections (Payment Tracker log) + Other Revenue.
+  // Adjustments (from Edit Payment) and clears count too — with a signed amount — since they
+  // move real cash exactly like a payment does, and now post the same way to the General Ledger.
+  const FEE_CASH_TYPES = { payment: 1, adjustment_add: 1, adjustment_sub: -1, clear: -1 };
+  const tuitionEntries = (db.txHistory || []).filter(t => FEE_CASH_TYPES[t.type] && inWeek(t.date))
+    .map(t => ({ ...t, amount: t.amount * FEE_CASH_TYPES[t.type] }));
   // "Admission Fees" category entries are pulled out and combined with the
   // registration-based admission fee below, so they aren't counted twice.
   const otherRevEntries = (db.revenue || []).filter(r => isPostedFin(r) && inWeek(r.date) && r.cat !== 'Admission Fees');
@@ -12234,7 +12383,8 @@ function renderWeeklyReport() {
   // exactly how much of THIS week's money went to clearing db.carryForwards
   // (arrears) before any of it counted as current-year tuition.
   const _allPayments = (db.txHistory || [])
-    .filter(t => t.type === 'payment')
+    .filter(t => FEE_CASH_TYPES[t.type])
+    .map(t => ({ ...t, amount: t.amount * FEE_CASH_TYPES[t.type] }))
     .slice()
     .sort((a,b) => (a.date||'').localeCompare(b.date||'') || (a.timestamp||0) - (b.timestamp||0));
   const _paidSoFar = {};
@@ -12305,7 +12455,8 @@ function renderWeeklyReport() {
   const revRows = [
     ...tuitionEntries.map(t => {
       const s = db.admissions.find(a=>a.id===t.studentId);
-      return { date: t.date, desc: `Tuition — ${_wrShowNames ? (s ? s.name : t.studentId) : (s ? s.cls : '')} (${t.term})`, method: t.method||'—', amount: t.amount };
+      const tag = t.type === 'payment' ? '' : t.type === 'adjustment_add' ? ' [Adjustment]' : t.type === 'adjustment_sub' ? ' [Adjustment ↓]' : ' [Cleared]';
+      return { date: t.date, desc: `Tuition — ${_wrShowNames ? (s ? s.name : t.studentId) : (s ? s.cls : '')} (${t.term})${tag}`, method: t.method||'—', amount: t.amount };
     }),
     ...admittedForFee.filter(s => (s.fee||0) > 0).map(s => ({
       date: s.createdDate || s.appdate,
@@ -12321,7 +12472,7 @@ function renderWeeklyReport() {
 
   const txTable = (rows, colorVar) => rows.length
     ? `<table><thead><tr><th>Date</th><th>Description</th><th>Method</th><th style="text-align:right">Amount</th></tr></thead><tbody>
-        ${rows.map(r => `<tr><td style="white-space:nowrap">${fmtDisplay(r.date)}</td><td>${esc(r.desc)}</td><td>${esc(r.method)}</td><td style="text-align:right;color:${colorVar}">${fmt(r.amount)}</td></tr>`).join('')}
+        ${rows.map(r => `<tr><td style="white-space:nowrap">${fmtDisplay(r.date)}</td><td>${esc(r.desc)}</td><td>${esc(r.method)}</td><td style="text-align:right;color:${r.amount<0?'var(--red)':colorVar}">${r.amount<0?'-':''}${fmt(Math.abs(r.amount))}</td></tr>`).join('')}
       </tbody></table>`
     : `<div class="empty-state" style="padding:24px"><div class="icon">📭</div>No entries this week</div>`;
 
@@ -17786,7 +17937,7 @@ const ACCESS_CONTROL_EXEMPT_PAGES = ['appraisals'];
 function defaultPagePermission(role, page) {
   // Student Assessment Report holds every class's submitted skills data for decision-making —
   // Headteacher by default (Admin always has access); Admin can open it to other roles in Access Control.
-  if (page === 'skillsreport') return role === 'Headteacher' ? 'edit' : 'none';
+  if (page === 'skillsreport' || page === 'skillsdetailed') return role === 'Headteacher' ? 'edit' : 'none';
   if (role === 'Teacher' || role === 'Class Teacher') {
     return TEACHER_DEFAULT_PAGES.includes(page) ? 'edit' : 'none';
   }
@@ -19562,7 +19713,7 @@ function renderGradeEntry() {
         : `<span style="color:var(--muted);font-size:12px">—</span>`;
 
       return `<tr>
-        <td style="padding:8px 14px;white-space:nowrap">
+        <td class="att-name-col" style="padding:8px 14px;white-space:nowrap">
           <div style="font-weight:500;font-size:13px;color:var(--navy)">${esc(s.name)}</div>
           <div style="font-size:10px;color:var(--muted)">${s.id}</div>
         </td>
@@ -19614,10 +19765,10 @@ function renderGradeEntry() {
               <span style="font-size:11px;color:var(--muted)">${students.length} student${students.length!==1?'s':''} · ${subs.length} subject${subs.length!==1?'s':''}</span>
             </div>
             <div style="overflow-x:auto">
-              <table>
+              <table class="att-grid-table">
                 <thead>
                   <tr>
-                    <th style="padding-left:14px;min-width:160px">Student</th>
+                    <th class="att-name-col" style="padding-left:14px;min-width:160px">Student</th>
                     ${subHeaders}
                     <th style="min-width:80px;text-align:center">Average</th>
                   </tr>
@@ -19811,6 +19962,24 @@ function setSkillRating(studentId, month, skillKey2, value) {
   return true;
 }
 
+function getSkillComment(studentId, month, skillKey2) {
+  const k = skillKey(studentId, month);
+  return ((db.skillComments || {})[k] || {})[skillKey2] || '';
+}
+
+function setSkillComment(studentId, month, skillKey2, text) {
+  if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_','/') + ' is locked — ask an admin to unlock it first', 'error'); return false; }
+  const _stu = (db.admissions || []).find(a => a.id === studentId);
+  if (_stu && skillSubLocked(_stu.cls, month)) { toast('🔒 This assessment has been submitted — comments are locked until it is returned for revision', 'error'); return false; }
+  if (!db.skillComments) db.skillComments = {};
+  const k = skillKey(studentId, month);
+  if (!db.skillComments[k]) db.skillComments[k] = {};
+  if (!text.trim()) delete db.skillComments[k][skillKey2];
+  else db.skillComments[k][skillKey2] = text.trim();
+  saveDb();
+  return true;
+}
+
 function skillAverage(studentId, month) {
   const ratings = getSkillRatings(studentId, month);
   const vals = Object.values(ratings).filter(v => v > 0);
@@ -19876,11 +20045,15 @@ function renderSkillsAssessment() {
       const ratings = getSkillRatings(s.id, selMonth);
       const cells = SK.map(sk => {
         const v = ratings[sk.key] || '';
+        const cm = getSkillComment(s.id, selMonth, sk.key);
         return `<td style="text-align:center;padding:4px 3px">
-          <select class="skill-select ${v ? SKILL_RATING_CLASS[v] : ''}" onchange="saSetRating('${s.id}','${sk.key}',this.value,this)" title="${sk.label}" ${locked ? 'disabled' : ''}>
-            <option value="">—</option>
-            ${[1,2,3,4].map(n => `<option value="${n}" ${String(v)===String(n)?'selected':''}>${n} · ${esc(SK_SCALE[n])}</option>`).join('')}
-          </select>
+          <div style="display:flex;align-items:center;justify-content:center;gap:2px">
+            <select class="skill-select ${v ? SKILL_RATING_CLASS[v] : ''}" onchange="saSetRating('${s.id}','${sk.key}',this.value,this)" title="${sk.label}" ${locked ? 'disabled' : ''}>
+              <option value="">—</option>
+              ${[1,2,3,4].map(n => `<option value="${n}" ${String(v)===String(n)?'selected':''}>${n} · ${esc(SK_SCALE[n])}</option>`).join('')}
+            </select>
+            <button type="button" onclick="saEditComment('${s.id}','${sk.key}')" title="${cm ? esc(cm) : 'Add a comment for ' + esc(sk.label)}" style="border:none;background:none;cursor:pointer;font-size:12px;padding:2px;opacity:${cm ? '1' : '0.3'};line-height:1">💬</button>
+          </div>
         </td>`;
       }).join('');
 
@@ -19890,7 +20063,7 @@ function renderSkillsAssessment() {
         : `<span style="color:var(--muted);font-size:12px">—</span>`;
 
       return `<tr>
-        <td style="padding:8px 14px;white-space:nowrap">
+        <td class="att-name-col" style="padding:8px 14px;white-space:nowrap">
           <div style="font-weight:500;font-size:13px;color:var(--navy)">${esc(s.name)}</div>
           <div style="font-size:10px;color:var(--muted)">${s.id}</div>
         </td>
@@ -19937,10 +20110,10 @@ function renderSkillsAssessment() {
               <span style="font-size:11px;color:var(--muted)">${students.length} student${students.length!==1?'s':''} · rated 1 (${esc(SK_SCALE[1].toLowerCase())}) – 4 (${esc(SK_SCALE[4].toLowerCase())})</span>
             </div>
             <div style="overflow-x:auto">
-              <table>
+              <table class="att-grid-table">
                 <thead>
                   <tr>
-                    <th style="padding-left:14px;min-width:160px">Student</th>
+                    <th class="att-name-col" style="padding-left:14px;min-width:160px">Student</th>
                     ${skillHeaders}
                     <th style="min-width:70px;text-align:center">Average</th>
                   </tr>
@@ -19948,7 +20121,7 @@ function renderSkillsAssessment() {
                 <tbody>${rows}</tbody>
                 <tfoot>
                   <tr style="background:var(--cream2)">
-                    <td style="padding:8px 14px;font-weight:600;font-size:11px">Class Average</td>
+                    <td class="att-name-col" style="padding:8px 14px;font-weight:600;font-size:11px;background:var(--cream2)">Class Average</td>
                     ${classAvgRow}
                     <td></td>
                   </tr>
@@ -19969,6 +20142,16 @@ function renderSkillsAssessment() {
       if (setSkillRating(sid, selMonth, sk, val) === false) { draw(); return; }
       sel.className = 'skill-select' + (val ? ' ' + SKILL_RATING_CLASS[val] : '');
       toast('✅ Rating saved');
+    };
+    window.saEditComment = (sid, sk) => {
+      const student = students.find(x => x.id === sid);
+      const skillDef = SK.find(x => x.key === sk);
+      const current = getSkillComment(sid, selMonth, sk);
+      const text = prompt(`Comment — ${skillDef ? skillDef.label : sk} for ${student ? student.name : sid}:`, current);
+      if (text === null) return; // cancelled
+      if (setSkillComment(sid, selMonth, sk, text) === false) { draw(); return; }
+      draw();
+      toast(text.trim() ? '✅ Comment saved' : '🗑️ Comment removed');
     };
   }
 
@@ -20037,7 +20220,7 @@ function skRows(sub) {
   return Object.keys(sub.ratings || {}).map(id => {
     const r = sub.ratings[id] || {};
     const vals = skillsFor(sub.cls).map(sk => r[sk.key]).filter(v => v > 0);
-    return { id, name: names[id] || id, cls: sub.cls, month: sub.month, ratings: r, avg: skMean(vals), status: sub.status, subId: sub.id };
+    return { id, name: names[id] || id, cls: sub.cls, month: sub.month, ratings: r, comments: (sub.comments && sub.comments[id]) || {}, avg: skMean(vals), status: sub.status, subId: sub.id };
   });
 }
 function skNeedsAttention(r) {
@@ -20075,7 +20258,7 @@ function skPrevSubmission(sub) {
 // Freeze what the teacher currently sees for this class + month.
 function skSnapshot(cls, month) {
   const students = (db.admissions || []).filter(s => s.cls === cls);
-  const ratings = {}, names = {};
+  const ratings = {}, comments = {}, names = {};
   let rated = 0;
   students.forEach(s => {
     names[s.id] = s.name || s.id;
@@ -20086,8 +20269,12 @@ function skSnapshot(cls, month) {
       keys.forEach(k => { ratings[s.id][k] = r[k]; });
       rated += keys.length;
     }
+    skillsFor(cls).forEach(sk => {
+      const c = getSkillComment(s.id, month, sk.key);
+      if (c) { if (!comments[s.id]) comments[s.id] = {}; comments[s.id][sk.key] = c; }
+    });
   });
-  return { students, names, ratings, rated, expected: students.length * skillsFor(cls).length };
+  return { students, names, ratings, comments, rated, expected: students.length * skillsFor(cls).length };
 }
 
 function submitSkillAssessment(cls, month) {
@@ -20120,6 +20307,7 @@ function submitSkillAssessment(cls, month) {
   sub.submittedBy = who;
   sub.submittedAt = now;
   sub.ratings = snap.ratings;
+  sub.comments = snap.comments;
   sub.students = snap.names;
   sub.ratedCount = snap.rated;
   sub.expectedCount = snap.expected;
@@ -20229,8 +20417,10 @@ function skGridHtml(sub, prevAvgs) {
   const body = rows.map(r => {
     const cells = SK.map(sk => {
       const v = r.ratings[sk.key];
+      const cm = (r.comments || {})[sk.key];
       const c = v ? skColor(v) : null;
-      return `<td style="text-align:center;padding:5px 3px;font-size:12px;font-weight:600;${c ? `background:${c.bg};color:${c.fg}` : 'color:var(--muted)'}" title="${v ? esc(skillScaleFor(sub.cls)[v]) : 'Not rated'}">${v || '—'}</td>`;
+      const tip = (v ? esc(skillScaleFor(sub.cls)[v]) : 'Not rated') + (cm ? ' — ' + esc(cm) : '');
+      return `<td style="text-align:center;padding:5px 3px;font-size:12px;font-weight:600;${c ? `background:${c.bg};color:${c.fg}` : 'color:var(--muted)'}" title="${tip}">${v || '—'}${cm ? ' <span style="font-size:9px" title="' + esc(cm) + '">💬</span>' : ''}</td>`;
     }).join('');
     const c = skColor(r.avg);
     return `<tr><td style="padding:6px 12px;white-space:nowrap;font-size:12.5px">${esc(r.name)}${skNeedsAttention(r) ? ' <span title="Needs attention" style="color:var(--red)">⚠</span>' : ''}</td>${cells}<td style="text-align:center;font-weight:700;font-size:12px;background:${c.bg};color:${c.fg}">${r.avg === null ? '—' : r.avg.toFixed(1)}</td></tr>`;
@@ -20583,6 +20773,149 @@ function renderSkillsReport() {
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }, scales: { y: { min: 1, max: 4 } } }
     });
   }
+}
+
+// ══════════════ SKILL ASSESSMENT REPORT — DETAILED ══════════════
+// A flat, drill-down companion to the Student Assessment Report above: one row
+// per student per submitted month, every skill as its own column, with search,
+// sorting and CSV export — for when someone needs the raw numbers rather than
+// the class/trend aggregates. Reads the same submitted snapshots (db.skillSubmissions).
+function skdState() {
+  return window._skdState || (window._skdState = { month: 'all', cls: 'all', status: 'active', q: '', sortBy: 'name', sortDir: 'asc' });
+}
+function skdSet(key, value) { skdState()[key] = value; renderSkillsDetailed(); }
+function skdSort(col) {
+  const S = skdState();
+  if (S.sortBy === col) S.sortDir = S.sortDir === 'asc' ? 'desc' : 'asc';
+  else { S.sortBy = col; S.sortDir = col === 'avg' ? 'desc' : 'asc'; }
+  renderSkillsDetailed();
+}
+
+function skdRows() {
+  const S = skdState();
+  const all = db.skillSubmissions || [];
+  const okStatus = s => S.status === 'approved' ? s.status === 'approved'
+                      : S.status === 'pending'  ? s.status === 'pending'
+                      : (s.status === 'approved' || s.status === 'pending');
+  const scoped = all.filter(s => okStatus(s) && (S.cls === 'all' || s.cls === S.cls) && (S.month === 'all' || s.month === S.month));
+  let rows = scoped.flatMap(skRows);
+  if (S.q.trim()) {
+    const q = S.q.trim().toLowerCase();
+    rows = rows.filter(r => r.name.toLowerCase().includes(q) || String(r.id).toLowerCase().includes(q));
+  }
+  const dir = S.sortDir === 'desc' ? -1 : 1;
+  rows = rows.slice().sort((a, b) => {
+    if (S.sortBy === 'avg') { const av = a.avg === null ? -1 : a.avg, bv = b.avg === null ? -1 : b.avg; return (av - bv) * dir; }
+    if (S.sortBy === 'cls') return (a.cls.localeCompare(b.cls) || a.name.localeCompare(b.name)) * dir;
+    if (S.sortBy === 'month') return (skillMonths().indexOf(a.month) - skillMonths().indexOf(b.month)) * dir;
+    return a.name.localeCompare(b.name) * dir;
+  });
+  return rows;
+}
+
+function skdExportCsv() {
+  const rows = skdRows();
+  if (!rows.length) { toast('Nothing to export for this selection'); return; }
+  const q = v => '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"';
+  const SKX = skillsForClasses([...new Set(rows.map(r => r.cls))]);
+  const lines = [['Class', 'Month', 'Student ID', 'Student', ...SKX.map(sk => sk.label), 'Average', 'Status', 'Comments'].map(q).join(',')];
+  rows.forEach(r => {
+    const ok = new Set(skillsFor(r.cls).map(x => x.key));
+    const commentsCol = SKX.filter(sk => ok.has(sk.key) && (r.comments || {})[sk.key]).map(sk => `${sk.label}: ${r.comments[sk.key]}`).join(' | ');
+    lines.push([r.cls, r.month, r.id, r.name, ...SKX.map(sk => ok.has(sk.key) ? (r.ratings[sk.key] || '') : 'n/a'), r.avg === null ? '' : r.avg.toFixed(2), SKILL_SUB_LABELS[r.status] || r.status, commentsCol].map(q).join(','));
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'skill-assessment-detailed.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function renderSkillsDetailed() {
+  const el = document.getElementById('skd-inner');
+  if (!el) return;
+  const S = skdState();
+  const MONTHS = skillMonths();
+  const rows = skdRows();
+  const scopedClasses = [...new Set(rows.map(r => r.cls))].sort((a, b) => CLASSES.indexOf(a) - CLASSES.indexOf(b));
+  const SKX = skillsForClasses(S.cls === 'all' ? scopedClasses : [S.cls]);
+
+  const overallVals = rows.flatMap(r => skillsFor(r.cls).map(sk => r.ratings[sk.key]).filter(v => v > 0));
+  const overall = skMean(overallVals);
+  const oc = skColor(overall);
+  const attentionCount = rows.filter(skNeedsAttention).length;
+  const uniqueStudents = new Set(rows.map(r => r.id)).size;
+
+  const arrow = col => S.sortBy !== col ? '' : (S.sortDir === 'asc' ? ' ▲' : ' ▼');
+  const skillHead = SKX.map(sk => `<th style="min-width:56px;padding:7px 3px;font-size:10px;text-align:center">${esc(sk.label)}</th>`).join('');
+  const bodyRows = rows.map(r => {
+    const ok = new Set(skillsFor(r.cls).map(x => x.key));
+    const cells = SKX.map(sk => {
+      if (!ok.has(sk.key)) return `<td style="text-align:center;color:var(--muted);font-size:11px">n/a</td>`;
+      const v = r.ratings[sk.key];
+      const cm = (r.comments || {})[sk.key];
+      const c = skColor(v || null);
+      return `<td style="text-align:center;font-weight:600;background:${c.bg};color:${c.fg}" ${cm ? `title="${esc(cm)}"` : ''}>${v || '—'}${cm ? ' <span style="font-size:9px">💬</span>' : ''}</td>`;
+    }).join('');
+    const ac = skColor(r.avg);
+    return `<tr>
+      <td style="padding:7px 12px"><div style="font-weight:500;font-size:13px;color:var(--navy)">${esc(r.name)}</div><div style="font-size:10px;color:var(--muted)">${esc(r.id)}</div></td>
+      <td style="white-space:nowrap">${esc(r.cls)}</td>
+      <td style="white-space:nowrap">${esc(r.month)}</td>
+      ${cells}
+      <td style="text-align:center;font-weight:700;background:${ac.bg};color:${ac.fg}">${r.avg === null ? '—' : r.avg.toFixed(1)}</td>
+      <td><span class="badge ${SKILL_SUB_BADGE[r.status]}">${SKILL_SUB_LABELS[r.status]}</span></td>
+    </tr>`;
+  }).join('');
+
+  const sel = (id, value, opts) => `<select onchange="skdSet('${id}', this.value)" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);font-size:12.5px;background:var(--white)">${opts.map(o => `<option value="${o[0]}" ${String(o[0])===String(value)?'selected':''}>${esc(o[1])}</option>`).join('')}</select>`;
+  const sortTh = (col, label, extra) => `<th style="cursor:pointer;white-space:nowrap;${extra||''}" onclick="skdSort('${col}')">${esc(label)}${arrow(col)}</th>`;
+
+  el.innerHTML = `
+    <div class="section-header">
+      <div>
+        <div class="section-title">🔎 Skill Assessment — Detailed</div>
+        <div class="section-sub">Every student's rating on every skill, one row at a time · ${ACTIVE_YEAR}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="skdExportCsv()">⬇ CSV</button>
+        <button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ Print</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+      ${sel('month', S.month, [['all', 'All months'], ...MONTHS.map(m => [m, m])])}
+      ${sel('cls', S.cls, [['all', 'All classes'], ...CLASSES.map(c => [c, c])])}
+      ${sel('status', S.status, [['active', 'Approved + Pending'], ['approved', 'Approved only'], ['pending', 'Pending only']])}
+      <input type="text" value="${esc(S.q)}" oninput="skdSet('q', this.value)" placeholder="🔍 Search student name or ID…" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);font-size:12.5px;min-width:200px">
+      <span style="font-size:11px;color:var(--muted)">Returned submissions are excluded while being revised. Click a column heading to sort.</span>
+    </div>
+
+    ${rows.length === 0 ? `<div class="card"><div class="empty-state"><div class="icon">📭</div>No skill ratings match this selection.</div></div>` : `
+    <div class="kpi-grid kpi-grid-4" style="margin-bottom:16px">
+      <div class="kpi-card navy"><div class="kpi-label">Rows</div><div class="kpi-value">${rows.length}</div><div class="kpi-sub">${uniqueStudents} student${uniqueStudents!==1?'s':''} · ${scopedClasses.length} class${scopedClasses.length!==1?'es':''}</div></div>
+      <div class="kpi-card ${overall !== null && overall >= 3 ? 'green' : overall !== null && overall < 2.5 ? 'red' : 'gold'}"><div class="kpi-label">Overall Average</div><div class="kpi-value" style="color:${oc.fg}">${overall === null ? '—' : overall.toFixed(2)}</div><div class="kpi-sub">of 4.0</div></div>
+      <div class="kpi-card ${attentionCount ? 'red' : 'green'}"><div class="kpi-label">Need Attention</div><div class="kpi-value">${attentionCount}</div><div class="kpi-sub">avg below 2.5 or a skill rated 1</div></div>
+      <div class="kpi-card gold"><div class="kpi-label">Skills Tracked</div><div class="kpi-value">${SKX.length}</div><div class="kpi-sub">${S.cls === 'all' ? 'across selected classes' : esc(S.cls)}</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">📋 Detailed Ratings</span><span style="font-size:11px;color:var(--muted)">${rows.length} row${rows.length!==1?'s':''}</span></div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            ${sortTh('name', 'Student', 'padding-left:12px')}
+            ${sortTh('cls', 'Class')}
+            ${sortTh('month', 'Month')}
+            ${skillHead}
+            ${sortTh('avg', 'Average')}
+            <th>Status</th>
+          </tr></thead>
+          <tbody>${bodyRows}</tbody>
+        </table>
+      </div>
+    </div>`}`;
 }
 
 // ══════════════ PROMOTION MANAGEMENT ══════════════
@@ -25574,12 +25907,15 @@ function backfillJournalEntries() {
   });
 
   (db.txHistory || []).forEach(tx => {
-    if (tx.type !== 'payment' || has('fee', tx.id)) return;
+    if (!{payment:1,adjustment_add:1,adjustment_sub:1,clear:1}[tx.type] || has('fee', tx.id)) return;
     const s = (db.admissions || []).find(a => a.id === tx.studentId);
-    postJournalEntry(tx.date, 'Fee payment: ' + (s ? s.name : tx.studentId) + ' (' + tx.term + ')', [
-      { account: cashAccountForMode(tx.method || 'Cash'), debit: tx.amount, credit: 0 },
-      { account: '4010', debit: 0, credit: tx.amount }
-    ], 'fee', tx.id);
+    const name = s ? s.name : tx.studentId;
+    const isReversal = tx.type === 'adjustment_sub' || tx.type === 'clear';
+    const label = tx.type === 'payment' ? 'Fee payment' : tx.type === 'clear' ? 'Payments cleared' : 'Fee adjustment';
+    const lines = isReversal
+      ? [{ account: '4010', debit: tx.amount, credit: 0 }, { account: cashAccountForMode(tx.method || 'Cash'), debit: 0, credit: tx.amount }]
+      : [{ account: cashAccountForMode(tx.method || 'Cash'), debit: tx.amount, credit: 0 }, { account: '4010', debit: 0, credit: tx.amount }];
+    postJournalEntry(tx.date, label + ': ' + name + ' (' + tx.term + ')', lines, 'fee', tx.id);
     mark('fee', tx.id); posted++;
   });
 
@@ -29305,9 +29641,11 @@ function renderBankAccount() {
     rows.push({ date: e.date, desc: e.desc, ref: e.ref, amount: e.amount || 0, direction: 'out', source: 'expense', sourceLabel: 'Expense', notes: e.notes, bankAccountId: acctOf(e.bankAccountId) });
   });
   (db.txHistory || []).forEach(tx => {
-    if (tx.type !== 'payment' || tx.method !== 'Bank' || !inAcct(tx.bankAccountId)) return;
+    if (!{payment:1,adjustment_add:1,adjustment_sub:1,clear:1}[tx.type] || tx.method !== 'Bank' || !inAcct(tx.bankAccountId)) return;
     const s = (db.admissions || []).find(a => a.id === tx.studentId);
-    rows.push({ date: tx.date, desc: (s ? s.name : tx.studentId) + ' — fee payment (' + tx.term + ')', ref: tx.ref, amount: tx.amount || 0, direction: 'in', source: 'fee', sourceLabel: 'Fee Payment', notes: tx.notes, bankAccountId: acctOf(tx.bankAccountId) });
+    const isReversal = tx.type === 'adjustment_sub' || tx.type === 'clear';
+    const label = tx.type === 'payment' ? 'fee payment' : tx.type === 'clear' ? 'payments cleared' : (isReversal ? 'fee adjustment (−)' : 'fee adjustment (+)');
+    rows.push({ date: tx.date, desc: (s ? s.name : tx.studentId) + ' — ' + label + ' (' + tx.term + ')', ref: tx.ref, amount: tx.amount || 0, direction: isReversal ? 'out' : 'in', source: 'fee', sourceLabel: 'Fee Payment', notes: tx.notes, bankAccountId: acctOf(tx.bankAccountId) });
   });
   (db.admissions || []).forEach(s => {
     if (!s.fee || s.feeMode !== 'Bank' || !inAcct(s.feeBankAccountId)) return;
@@ -29503,8 +29841,8 @@ function bankAccountBalance(acctId) {
     .reduce((a,e) => a + (e.amount||0), 0);
 
   const feeIn = (db.txHistory || [])
-    .filter(t => t.type === 'payment' && t.method === 'Bank' && acctOf(t.bankAccountId) === acctId)
-    .reduce((a,t) => a + (t.amount||0), 0);
+    .filter(t => ({payment:1,adjustment_add:1,adjustment_sub:1,clear:1})[t.type] && t.method === 'Bank' && acctOf(t.bankAccountId) === acctId)
+    .reduce((a,t) => a + (t.amount||0) * (t.type === 'adjustment_sub' || t.type === 'clear' ? -1 : 1), 0);
 
   const admIn = (db.admissions || [])
     .filter(s => s.fee && s.feeMode === 'Bank' && acctOf(s.feeBankAccountId) === acctId)
