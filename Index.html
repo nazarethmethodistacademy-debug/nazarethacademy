@@ -1388,6 +1388,45 @@
     transition: background 0.15s;
   }
   .user-badge:hover { background: var(--cream2); }
+  .user-badge-wrap { position: relative; }
+  .user-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    min-width: 200px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 10px 28px rgba(15,31,61,0.14);
+    z-index: 80;
+    padding: 6px;
+    overflow: hidden;
+  }
+  .user-menu.open { display: block; }
+  .user-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-align: left;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--navy);
+    cursor: pointer;
+  }
+  .user-menu-item:hover { background: var(--cream); }
+  .user-menu-item.danger { color: var(--red); }
+  .user-menu-item.danger:hover { background: var(--red-light); }
+  .user-menu-sep {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 6px;
+  }
   .user-avatar {
     width: 24px; height: 24px;
     background: var(--navy);
@@ -2162,8 +2201,41 @@
     button[onclick*="exportOneReportCardPDF"], button[onclick*="printTxHistory"],
     button[onclick*="viewPayslip"], button[onclick*="printBRS"],
     button[onclick*="printWeeklyReport"], button[onclick*="exportWeeklyReportToPDF"],
-    button[onclick*="printReportSmart"], button[onclick*="exportPageToPDF"] { display: none !important; }
+    button[onclick*="printReportSmart"], button[onclick*="exportPageToPDF"],
+    button[onclick*="printFeedingRevenue"], button[onclick*="exportFeedingRevenuePDF"],
+    button[onclick*="openReportPrintSettings"], button[onclick*="openFeedingPrintSettings"] { display: none !important; }
+    body.rpt-hide-kpis .kpi-grid,
+    body.rpt-hide-kpis .kpi-card,
+    body.rpt-hide-kpis .sr-stat-card,
+    body.rpt-hide-kpis .sr-stat-row { display: none !important; }
+    body.rpt-hide-tables table { display: none !important; }
+    body.rpt-hide-charts canvas,
+    body.rpt-hide-charts .chart-box,
+    body.rpt-hide-charts .chart-wrap { display: none !important; }
+    body.rpt-hide-banner .report-banner { display: none !important; }
+    body.rpt-hide-notes textarea,
+    body.rpt-hide-notes .board-notes-block { display: none !important; }
+    body.rpt-hide-toolbars .no-print,
+    body.rpt-hide-toolbars .toolbar,
+    body.rpt-hide-toolbars .section-header .btn { display: none !important; }
+    /* Revenue / finance trackers: hide row action buttons when printing */
+    body.print-landscape #page-revenue table th:last-child,
+    body.print-landscape #page-revenue table td:last-child,
+    body.print-portrait #page-revenue table th:last-child,
+    body.print-portrait #page-revenue table td:last-child,
+    body.rpt-hide-toolbars #page-revenue table th:last-child,
+    body.rpt-hide-toolbars #page-revenue table td:last-child { display: none !important; }
+
     .no-print { display: none !important; }
+    /* Feeding Revenue on-page print: hide editors, show values */
+    #fd-inner .ge-class-pill,
+    #fd-inner .att-week-nav,
+    #fd-inner .att-legend,
+    #fd-inner .fd-toolbar,
+    #fd-inner .att-markall-btn,
+    #fd-inner input.fd-amt-input { display: none !important; }
+    #fd-inner .fd-print-amt { display: inline !important; }
+
     /* Statistical Report's term-switcher tabs are navigation, not report
        content — only the term currently on screen matters on paper. */
     .stat-tab-bar { display: none !important; }
@@ -3530,10 +3602,18 @@
         📅 <span id="active-year-label">2025/26</span> ▾
       </button>
       <span id="sync-status" style="font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px;background:var(--cream);border:1px solid var(--border)"><span style="color:var(--muted)">☁ Live</span></span>
-      <div class="user-badge" onclick="openChpwdModal()" title="Change password">
-        <div class="user-avatar" id="user-avatar">?</div>
-        <span class="user-name" id="user-name-label">—</span>
-        <span class="user-role" id="user-role-label">—</span>
+      <div class="user-badge-wrap">
+        <div class="user-badge" id="user-badge-btn" onclick="toggleUserMenu(event)" title="Account menu" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false">
+          <div class="user-avatar" id="user-avatar">?</div>
+          <span class="user-name" id="user-name-label">—</span>
+          <span class="user-role" id="user-role-label">—</span>
+          <span style="font-size:10px;color:var(--muted);margin-left:2px">▾</span>
+        </div>
+        <div class="user-menu" id="user-menu" role="menu">
+          <button type="button" class="user-menu-item" onclick="closeUserMenu(); openChpwdModal();" role="menuitem">🔑 Change password</button>
+          <div class="user-menu-sep"></div>
+          <button type="button" class="user-menu-item danger" onclick="closeUserMenu(); logoutUser();" role="menuitem">⏻ Log out</button>
+        </div>
       </div>
       <button class="btn btn-gold btn-sm" onclick="printPage()">🖨 Print</button>
     </div>
@@ -3870,7 +3950,10 @@
           <div class="section-title">Revenue Tracker</div>
           <div class="section-sub">Record all non-tuition income transactions</div>
         </div>
-        <button class="btn btn-primary" id="rev-add-btn" onclick="openRevenueModal()">+ Add Revenue</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-outline btn-sm" onclick="openReportPrintSettings('revenue')">🖨️ Print / PDF</button>
+          <button class="btn btn-primary" id="rev-add-btn" onclick="openRevenueModal()">+ Add Revenue</button>
+        </div>
       </div>
 
       <!-- Summary -->
@@ -4505,6 +4588,11 @@
       <div class="form-group"><label>Application Date</label><input type="date" id="adm-appdate"></div>
       <div class="form-group"><label>Admission Status *</label>
         <select id="adm-status-sel" onchange="toggleAdmFeeFields()" ><option>Admitted</option><option>Continuing</option><option>Pending</option><option>Scholarship</option><option>Withdrawn</option></select>
+      </div>
+      <div class="form-group" id="adm-withdrawn-date-wrap" style="display:none">
+        <label>Withdrawal date</label>
+        <input type="date" id="adm-withdrawn-date" title="Used for mid-term report cards and weekly withdrawn count">
+        <div style="font-size:10px;color:var(--muted);margin-top:3px">Soft withdrawal: report cards for terms already started still include this student.</div>
       </div>
       <div class="form-group"><label>Parent / Guardian *</label><input id="adm-parent" placeholder="Name of guardian"></div>
       <div class="form-group"><label>Relationship</label><input id="adm-rel" placeholder="e.g. Father"></div>
@@ -5529,7 +5617,7 @@
 
 <!-- ── General Settings modal (Settings → General Settings) ── -->
 <div class="modal-overlay" id="general-settings-modal">
-  <div class="modal" style="width:520px">
+  <div class="modal" style="width:560px;max-width:96vw">
     <div class="modal-header">
       <span class="modal-title">⚙️ General Settings</span>
       <button class="modal-close" onclick="closeModal('general-settings-modal')">✕</button>
@@ -5577,10 +5665,130 @@
           <input type="checkbox" id="gs-allow-pending-edit" style="width:18px;height:18px;accent-color:var(--navy);cursor:pointer;flex-shrink:0;margin-top:2px">
         </div>
       </div>
+      <div class="card" style="padding:14px 16px;margin-top:12px">
+        <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:8px">💳 Payment · Revenue · Expense — edit &amp; delete</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:12px;line-height:1.5">
+          School-wide switches. When off, users with page access still cannot perform that action (Admin included). Recording new entries is not affected.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;font-size:12.5px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="gs-allow-edit-payment" style="width:16px;height:16px;accent-color:var(--navy)"> Allow edit payment</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="gs-allow-delete-payment" style="width:16px;height:16px;accent-color:var(--navy)"> Allow delete payment</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="gs-allow-edit-revenue" style="width:16px;height:16px;accent-color:var(--navy)"> Allow edit revenue</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="gs-allow-delete-revenue" style="width:16px;height:16px;accent-color:var(--navy)"> Allow delete revenue</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="gs-allow-edit-expense" style="width:16px;height:16px;accent-color:var(--navy)"> Allow edit expenses</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="gs-allow-delete-expense" style="width:16px;height:16px;accent-color:var(--navy)"> Allow delete expenses</label>
+        </div>
+      </div>
+      <div class="card" style="padding:14px 16px;margin-top:12px">
+        <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:8px">🎓 Student · Subject · Class — edit &amp; delete</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:12px;line-height:1.5">
+          School-wide switches. When off, edit/delete buttons are hidden and the action is blocked. Adding new students or subjects is not affected.
+          Class edit covers Fee Schedule amounts; class delete covers resetting a class fee structure.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;font-size:12.5px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="gs-allow-edit-student" style="width:16px;height:16px;accent-color:var(--navy)"> Allow edit student</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="gs-allow-delete-student" style="width:16px;height:16px;accent-color:var(--navy)"> Allow delete student</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="gs-allow-edit-subject" style="width:16px;height:16px;accent-color:var(--navy)"> Allow edit subject</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="gs-allow-delete-subject" style="width:16px;height:16px;accent-color:var(--navy)"> Allow delete subject</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="gs-allow-edit-class" style="width:16px;height:16px;accent-color:var(--navy)"> Allow edit class</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="gs-allow-delete-class" style="width:16px;height:16px;accent-color:var(--navy)"> Allow delete class</label>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('general-settings-modal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveGeneralSettings()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Feeding Revenue Print Settings ── -->
+<div class="modal-overlay" id="fd-print-settings-modal">
+  <div class="modal" style="width:520px;max-width:96vw">
+    <div class="modal-header">
+      <span class="modal-title">🖨️ Feeding Revenue — Print Settings</span>
+      <button class="modal-close" onclick="closeModal('fd-print-settings-modal')">✕</button>
+    </div>
+    <div style="padding:14px 20px 6px;font-size:12px;color:var(--muted)">
+      Choose page orientation and which columns to include. Settings are remembered on this device.
+    </div>
+    <div style="padding:8px 20px 16px;display:flex;flex-direction:column;gap:14px">
+      <div class="card" style="padding:14px 16px">
+        <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:10px">Page orientation</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+            <input type="radio" name="fd-print-orient" id="fd-print-orient-landscape" value="landscape" checked style="accent-color:var(--navy)"> Landscape (recommended)
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+            <input type="radio" name="fd-print-orient" id="fd-print-orient-portrait" value="portrait" style="accent-color:var(--navy)"> Portrait
+          </label>
+        </div>
+      </div>
+      <div class="card" style="padding:14px 16px">
+        <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:10px">Columns &amp; sections</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:12.5px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="fd-ps-days" checked style="accent-color:var(--navy)"> Day columns (Mon–Fri)</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="fd-ps-week" checked style="accent-color:var(--navy)"> Week total</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="fd-ps-outstanding" checked style="accent-color:var(--navy)"> Outstanding</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="fd-ps-meta" checked style="accent-color:var(--navy)"> Student ID / phone</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="fd-ps-kpis" checked style="accent-color:var(--navy)"> Summary KPIs</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="fd-ps-logo" checked style="accent-color:var(--navy)"> School logo</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="fd-ps-empty" checked style="accent-color:var(--navy)"> Empty boxes (unpaid)</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="fd-ps-footer" checked style="accent-color:var(--navy)"> Footer notes</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="flex-wrap:wrap;gap:8px">
+      <button class="btn btn-outline" onclick="closeModal('fd-print-settings-modal')">Cancel</button>
+      <button class="btn btn-outline" onclick="saveFeedingPrintPrefsFromModal(); toast('✅ Print settings saved','success')">💾 Save defaults</button>
+      <button class="btn btn-outline" onclick="runFeedingPrintFromSettings('pdf')">📄 PDF</button>
+      <button class="btn btn-primary" onclick="runFeedingPrintFromSettings('print')">🖨️ Print</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Generic Report Print Settings (Weekly / Board / Management / Stats) ── -->
+<div class="modal-overlay" id="report-print-settings-modal">
+  <div class="modal" style="width:520px;max-width:96vw">
+    <div class="modal-header">
+      <span class="modal-title" id="rps-title">🖨️ Report Print Settings</span>
+      <button class="modal-close" onclick="closeModal('report-print-settings-modal')">✕</button>
+    </div>
+    <div style="padding:12px 20px 4px;font-size:12px;color:var(--muted)" id="rps-sub">
+      Choose orientation and what to include. Saved on this device for each report.
+    </div>
+    <div style="padding:8px 20px 16px;display:flex;flex-direction:column;gap:14px">
+      <div class="card" style="padding:14px 16px">
+        <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:10px">Page orientation</div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="radio" name="rps-orient" id="rps-orient-auto" value="auto" checked style="accent-color:var(--navy)"> Auto
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="radio" name="rps-orient" id="rps-orient-landscape" value="landscape" style="accent-color:var(--navy)"> Landscape
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="radio" name="rps-orient" id="rps-orient-portrait" value="portrait" style="accent-color:var(--navy)"> Portrait
+          </label>
+        </div>
+      </div>
+      <div class="card" style="padding:14px 16px">
+        <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:10px">Include on print / PDF</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:12.5px" id="rps-sections">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="rps-kpis" checked style="accent-color:var(--navy)"> Summary KPIs</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="rps-tables" checked style="accent-color:var(--navy)"> Tables</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer" id="rps-charts-wrap"><input type="checkbox" id="rps-charts" checked style="accent-color:var(--navy)"> Charts</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer" id="rps-banner-wrap"><input type="checkbox" id="rps-banner" checked style="accent-color:var(--navy)"> Report banner</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer" id="rps-notes-wrap"><input type="checkbox" id="rps-notes" checked style="accent-color:var(--navy)"> Notes / narrative</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer" id="rps-toolbar-wrap"><input type="checkbox" id="rps-toolbars" style="accent-color:var(--navy)"> Toolbars / filters</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="flex-wrap:wrap;gap:8px">
+      <button class="btn btn-outline" onclick="closeModal('report-print-settings-modal')">Cancel</button>
+      <button class="btn btn-outline" onclick="saveReportPrintPrefsFromModal(); toast('✅ Print settings saved','success')">💾 Save</button>
+      <button class="btn btn-outline" onclick="runReportPrintFromSettings('pdf')">📄 PDF</button>
+      <button class="btn btn-primary" onclick="runReportPrintFromSettings('print')">🖨️ Print</button>
     </div>
   </div>
 </div>
@@ -5896,7 +6104,7 @@ const TERM_ORDER  = Object.fromEntries(TERMS.map((t, i) => [t, i + 1])); // {'Te
     <div class="stat-tab-bar" id="stat-tab-bar" style="align-items:center">
       <button class="stat-tab active" data-tab="all" onclick="switchStatTab('all',this)">&#128202; Full Year</button>
       ${termTabBtns}
-      <button class="btn btn-outline btn-sm" style="margin-left:auto;align-self:center" onclick="exportStatsReportToPDF()">📄 Export PDF</button>
+      <button class="btn btn-outline btn-sm" style="margin-left:auto;align-self:center" onclick="openReportPrintSettings('stats')">🖨️ Print / PDF</button>
     </div>
     <div id="stats-inner"></div>`;
   content.appendChild(pgStats);
@@ -6249,7 +6457,20 @@ const DB_SEED = {
     // before approval (see openRevenueModal()/openExpenseModal() edit mode).
     // When off, a pending entry can only be rejected and re-entered from
     // scratch — it can no longer be fixed in place.
-    allowPendingEdit: true
+    allowPendingEdit: true,
+    // Edit / delete guards for Payment Tracker, Revenue Tracker, Expense Tracker
+    allowEditPayment: true,
+    allowDeletePayment: true,
+    allowEditRevenue: true,
+    allowDeleteRevenue: true,
+    allowEditExpense: true,
+    allowDeleteExpense: true,
+    allowEditStudent: true,
+    allowDeleteStudent: true,
+    allowEditSubject: true,
+    allowDeleteSubject: true,
+    allowEditClass: true,
+    allowDeleteClass: true
   },
   // ── APPROVAL WORKFLOW CONFIG — which roles submit-for-approval vs approve, per workflow ──
   approvalConfig: {
@@ -7339,12 +7560,36 @@ function saveSchoolDetails() {
 }
 
 // ── General Settings modal (Settings → General Settings) ──
+function gsAllow(key) {
+  // Default true when unset (backward compatible with older saved DBs)
+  try {
+    if (!db.generalSettings) ensureGeneralSettingsDefaults();
+    if (db.generalSettings[key] === undefined) return true;
+    return !!db.generalSettings[key];
+  } catch (e) {
+    return true;
+  }
+}
+
 function openGeneralSettingsModal() {
   if (!requireRole('Admin')) return;
   if (!db.generalSettings) db.generalSettings = JSON.parse(JSON.stringify(DB_SEED.generalSettings));
   document.getElementById('gs-auto-disable-feeding').checked = !!db.generalSettings.autoDisableFeedingOnAbsent;
   document.getElementById('gs-allow-finance-date-edit').checked = db.generalSettings.allowFinanceDateEdit !== false;
   document.getElementById('gs-allow-pending-edit').checked = db.generalSettings.allowPendingEdit !== false;
+  const set = (id, key) => { const el = document.getElementById(id); if (el) el.checked = gsAllow(key); };
+  set('gs-allow-edit-payment', 'allowEditPayment');
+  set('gs-allow-delete-payment', 'allowDeletePayment');
+  set('gs-allow-edit-revenue', 'allowEditRevenue');
+  set('gs-allow-delete-revenue', 'allowDeleteRevenue');
+  set('gs-allow-edit-expense', 'allowEditExpense');
+  set('gs-allow-delete-expense', 'allowDeleteExpense');
+  set('gs-allow-edit-student', 'allowEditStudent');
+  set('gs-allow-delete-student', 'allowDeleteStudent');
+  set('gs-allow-edit-subject', 'allowEditSubject');
+  set('gs-allow-delete-subject', 'allowDeleteSubject');
+  set('gs-allow-edit-class', 'allowEditClass');
+  set('gs-allow-delete-class', 'allowDeleteClass');
   document.getElementById('general-settings-modal').classList.add('open');
 }
 
@@ -7353,6 +7598,22 @@ function saveGeneralSettings() {
   db.generalSettings.autoDisableFeedingOnAbsent = document.getElementById('gs-auto-disable-feeding').checked;
   db.generalSettings.allowFinanceDateEdit = document.getElementById('gs-allow-finance-date-edit').checked;
   db.generalSettings.allowPendingEdit = document.getElementById('gs-allow-pending-edit').checked;
+  const read = (id, key) => {
+    const el = document.getElementById(id);
+    if (el) db.generalSettings[key] = !!el.checked;
+  };
+  read('gs-allow-edit-payment', 'allowEditPayment');
+  read('gs-allow-delete-payment', 'allowDeletePayment');
+  read('gs-allow-edit-revenue', 'allowEditRevenue');
+  read('gs-allow-delete-revenue', 'allowDeleteRevenue');
+  read('gs-allow-edit-expense', 'allowEditExpense');
+  read('gs-allow-delete-expense', 'allowDeleteExpense');
+  read('gs-allow-edit-student', 'allowEditStudent');
+  read('gs-allow-delete-student', 'allowDeleteStudent');
+  read('gs-allow-edit-subject', 'allowEditSubject');
+  read('gs-allow-delete-subject', 'allowDeleteSubject');
+  read('gs-allow-edit-class', 'allowEditClass');
+  read('gs-allow-delete-class', 'allowDeleteClass');
   saveDb();
   toast('✅ General settings saved');
   closeModal('general-settings-modal');
@@ -8121,9 +8382,128 @@ let _lastSavedSnapshot = null;
 
 function refreshSaveSnapshot() {
   const snap = {};
-  Object.keys(db).forEach(key => { snap[key] = JSON.stringify(db[key]); });
+  Object.keys(db).forEach(key => {
+    try { snap[key] = JSON.stringify(db[key]); }
+    catch (e) { console.warn('refreshSaveSnapshot: could not serialize', key, e); snap[key] = undefined; }
+  });
   _lastSavedSnapshot = snap;
 }
+
+/** Ensure value is a plain array (Firebase can return object maps). */
+function ensureArray(val) {
+  if (Array.isArray(val)) return val;
+  if (val && typeof val === 'object') return Object.keys(val).map(k => val[k]).filter(v => v != null);
+  return [];
+}
+
+/** Ensure value is a plain object. */
+function ensureObject(val) {
+  if (val && typeof val === 'object' && !Array.isArray(val)) return val;
+  return {};
+}
+
+/**
+ * Normalize critical db fields after every load / before sensitive ops.
+ * Prevents "db.admissions.forEach is not a function" and similar crashes
+ * when Firebase returns unexpected shapes or partial data.
+ */
+function ensureDbShape() {
+  if (!db || typeof db !== 'object') {
+    try { db = JSON.parse(JSON.stringify(DB_SEED)); } catch (e) { db = {}; }
+  }
+  // Arrays that code assumes are always arrays
+  const ARR_KEYS = [
+    'admissions', 'revenue', 'expenses', 'pettyCash', 'txHistory', 'journalEntries',
+    'employees', 'payrollRuns', 'assets', 'bankLedger', 'bankReconciliations',
+    'shopItems', 'shopTransactions', 'complianceItems', 'statutoryFilings',
+    'departments', 'houses', 'appraisals', 'trainings', 'trainingLinkAuditLog',
+    'skillSubmissions', 'promotionLists', 'pendingSmsQueue', 'subjects',
+    'users', 'roles'
+  ];
+  ARR_KEYS.forEach(k => {
+    try { db[k] = ensureArray(db[k]); } catch (e) { db[k] = []; }
+  });
+  // Objects
+  const OBJ_KEYS = [
+    'payments', 'budgets', 'htComments', 'timetable', 'skillsAssessments',
+    'skillComments', 'attendance', 'staffAttendance', 'feeding', 'feedingBudgetOverrides',
+    'fixedAssets', 'approvalConfig', 'generalSettings', 'gradeCategories',
+    'carryForwards', 'boardReportNotes'
+  ];
+  OBJ_KEYS.forEach(k => {
+    try { db[k] = ensureObject(db[k]); } catch (e) { db[k] = {}; }
+  });
+  // Numeric counters
+  const NUM_KEYS = [
+    'nextAdmId', 'nextRevId', 'nextExpId', 'nextSubId', 'nextEmpId', 'nextPrId',
+    'nextAssetId', 'nextBankId', 'nextJournalId', 'nextShopItemId', 'nextShopTxId',
+    'nextComplianceId', 'nextFilingId', 'nextDeptId', 'nextHouseId',
+    'nextAppraisalId', 'nextTrainingId', 'feedingMonthlyBudget', 'inventory'
+  ];
+  NUM_KEYS.forEach(k => {
+    const n = parseInt(db[k], 10);
+    db[k] = Number.isFinite(n) && n >= 0 ? n : (DB_SEED[k] != null ? DB_SEED[k] : 1);
+  });
+  // General settings defaults (idempotent)
+  ensureGeneralSettingsDefaults();
+  // Payment rows for every enrolled student
+  try {
+    (db.admissions || []).forEach(s => {
+      if (!s || !s.id) return;
+      TERMS.forEach(t => {
+        const key = s.id + '|' + t;
+        if (!db.payments[key] || typeof db.payments[key] !== 'object') {
+          db.payments[key] = { paid: 0, notes: '' };
+        } else {
+          const p = db.payments[key];
+          p.paid = parseFloat(p.paid) || 0;
+          if (p.notes == null) p.notes = '';
+        }
+      });
+    });
+  } catch (e) { console.warn('ensureDbShape payments', e); }
+}
+
+function ensureGeneralSettingsDefaults() {
+  if (!db.generalSettings || typeof db.generalSettings !== 'object') {
+    db.generalSettings = JSON.parse(JSON.stringify((DB_SEED.generalSettings) || {}));
+  }
+  const g = db.generalSettings;
+  const defaults = {
+    autoDisableFeedingOnAbsent: true,
+    allowFinanceDateEdit: true,
+    allowPendingEdit: true,
+    allowEditPayment: true,
+    allowDeletePayment: true,
+    allowEditRevenue: true,
+    allowDeleteRevenue: true,
+    allowEditExpense: true,
+    allowDeleteExpense: true,
+    allowEditStudent: true,
+    allowDeleteStudent: true,
+    allowEditSubject: true,
+    allowDeleteSubject: true,
+    allowEditClass: true,
+    allowDeleteClass: true
+  };
+  Object.keys(defaults).forEach(k => {
+    if (g[k] === undefined) g[k] = defaults[k];
+  });
+}
+
+/** Run a page renderer without letting one throw blank the whole SPA. */
+function safeRender(label, fn) {
+  try {
+    if (typeof fn === 'function') return fn();
+  } catch (err) {
+    console.error('Render failed: ' + label, err);
+    try {
+      if (typeof toast === 'function') toast('⚠ Screen error (' + label + ') — see console. Data was not lost.', 'error');
+    } catch (e2) {}
+  }
+}
+
+
 
 // Recursively replaces `undefined` with `null` throughout an object/array —
 // see the comment inside saveDb() for why this specific bug (Firebase
@@ -8151,11 +8531,20 @@ function saveDb(bypassLock) {
   // server state. This comparison is pure local CPU work — no network — and
   // is far cheaper than what it saves: only the fields that actually changed
   // get sent to Firebase, instead of the whole database every time.
+  // Normalize shape so we never serialize broken structures
+  try { ensureDbShape(); } catch (e) { console.warn('ensureDbShape before save', e); }
+
   const changedKeys = [];
   const serialized = {};
   Object.keys(db).forEach(key => {
     if (FB_LOCKED_KEYS.includes(key) || key === 'usageLog') return; // usageLog is written by flushUsageLog(), never by saveDb
-    const json = JSON.stringify(db[key]);
+    let json;
+    try {
+      json = JSON.stringify(db[key]);
+    } catch (serErr) {
+      console.warn('saveDb: skip non-serializable key', key, serErr);
+      return;
+    }
     serialized[key] = json;
     if (json !== _lastSavedSnapshot[key]) changedKeys.push(key);
   });
@@ -8194,6 +8583,19 @@ function saveDb(bypassLock) {
     .then(() => {
       changedKeys.forEach(key => { _lastSavedSnapshot[key] = serialized[key]; });
       setSyncStatus('saved'); setTimeout(() => { _isSaving = false; }, 500);
+      // Durable local backup of a slim critical snapshot (best-effort)
+      try {
+        const critical = {
+          at: new Date().toISOString(),
+          year: typeof ACTIVE_YEAR !== 'undefined' ? ACTIVE_YEAR : null,
+          admissions: (db.admissions || []).length,
+          paymentsKeys: Object.keys(db.payments || {}).length,
+          revenue: (db.revenue || []).length,
+          expenses: (db.expenses || []).length,
+          journalEntries: (db.journalEntries || []).length
+        };
+        safeLocalStorageSet('nazareth_db_meta', JSON.stringify(critical));
+      } catch (e) {}
     })
     .catch(err => {
       console.warn('Firebase save failed:', err);
@@ -8305,6 +8707,18 @@ function initDb(callback) {
       if (db.generalSettings.autoDisableFeedingOnAbsent === undefined) db.generalSettings.autoDisableFeedingOnAbsent = true;
       if (db.generalSettings.allowFinanceDateEdit === undefined) db.generalSettings.allowFinanceDateEdit = true;
       if (db.generalSettings.allowPendingEdit === undefined) db.generalSettings.allowPendingEdit = true;
+      if (db.generalSettings.allowEditPayment === undefined) db.generalSettings.allowEditPayment = true;
+      if (db.generalSettings.allowDeletePayment === undefined) db.generalSettings.allowDeletePayment = true;
+      if (db.generalSettings.allowEditRevenue === undefined) db.generalSettings.allowEditRevenue = true;
+      if (db.generalSettings.allowDeleteRevenue === undefined) db.generalSettings.allowDeleteRevenue = true;
+      if (db.generalSettings.allowEditExpense === undefined) db.generalSettings.allowEditExpense = true;
+      if (db.generalSettings.allowDeleteExpense === undefined) db.generalSettings.allowDeleteExpense = true;
+      if (db.generalSettings.allowEditStudent === undefined) db.generalSettings.allowEditStudent = true;
+      if (db.generalSettings.allowDeleteStudent === undefined) db.generalSettings.allowDeleteStudent = true;
+      if (db.generalSettings.allowEditSubject === undefined) db.generalSettings.allowEditSubject = true;
+      if (db.generalSettings.allowDeleteSubject === undefined) db.generalSettings.allowDeleteSubject = true;
+      if (db.generalSettings.allowEditClass === undefined) db.generalSettings.allowEditClass = true;
+      if (db.generalSettings.allowDeleteClass === undefined) db.generalSettings.allowDeleteClass = true;
       db.approvalConfig = data.approvalConfig || JSON.parse(JSON.stringify(DB_SEED.approvalConfig));
       if (!db.approvalConfig.pettyCash) db.approvalConfig.pettyCash = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.pettyCash));
       if (!db.approvalConfig.finance) db.approvalConfig.finance = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.finance));
@@ -8375,13 +8789,8 @@ function initDb(callback) {
       saveDb();
     }
 
-    // Ensure payment rows exist for all students
-    db.admissions.forEach(s => {
-      TERMS.forEach(t => {
-        const key = s.id + '|' + t;
-        if (!db.payments[key]) db.payments[key] = {paid:0, notes:''};
-      });
-    });
+    // Normalize arrays/objects/settings so renderers never see bad shapes
+    try { ensureDbShape(); } catch (e) { console.warn('ensureDbShape after load', e); }
 
     // Rebuild the change-tracking baseline against this freshly-loaded data —
     // whether this is the first load this session or a fresh load after
@@ -8394,7 +8803,7 @@ function initDb(callback) {
       callback._called = true;
       callback();
     } else if (!_isSaving) {
-      // Another user changed data — re-render current page
+      // Another user changed data — re-render current page (isolated failures)
       const activePage = document.querySelector('.page.active');
       if (activePage) {
         const pid = activePage.id.replace('page-', '');
@@ -8445,7 +8854,7 @@ function initDb(callback) {
           training: renderTraining,
           workflow: renderWorkflow
         };
-        if (renders[pid]) renders[pid]();
+        if (renders[pid]) safeRender(pid, renders[pid]);
         setSyncStatus('saved');
       }
       // Notifications live in the topbar, not tied to any one page — always refresh them
@@ -8457,6 +8866,28 @@ function initDb(callback) {
 }
 
 // ══════════════ UTILITIES ══════════════
+
+// Global durability: one toast per burst of render/runtime errors (no spam)
+(function installEcoleErrorHandlers() {
+  if (window.__ecoleErrorHandlersInstalled) return;
+  window.__ecoleErrorHandlersInstalled = true;
+  let lastToast = 0;
+  function softFail(msg, err) {
+    try { console.error(msg, err); } catch (e) {}
+    const now = Date.now();
+    if (now - lastToast > 4000 && typeof toast === 'function') {
+      lastToast = now;
+      try { toast('⚠ Unexpected error — your data should still be safe. Refresh if the screen looks wrong.', 'error'); } catch (e2) {}
+    }
+  }
+  window.addEventListener('error', function (ev) {
+    softFail('window.error', ev && (ev.error || ev.message));
+  });
+  window.addEventListener('unhandledrejection', function (ev) {
+    softFail('unhandledrejection', ev && ev.reason);
+  });
+})();
+
 const fmt = n => Number(n||0).toLocaleString('en-GH',{minimumFractionDigits:2,maximumFractionDigits:2});
 
 // A 'pending' revenue/expense entry (see saveRevenue/saveExpense) is awaiting Finance
@@ -10054,6 +10485,8 @@ function drawDuplicatePayments() {
 }
 
 function deleteDuplicatePayment(txId) {
+  if (!gsAllow('allowDeletePayment')) { toast('⛔ Deleting payments is turned off in General Settings', 'error'); return; }
+
   const t = (db.txHistory || []).find(x => x.id === txId);
   if (!t) return;
   if (!confirm(`Remove this GHS ${fmt(t.amount)} payment entry for ${t.studentId} (${t.term})?\n\nThis reduces their recorded balance paid by GHS ${fmt(t.amount)} and reverses the matching General Ledger entry. Only do this if it's a genuine duplicate — not a real second payment.`)) return;
@@ -11672,11 +12105,11 @@ function renderAdmissions() {
       <td>${a.gender}</td>
       <td>${esc(a.parent) || '<span style="color:var(--muted)">—</span>'}</td>
       <td>${esc(a.phone1) || '<span style="color:var(--muted)">—</span>'}</td>
-      <td><span class="badge badge-${a.status==='Admitted'?'admitted':a.status==='Continuing'?'continuing':a.status==='Scholarship'?'scholarship':a.status==='Withdrawn'?'withdrawn':'pending'}">${a.status}</span></td>
+      <td><span class="badge badge-${a.status==='Admitted'?'admitted':a.status==='Continuing'?'continuing':a.status==='Scholarship'?'scholarship':a.status==='Withdrawn'?'withdrawn':'pending'}">${a.status}</span>${a.status==='Withdrawn' && a.withdrawnDate ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">${a.withdrawnDate}</div>` : ''}</td>
       <td>${admFeeCell(a)}</td>
       <td style="display:flex;gap:6px;align-items:center;padding:8px 14px">
-        ${canEdit ? `<button class="btn btn-sm btn-outline" onclick="openEditAdmissionModal('${a.id}')" title="Edit student">✏️</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteAdmission('${a.id}')">✕</button>` : ''}
+        ${canEdit && gsAllow('allowEditStudent') ? `<button class="btn btn-sm btn-outline" onclick="openEditAdmissionModal('${a.id}')" title="Edit student">✏️</button>` : ''}
+        ${canEdit && gsAllow('allowDeleteStudent') ? `<button class="btn btn-sm btn-danger" onclick="deleteAdmission('${a.id}')">✕</button>` : ''}
       </td>
     </tr>`).join('') || '<tr><td colspan="10" class="empty-state">No students found.</td></tr>';
 }
@@ -11705,6 +12138,14 @@ function toggleAdmFeeFields() {
   const feeModeWrap = document.getElementById('adm-fee-mode-wrap');
   const feeBankWrap = document.getElementById('adm-fee-bankacct-wrap');
   const feeTermWrap = document.getElementById('adm-fee-term-wrap');
+  const wdWrap = document.getElementById('adm-withdrawn-date-wrap');
+  if (wdWrap) {
+    wdWrap.style.display = status === 'Withdrawn' ? '' : 'none';
+    if (status === 'Withdrawn') {
+      const wd = document.getElementById('adm-withdrawn-date');
+      if (wd && !wd.value) wd.value = (typeof today === 'function' ? today() : '');
+    }
+  }
   if (isScholarship || isContinuing) {
     feeWrap.style.opacity = '0.4';
     feeWrap.style.pointerEvents = 'none';
@@ -11756,6 +12197,8 @@ function openAdmissionModal() {
   document.getElementById('adm-gender').value = 'Male';
   document.getElementById('adm-class-sel').value = 'Creche';
   document.getElementById('adm-status-sel').value = 'Admitted';
+  const wdNew = document.getElementById('adm-withdrawn-date');
+  if (wdNew) wdNew.value = '';
   populateHouseSelect('adm-house-sel');
   document.getElementById('adm-fee-term').value = TERMS[0];
   document.getElementById('adm-fee-mode').value = 'Cash';
@@ -11768,6 +12211,7 @@ function openAdmissionModal() {
 
 function openEditAdmissionModal(id) {
   if (!canEditCurrentPage('admission')) { toast('⛔ You have view-only access to Admissions'); return; }
+  if (!gsAllow('allowEditStudent')) { toast('⛔ Editing students is turned off in General Settings', 'error'); return; }
   const s = db.admissions.find(a => a.id === id);
   if (!s) return;
   _editAdmId = id;
@@ -11783,6 +12227,8 @@ function openEditAdmissionModal(id) {
   document.getElementById('adm-year').value    = s.year    || '2026';
   document.getElementById('adm-appdate').value = s.appdate || '';
   document.getElementById('adm-status-sel').value = s.status || 'Admitted';
+  const wdEl = document.getElementById('adm-withdrawn-date');
+  if (wdEl) wdEl.value = s.withdrawnDate || '';
   document.getElementById('adm-parent').value  = s.parent  || '';
   document.getElementById('adm-rel').value     = s.rel     || '';
   document.getElementById('adm-phone1').value  = s.phone1  || '';
@@ -11845,6 +12291,7 @@ function setAdmPhotoPreview(photoData) {
 
 function saveAdmission() {
   if (!canEditCurrentPage('admission')) { toast('⛔ You have view-only access to Admissions'); return; }
+  if (_editAdmId && !gsAllow('allowEditStudent')) { toast('⛔ Editing students is turned off in General Settings', 'error'); return; }
   const name = document.getElementById('adm-name').value.trim();
   if (!name) { toast('⚠ Full name is required'); return; }
 
@@ -11858,8 +12305,14 @@ function saveAdmission() {
     // "Withdrawn this week" count) — stamped only on the transition itself,
     // cleared if the status is later reversed.
     let withdrawnDate = prev.withdrawnDate;
-    if (newStatus === 'Withdrawn' && prev.status !== 'Withdrawn') withdrawnDate = today();
-    else if (newStatus !== 'Withdrawn') withdrawnDate = null;
+    if (newStatus === 'Withdrawn') {
+      const fromForm = (document.getElementById('adm-withdrawn-date') || {}).value || '';
+      if (fromForm) withdrawnDate = fromForm;
+      else if (prev.status !== 'Withdrawn') withdrawnDate = today();
+      else withdrawnDate = prev.withdrawnDate || today();
+    } else {
+      withdrawnDate = null;
+    }
     db.admissions[idx] = {
       ...prev,
       name,
@@ -11917,6 +12370,9 @@ function saveAdmission() {
       email:   document.getElementById('adm-email').value,
       address: document.getElementById('adm-address').value,
       status:  document.getElementById('adm-status-sel').value,
+      withdrawnDate: document.getElementById('adm-status-sel').value === 'Withdrawn'
+        ? ((document.getElementById('adm-withdrawn-date') || {}).value || today())
+        : null,
       fee:     parseFloat(document.getElementById('adm-fee').value) || 0,
       feeMode: document.getElementById('adm-fee-mode').value,
       feeBankAccountId: document.getElementById('adm-fee-mode').value === 'Bank' ? document.getElementById('adm-fee-bankacct-sel').value : null,
@@ -11937,6 +12393,7 @@ function saveAdmission() {
 
 function deleteAdmission(id) {
   if (!canEditCurrentPage('admission')) { toast('⛔ You have view-only access to Admissions'); return; }
+  if (!gsAllow('allowDeleteStudent')) { toast('⛔ Deleting students is turned off in General Settings', 'error'); return; }
   if (!confirm('Remove this student record?')) return;
   db.admissions = db.admissions.filter(a => a.id !== id);
   TERMS.forEach(t => delete db.payments[id+'|'+t]);
@@ -12016,7 +12473,7 @@ function renderPayments() {
       <td><span class="badge badge-${sBadge[c.status]}">${c.status}</span></td>
       <td style="padding:6px 10px;display:flex;gap:4px">
         <button class="btn btn-sm btn-outline" onclick="openTxHistoryModal('${s.id}')" title="Transaction history" style="color:var(--navy)">📜</button>
-        ${canEdit ? `<button class="btn btn-sm btn-outline" onclick="openEditPaymentModal('${s.id}')" title="Edit payments">✏️</button>` : ''}
+        ${canEdit && gsAllow('allowEditPayment') ? `<button class="btn btn-sm btn-outline" onclick="openEditPaymentModal('${s.id}')" title="Edit payments">✏️</button>` : ''}
       </td>
     </tr>`);
   });
@@ -12052,11 +12509,66 @@ function openPaymentModal() {
 //  • Revenue Tracker's Admission Fees picker ('rev') is a one-time fee that only
 //    applies to students currently in "Admitted" status — see saveRevenue() and
 //    getAdmissionFeeTotal(), which both enforce the same rule.
+// Enrolled students for day-to-day class lists (grade entry, skills assessment).
+// Withdrawn and Pending are excluded from live registers.
+const ENROLLED_STATUSES = ['Admitted', 'Continuing', 'Scholarship'];
+function isEnrolledStudent(s) {
+  return !!(s && ENROLLED_STATUSES.includes(s.status));
+}
+function enrolledAdmissions() {
+  return (db.admissions || []).filter(isEnrolledStudent);
+}
+
+/**
+ * Soft withdrawal (mid-semester):
+ * - Live registers (grades / skills entry): enrolled only.
+ * - Report cards for a term: still include Withdrawn students who left during
+ *   or after that term started (withdrawnDate), so end-of-term packs remain possible.
+ * - Skills reports: historical ratings for withdrawn students remain visible.
+ */
+function termCalendarBounds(term) {
+  const td = (db.academicCalendar && db.academicCalendar.terms && db.academicCalendar.terms[term]) || {};
+  return { start: td.start || '', end: td.end || '' };
+}
+
+function isEligibleForTermReport(s, term) {
+  if (!s) return false;
+  if (isEnrolledStudent(s)) return true;
+  if (s.status !== 'Withdrawn') return false;
+  const wd = s.withdrawnDate || '';
+  const { start, end } = termCalendarBounds(term);
+  // Withdrew before this term began → not on this term's report card
+  if (start && wd && wd < start) return false;
+  // No withdrawn date: allow for current/prior terms only (legacy records)
+  if (!wd) {
+    try {
+      if (typeof getCurrentTermStatus === 'function') {
+        const cts = getCurrentTermStatus();
+        if (cts && cts.term) {
+          return (TERM_ORDER[term] || 0) <= (TERM_ORDER[cts.term] || 0);
+        }
+      }
+    } catch (e) {}
+    return true;
+  }
+  // Withdrew on/after term start (or term dates not set) → include
+  return true;
+}
+
+function isEligibleForSkillsReportRow(studentId) {
+  const adm = (db.admissions || []).find(a => a.id === studentId);
+  if (!adm) return true; // keep snapshot name even if record removed
+  if (isEnrolledStudent(adm)) return true;
+  // Soft withdrawal: still show on skills reports / detailed report
+  if (adm.status === 'Withdrawn') return true;
+  return false;
+}
+
 function ssActiveStudents(prefix) {
   if (prefix === 'rev') {
     return (db.admissions || []).filter(a => a.status === 'Admitted');
   }
-  return (db.admissions || []).filter(a => ['Admitted','Continuing','Scholarship'].includes(a.status));
+  return enrolledAdmissions();
 }
 
 function ssFilter(prefix) {
@@ -12766,6 +13278,7 @@ let _editPayStudentId = null;
 
 function openEditPaymentModal(sid) {
   if (!canEditCurrentPage('payment')) { toast('⛔ You have view-only access to Payment Tracker'); return; }
+  if (!gsAllow('allowEditPayment')) { toast('⛔ Editing payments is turned off in General Settings', 'error'); return; }
   const s = db.admissions.find(a => a.id === sid);
   if (!s) return;
   _editPayStudentId = sid;
@@ -12846,6 +13359,7 @@ function updateEditPaySummary() {
 
 function saveEditedPayment() {
   if (!canEditCurrentPage('payment')) { toast('⛔ You have view-only access to Payment Tracker'); return; }
+  if (!gsAllow('allowEditPayment')) { toast('⛔ Editing payments is turned off in General Settings', 'error'); return; }
   if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_','/') + ' is locked — ask an admin to unlock it first', 'error'); return; }
   const sid = _editPayStudentId;
   if (!sid) return;
@@ -12913,6 +13427,7 @@ function saveEditedPayment() {
 
 function clearStudentPayments() {
   if (!canEditCurrentPage('payment')) { toast('⛔ You have view-only access to Payment Tracker'); return; }
+  if (!gsAllow('allowDeletePayment')) { toast('⛔ Deleting / clearing payments is turned off in General Settings', 'error'); return; }
   if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_','/') + ' is locked — ask an admin to unlock it first', 'error'); return; }
   const sid = _editPayStudentId;
   if (!sid) return;
@@ -12991,22 +13506,23 @@ function renderRevenue() {
     const mode = r.mode || 'Cash';
     const modeBg = mode === 'Bank' ? 'var(--navy)' : mode === 'MoMo' ? '#6d28d9' : 'var(--green)';
     const isPending = r.status === 'pending';
-    const modeSelect = (canEdit && !isPending) ? `<select onchange="updateRevenueMode(${r.id}, this.value)" style="font-size:11px;padding:2px 6px;border-radius:10px;border:none;font-family:inherit;cursor:pointer;font-weight:500;background:${modeBg};color:var(--white)">
+    const modeSelect = (canEdit && !isPending && gsAllow('allowEditRevenue')) ? `<select onchange="updateRevenueMode(${r.id}, this.value)" style="font-size:11px;padding:2px 6px;border-radius:10px;border:none;font-family:inherit;cursor:pointer;font-weight:500;background:${modeBg};color:var(--white)">
       <option value="Cash" ${mode==='Cash'?'selected':''}>💵 Cash</option>
       <option value="Bank" ${mode==='Bank'?'selected':''}>🏦 Bank</option>
       <option value="MoMo" ${mode==='MoMo'?'selected':''}>📱 MoMo</option>
     </select>` : `<span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:500;background:${modeBg};color:var(--white)">${mode==='Cash'?'💵':mode==='Bank'?'🏦':'📱'} ${mode}</span>`;
-    const dateCell = (canEdit && !isPending && db.generalSettings && db.generalSettings.allowFinanceDateEdit !== false)
+    const dateCell = (canEdit && !isPending && gsAllow('allowFinanceDateEdit') && gsAllow('allowEditRevenue'))
       ? `<input type="date" value="${r.date||''}" onchange="updateRevenueDate(${r.id}, this.value)" style="font-size:11.5px;padding:3px 5px;border:1px solid var(--border);border-radius:5px;font-family:inherit;background:var(--white);color:inherit">`
       : (r.date||'—');
-    const pendEdit = canEdit && (!db.generalSettings || db.generalSettings.allowPendingEdit !== false);
+    const pendEdit = canEdit && gsAllow('allowPendingEdit') && gsAllow('allowEditRevenue');
+    const canDelRev = canEdit && gsAllow('allowDeleteRevenue');
     const actionCell = isPending
       ? `<div style="display:flex;gap:4px;flex-wrap:wrap">
           ${pendEdit ? `<button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick="openRevenueModal(${r.id})">✏️ Edit</button>` : ''}
           ${canApprove ? `<button class="btn btn-sm" style="background:var(--green);color:var(--white);font-size:11px;padding:3px 8px" onclick="approveRevenueEntry(${r.id})">✓ Approve</button><button class="btn btn-sm btn-danger" style="font-size:11px;padding:3px 8px" onclick="rejectRevenueEntry(${r.id})">✕ Reject</button>` : ''}
           ${!pendEdit && !canApprove ? `<span class="badge" style="background:var(--amber-light);color:var(--amber)">⏳ Pending</span>` : ''}
         </div>`
-      : (canEdit ? `<button class="btn btn-sm btn-danger" onclick="deleteRevenue(${r.id})">✕</button>` : '');
+      : (canDelRev ? `<button class="btn btn-sm btn-danger" onclick="deleteRevenue(${r.id})">✕</button>` : '');
     const stu = r.studentId ? (db.admissions||[]).find(a => a.id === r.studentId) : null;
     return `<tr ${isPending ? 'style="opacity:0.7;background:var(--amber-light)"' : ''}>
       <td style="color:var(--muted)">${i+1}</td>
@@ -13056,6 +13572,8 @@ let _editingRevenueId = null;
 
 function openRevenueModal(id) {
   if (!canEditCurrentPage('revenue')) { toast('⛔ You have view-only access to Revenue Tracker'); return; }
+  if (id && !gsAllow('allowEditRevenue')) { toast('⛔ Editing revenue is turned off in General Settings', 'error'); return; }
+
   const rec = id ? (db.revenue || []).find(r => r.id === id) : null;
   if (id && !rec) return;
   if (rec && rec.status !== 'pending') {
@@ -13210,6 +13728,7 @@ function rejectRevenueEntry(id) {
 
 function deleteRevenue(id) {
   if (!canEditCurrentPage('revenue')) { toast('⛔ You have view-only access to Revenue Tracker'); return; }
+  if (!gsAllow('allowDeleteRevenue')) { toast('⛔ Deleting revenue is turned off in General Settings', 'error'); return; }
   db.revenue = db.revenue.filter(r=>r.id!==id);
   removeJournalEntriesFor('revenue', id);
   saveDb();
@@ -13219,6 +13738,7 @@ function deleteRevenue(id) {
 
 function updateRevenueMode(id, newMode) {
   if (!canEditCurrentPage('revenue')) { toast('⛔ You have view-only access to Revenue Tracker'); return; }
+  if (!gsAllow('allowEditRevenue')) { toast('⛔ Editing revenue is turned off in General Settings', 'error'); return; }
   const rec = db.revenue.find(r => r.id === id);
   if (!rec) return;
   rec.mode = newMode;
@@ -13240,6 +13760,7 @@ function updateRevenueMode(id, newMode) {
 function updateRevenueDate(id, newDate) {
   if (!canEditCurrentPage('revenue')) { toast('⛔ You have view-only access to Revenue Tracker'); return; }
   if (db.generalSettings && db.generalSettings.allowFinanceDateEdit === false) { toast('⛔ Date editing is turned off in General Settings'); renderRevenue(); return; }
+  if (!gsAllow('allowEditRevenue')) { toast('⛔ Editing revenue is turned off in General Settings', 'error'); renderRevenue(); return; }
   if (!newDate) { toast('⚠ Date cannot be empty'); renderRevenue(); return; }
   const rec = db.revenue.find(r => r.id === id);
   if (!rec) return;
@@ -13289,22 +13810,23 @@ function renderExpenses() {
   document.getElementById('expenses-body').innerHTML = pg.items.map((r,i) => {
     const mode = r.mode || 'Cash';
     const isPending = r.status === 'pending';
-    const modeSelect = (canEdit && !isPending) ? `<select onchange="updateExpenseMode(${r.id}, this.value)" style="font-size:11px;padding:2px 6px;border-radius:10px;border:none;font-family:inherit;cursor:pointer;font-weight:500;${mode==='Bank'?'background:var(--navy);color:var(--white)':'background:#e67e22;color:var(--white)'}">
+    const modeSelect = (canEdit && !isPending && gsAllow('allowEditExpense')) ? `<select onchange="updateExpenseMode(${r.id}, this.value)" style="font-size:11px;padding:2px 6px;border-radius:10px;border:none;font-family:inherit;cursor:pointer;font-weight:500;${mode==='Bank'?'background:var(--navy);color:var(--white)':'background:#e67e22;color:var(--white)'}">
       <option value="Cash" ${mode==='Cash'?'selected':''}>💵 Cash</option>
       <option value="Bank" ${mode==='Bank'?'selected':''}>🏦 Bank</option>
       <option value="MoMo" ${mode==='MoMo'?'selected':''}>📱 MoMo</option>
     </select>` : `<span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:500;${mode==='Bank'?'background:var(--navy);color:var(--white)':'background:#e67e22;color:var(--white)'}">${mode==='Cash'?'💵':mode==='Bank'?'🏦':'📱'} ${mode}</span>`;
-    const dateCell = (canEdit && !isPending && db.generalSettings && db.generalSettings.allowFinanceDateEdit !== false)
+    const dateCell = (canEdit && !isPending && gsAllow('allowFinanceDateEdit') && gsAllow('allowEditExpense'))
       ? `<input type="date" value="${r.date||''}" onchange="updateExpenseDate(${r.id}, this.value)" style="font-size:11.5px;padding:3px 5px;border:1px solid var(--border);border-radius:5px;font-family:inherit;background:var(--white);color:inherit">`
       : (r.date||'—');
-    const pendEdit = canEdit && (!db.generalSettings || db.generalSettings.allowPendingEdit !== false);
+    const pendEdit = canEdit && gsAllow('allowPendingEdit') && gsAllow('allowEditExpense');
+    const canDelExp = canEdit && gsAllow('allowDeleteExpense');
     const actionCell = isPending
       ? `<div style="display:flex;gap:4px;flex-wrap:wrap">
           ${pendEdit ? `<button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick="openExpenseModal(${r.id})">✏️ Edit</button>` : ''}
           ${canApprove ? `<button class="btn btn-sm" style="background:var(--green);color:var(--white);font-size:11px;padding:3px 8px" onclick="approveExpenseEntry(${r.id})">✓ Approve</button><button class="btn btn-sm btn-danger" style="font-size:11px;padding:3px 8px" onclick="rejectExpenseEntry(${r.id})">✕ Reject</button>` : ''}
           ${!pendEdit && !canApprove ? `<span class="badge" style="background:var(--amber-light);color:var(--amber)">⏳ Pending</span>` : ''}
         </div>`
-      : (canEdit ? `<button class="btn btn-sm btn-danger" onclick="deleteExpense(${r.id})">✕</button>` : '');
+      : (canDelExp ? `<button class="btn btn-sm btn-danger" onclick="deleteExpense(${r.id})">✕</button>` : '');
     return `<tr ${isPending ? 'style="opacity:0.7;background:var(--amber-light)"' : ''}>
       <td style="color:var(--muted)">${i+1}</td>
       <td>${dateCell}</td><td>${esc(r.desc)}${isPending && canApprove ? ' <span class="badge" style="background:var(--amber-light);color:var(--amber);font-size:9px">⏳ Pending</span>' : ''}</td><td>${esc(r.ref||'—')}</td>
@@ -13348,6 +13870,8 @@ let _editingExpenseId = null;
 
 function openExpenseModal(id) {
   if (!canEditCurrentPage('expenses')) { toast('⛔ You have view-only access to Expense Tracker'); return; }
+  if (id && !gsAllow('allowEditExpense')) { toast('⛔ Editing expenses is turned off in General Settings', 'error'); return; }
+
   const rec = id ? (db.expenses || []).find(r => r.id === id) : null;
   if (id && !rec) return;
   if (rec && rec.status !== 'pending') {
@@ -13727,6 +14251,8 @@ function renderFeedingBudget() {
 
 function deleteExpense(id) {
   if (!canEditCurrentPage('expenses')) { toast('⛔ You have view-only access to Expense Tracker'); return; }
+  if (!gsAllow('allowDeleteExpense')) { toast('⛔ Deleting expenses is turned off in General Settings', 'error'); return; }
+
   db.expenses = db.expenses.filter(r=>r.id!==id);
   removeJournalEntriesFor('expense', id);
   saveDb();
@@ -13736,6 +14262,8 @@ function deleteExpense(id) {
 
 function updateExpenseMode(id, newMode) {
   if (!canEditCurrentPage('expenses')) { toast('⛔ You have view-only access to Expense Tracker'); return; }
+  if (!gsAllow('allowEditExpense')) { toast('⛔ Editing expenses is turned off in General Settings', 'error'); return; }
+
   const rec = db.expenses.find(r => r.id === id);
   if (!rec) return;
   rec.mode = newMode;
@@ -13757,6 +14285,7 @@ function updateExpenseMode(id, newMode) {
 function updateExpenseDate(id, newDate) {
   if (!canEditCurrentPage('expenses')) { toast('⛔ You have view-only access to Expense Tracker'); return; }
   if (db.generalSettings && db.generalSettings.allowFinanceDateEdit === false) { toast('⛔ Date editing is turned off in General Settings'); renderExpenses(); return; }
+  if (!gsAllow('allowEditExpense')) { toast('⛔ Editing expenses is turned off in General Settings', 'error'); renderExpenses(); return; }
   if (!newDate) { toast('⚠ Date cannot be empty'); renderExpenses(); return; }
   const rec = db.expenses.find(r => r.id === id);
   if (!rec) return;
@@ -14261,8 +14790,7 @@ function renderWeeklyReport() {
         <div class="section-sub">${esc(schoolName())} · Week of ${fmtDisplay(wkStart)} – ${fmtDisplay(wkEnd)}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-outline btn-sm" onclick="printWeeklyReport()">🖨️ Print</button>
-        <button class="btn btn-outline btn-sm" onclick="exportWeeklyReportToPDF()">⬇ PDF</button>
+        <button class="btn btn-outline btn-sm" onclick="openReportPrintSettings('weekly')">🖨️ Print / PDF</button>
       </div>
     </div>
 
@@ -14684,6 +15212,7 @@ function renderFeeSchedule() {
 
 function updateFee(cls, term, val) {
   if (!canEditCurrentPage('feeschedule')) { toast('⛔ You have view-only access to Fee Schedule'); renderFeeSchedule(); return; }
+  if (!gsAllow('allowEditClass')) { toast('⛔ Editing class fees is turned off in General Settings', 'error'); renderFeeSchedule(); return; }
   const n = parseFloat(val) || 0;
   FEE_BY_CLASS[cls][term] = n;
   // Update annual total cell
@@ -14699,6 +15228,7 @@ function updateFee(cls, term, val) {
 
 function applyFeeChanges() {
   if (!canEditCurrentPage('feeschedule')) { toast('⛔ You have view-only access to Fee Schedule'); return; }
+  if (!gsAllow('allowEditClass')) { toast('⛔ Editing class fees is turned off in General Settings', 'error'); return; }
   // Save fees into db so Firebase syncs them to all users
   db.fees = JSON.parse(JSON.stringify(FEE_BY_CLASS));
   // Also keep localStorage as local fallback
@@ -14713,6 +15243,7 @@ function applyFeeChanges() {
 
 function resetFees() {
   if (!canEditCurrentPage('feeschedule')) { toast('⛔ You have view-only access to Fee Schedule'); return; }
+  if (!gsAllow('allowDeleteClass')) { toast('⛔ Resetting / deleting class fee structure is turned off in General Settings', 'error'); return; }
   if (!confirm('Reset all fees to defaults? (Only Term 1 values are kept; all other terms will be cleared to 0)')) return;
   CLASSES.forEach(c => { FEE_BY_CLASS[c] = {...FEE_DEFAULTS[c]}; });
   db.fees = JSON.parse(JSON.stringify(FEE_BY_CLASS));
@@ -14920,6 +15451,7 @@ function removeAdmissionFeeComponentByIndex(idx) {
 
 function saveAdmissionFeeComponents() {
   if (!canEditCurrentPage('feeschedule')) { toast('⛔ You have view-only access to Fee Schedule'); return; }
+  if (!gsAllow('allowEditClass')) { toast('⛔ Editing class fees is turned off in General Settings', 'error'); return; }
   if (!requireRole('Admin', 'Bursar')) return;
   if (!db.admissionFeeBands) db.admissionFeeBands = {};
   ADMISSION_FEE_BANDS.forEach(band => { if (!db.admissionFeeBands[band]) db.admissionFeeBands[band] = {}; });
@@ -15544,7 +16076,7 @@ function renderFeedingSchedule() {
         const stateClass = amt <= 0 ? 'fd-amt-empty' : (amt >= dailyRate ? 'fd-amt-full' : 'fd-amt-partial');
         return `<td style="text-align:center;padding:5px 3px">
           <input type="number" min="0" step="0.01" class="fd-amt-input ${stateClass}"
-            value="${amt > 0 ? amt : ''}" placeholder="0"
+            value="${amt > 0 ? amt : ''}" placeholder=""
             title="${amt > 0 ? 'GHS ' + amt.toFixed(2) + ' paid' : 'Click to enter amount paid'}"
             onchange="fdSetAmount('${selClass}','${d}','${s.id}',this.value)">
         </td>`;
@@ -15562,7 +16094,9 @@ function renderFeedingSchedule() {
         </td>
         ${cells}
         <td style="padding:6px 10px;text-align:center;white-space:nowrap">
-          <div style="font-size:12px;font-weight:600;color:var(--green)">GHS ${fmt(weekPaid)}</div>
+          ${weekPaid > 0
+            ? `<div style="font-size:12px;font-weight:600;color:var(--green)">GHS ${fmt(weekPaid)}</div>`
+            : `<div style="font-size:12px;color:var(--muted)">—</div>`}
           <div style="font-size:10px;color:var(--muted)">of GHS ${fmt(weekExpected)}</div>
         </td>
         <td style="padding:6px 10px;text-align:center;white-space:nowrap">
@@ -15570,7 +16104,7 @@ function renderFeedingSchedule() {
             ? `<span class="fd-balance-neg">GHS ${fmt(cum.outstanding)}</span>`
             : cum.credit > 0
               ? `<span class="fd-balance-pos">+GHS ${fmt(cum.credit)}</span>`
-              : `<span style="color:var(--muted)">GHS 0.00</span>`}
+              : `<span style="color:var(--muted)">—</span>`}
         </td>
       </tr>`;
     }).join('');
@@ -15581,9 +16115,9 @@ function renderFeedingSchedule() {
         return `<td style="text-align:center;padding:7px 3px;font-size:10px;font-weight:600;color:var(--muted)">— No school</td>`;
       }
       const sum = students.reduce((a,s) => a + feedingAmountFor(selClass, d, s.id), 0);
-      return `<td style="text-align:center;padding:7px 3px;font-size:11px;font-weight:600;color:var(--green)">
-        GHS ${fmt(sum)}
-      </td>`;
+      return sum > 0
+        ? `<td style="text-align:center;padding:7px 3px;font-size:11px;font-weight:600;color:var(--green)">GHS ${fmt(sum)}</td>`
+        : `<td style="text-align:center;padding:7px 3px;font-size:11px;color:var(--muted)">—</td>`;
     }).join('');
 
     let weekRevenue = 0, weekExpectedTotal = 0;
@@ -15637,13 +16171,45 @@ function renderFeedingSchedule() {
 
     const paidEntryCount = students.reduce((a,s) => a + dates.filter(d => feedingAmountFor(selClass, d, s.id) > 0).length, 0);
 
+    // Snapshot for Print / PDF (clean letterhead layout)
+    window._fdPrintCtx = {
+      selClass, dates: dates.slice(), weekLabel, dailyRate,
+      weekRevenue, weekExpectedTotal, classTotalOutstanding, classTotalCredit,
+      studentCount: students.length,
+      dayNames: ['Mon','Tue','Wed','Thu','Fri'],
+      rows: students.map(s => {
+        const joinDate = s.date || s.admissionDate || '';
+        const cum = feedingCumulativeForStudent(selClass, s.id, joinDate);
+        const weekPaid = dates.reduce((a,d) => a + feedingAmountFor(selClass, d, s.id), 0);
+        const weekExpected = weekSchoolDays.filter(d => !feedingDisabledByAbsence(selClass, d, s.id)).length * dailyRate;
+        return {
+          id: s.id,
+          name: s.name,
+          phone: s.phone1 || '',
+          days: dates.map(d => {
+            if (getNonSchoolDayEvent(d)) return { kind: 'noschool' };
+            if (feedingDisabledByAbsence(selClass, d, s.id)) return { kind: 'absent' };
+            const amt = feedingAmountFor(selClass, d, s.id);
+            return { kind: 'amt', amt };
+          }),
+          weekPaid, weekExpected,
+          outstanding: cum.outstanding,
+          credit: cum.credit
+        };
+      }),
+      dailyTotals: dates.map(d => {
+        if (getNonSchoolDayEvent(d)) return null;
+        return students.reduce((a,s) => a + feedingAmountFor(selClass, d, s.id), 0);
+      })
+    };
+
     el.innerHTML = `
       <div class="section-header">
         <div>
           <div class="section-title">&#127869;&#65039; Feeding Revenue</div>
           <div class="section-sub">Type the amount each student paid per day, then click <strong>Send SMS Alerts</strong> to notify all parents at once</div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" class="fd-toolbar no-print">
           <span class="fd-rate-badge">Daily Rate: GHS ${dailyRate.toFixed(2)}</span>
           ${paidEntryCount > 0
             ? `<button class="btn btn-gold btn-sm" onclick="fdOpenBatchSms()">
@@ -15655,6 +16221,7 @@ function renderFeedingSchedule() {
           ${currentUser && currentUser.role === 'Admin'
             ? `<button class="btn btn-outline btn-sm" onclick="fdToggleBulkPanel()">📅 Bulk Mark Fully Paid</button>`
             : ''}
+          <button class="btn btn-outline btn-sm" onclick="openFeedingPrintSettings()">🖨️ Print / PDF</button>
         </div>
       </div>
 
@@ -15872,6 +16439,437 @@ function setFeedingMonthBudgetOverride(monthKey, monthLabel) {
   renderFeedingReport();
   toast('✅ Budget for ' + monthLabel + ' updated');
 }
+
+
+
+const FD_PRINT_PREFS_KEY = 'nazareth_feeding_print_prefs';
+
+function defaultFeedingPrintPrefs() {
+  return {
+    orientation: 'landscape',
+    showLogo: true,
+    showKpis: true,
+    showStudentMeta: true,
+    showDays: true,
+    showWeek: true,
+    showOutstanding: true,
+    showEmptyBoxes: true,
+    showFooter: true
+  };
+}
+
+function getFeedingPrintPrefs() {
+  const base = defaultFeedingPrintPrefs();
+  try {
+    const fromDb = db && db.generalSettings && db.generalSettings.feedingPrint;
+    if (fromDb && typeof fromDb === 'object') Object.assign(base, fromDb);
+  } catch (e) {}
+  try {
+    const raw = localStorage.getItem(FD_PRINT_PREFS_KEY);
+    if (raw) Object.assign(base, JSON.parse(raw));
+  } catch (e) {}
+  if (base.orientation !== 'portrait') base.orientation = 'landscape';
+  return base;
+}
+
+function saveFeedingPrintPrefs(prefs) {
+  const p = Object.assign(defaultFeedingPrintPrefs(), prefs || {});
+  try { localStorage.setItem(FD_PRINT_PREFS_KEY, JSON.stringify(p)); } catch (e) {}
+  try {
+    if (!db.generalSettings) db.generalSettings = {};
+    db.generalSettings.feedingPrint = p;
+    if (typeof saveDb === 'function') saveDb();
+  } catch (e) {}
+  return p;
+}
+
+function readFeedingPrintPrefsFromModal() {
+  const p = defaultFeedingPrintPrefs();
+  const land = document.getElementById('fd-print-orient-landscape');
+  p.orientation = (land && land.checked) ? 'landscape' : 'portrait';
+  const chk = (id, key) => {
+    const el = document.getElementById(id);
+    if (el) p[key] = !!el.checked;
+  };
+  chk('fd-ps-days', 'showDays');
+  chk('fd-ps-week', 'showWeek');
+  chk('fd-ps-outstanding', 'showOutstanding');
+  chk('fd-ps-meta', 'showStudentMeta');
+  chk('fd-ps-kpis', 'showKpis');
+  chk('fd-ps-logo', 'showLogo');
+  chk('fd-ps-empty', 'showEmptyBoxes');
+  chk('fd-ps-footer', 'showFooter');
+  // Need at least one data column besides name
+  if (!p.showDays && !p.showWeek && !p.showOutstanding) {
+    p.showDays = true;
+    toast('⚠ At least one data column is required — day columns left on', 'warning');
+  }
+  return p;
+}
+
+function saveFeedingPrintPrefsFromModal() {
+  return saveFeedingPrintPrefs(readFeedingPrintPrefsFromModal());
+}
+
+function applyFeedingPrintPrefsToModal(prefs) {
+  const p = Object.assign(defaultFeedingPrintPrefs(), prefs || getFeedingPrintPrefs());
+  const land = document.getElementById('fd-print-orient-landscape');
+  const port = document.getElementById('fd-print-orient-portrait');
+  if (land) land.checked = p.orientation !== 'portrait';
+  if (port) port.checked = p.orientation === 'portrait';
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+  set('fd-ps-days', p.showDays);
+  set('fd-ps-week', p.showWeek);
+  set('fd-ps-outstanding', p.showOutstanding);
+  set('fd-ps-meta', p.showStudentMeta);
+  set('fd-ps-kpis', p.showKpis);
+  set('fd-ps-logo', p.showLogo);
+  set('fd-ps-empty', p.showEmptyBoxes);
+  set('fd-ps-footer', p.showFooter);
+}
+
+function openFeedingPrintSettings() {
+  if (!window._fdPrintCtx) {
+    toast('⚠ Open Feeding Revenue and select a class first', 'error');
+    return;
+  }
+  applyFeedingPrintPrefsToModal(getFeedingPrintPrefs());
+  const m = document.getElementById('fd-print-settings-modal');
+  if (m) m.classList.add('open');
+}
+
+function runFeedingPrintFromSettings(mode) {
+  const prefs = saveFeedingPrintPrefsFromModal();
+  closeModal('fd-print-settings-modal');
+  if (mode === 'pdf') exportFeedingRevenuePDF(prefs);
+  else printFeedingRevenue(prefs);
+}
+
+/** Build a clean, print-ready HTML document for Feeding Revenue (current class + week). */
+function buildFeedingRevenuePrintHtml(prefs) {
+  const ctx = window._fdPrintCtx;
+  if (!ctx) {
+    toast('⚠ Open Feeding Revenue and select a class first', 'error');
+    return null;
+  }
+  const p = Object.assign(defaultFeedingPrintPrefs(), prefs || getFeedingPrintPrefs());
+  const landscape = p.orientation !== 'portrait';
+  const school = (typeof schoolName === 'function' ? schoolName() : 'School');
+  const logo = (p.showLogo && typeof SCHOOL_LOGO_SRC !== 'undefined') ? SCHOOL_LOGO_SRC : '';
+  const year = (ACTIVE_YEAR || '').replace('_', '/');
+  const printed = new Date().toLocaleString('en-GH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const by = (typeof welcomeDisplayName === 'function' && welcomeDisplayName()) || (currentUser ? currentUser.username : 'system');
+
+  const emptyCell = p.showEmptyBoxes
+    ? '<td class="c empty"><span class="empty-box"></span></td>'
+    : '<td class="c empty"></td>';
+  const emptyWide = p.showEmptyBoxes
+    ? '<td class="c empty"><span class="empty-box wide"></span></td>'
+    : '<td class="c empty"></td>';
+
+  let dayHeaders = '';
+  if (p.showDays) {
+    dayHeaders = ctx.dates.map((d, i) => {
+      const dt = new Date(d + 'T00:00:00');
+      const label = (ctx.dayNames[i] || '') + ' ' + dt.getDate() + '/' + (dt.getMonth() + 1);
+      return '<th>' + label + '</th>';
+    }).join('');
+  }
+
+  const bodyRows = ctx.rows.map(r => {
+    let cells = '';
+    if (p.showDays) {
+      cells = r.days.map(day => {
+        if (day.kind === 'noschool') return '<td class="c muted">—</td>';
+        if (day.kind === 'absent') return '<td class="c muted">Abs</td>';
+        const a = day.amt || 0;
+        if (a <= 0) return emptyCell;
+        return '<td class="c num">' + a.toFixed(2) + '</td>';
+      }).join('');
+    }
+    let weekCell = '';
+    if (p.showWeek) {
+      weekCell = r.weekPaid > 0
+        ? '<td class="c num"><strong>' + r.weekPaid.toFixed(2) + '</strong><div class="sub">of ' + r.weekExpected.toFixed(2) + '</div></td>'
+        : (p.showEmptyBoxes
+            ? '<td class="c empty"><span class="empty-box wide"></span><div class="sub">of ' + r.weekExpected.toFixed(2) + '</div></td>'
+            : '<td class="c empty"><div class="sub">of ' + r.weekExpected.toFixed(2) + '</div></td>');
+    }
+    let out = '';
+    if (p.showOutstanding) {
+      out = r.outstanding > 0
+        ? '<td class="c num neg">' + r.outstanding.toFixed(2) + '</td>'
+        : (r.credit > 0
+            ? '<td class="c num pos">+' + r.credit.toFixed(2) + '</td>'
+            : emptyWide);
+    }
+    const meta = p.showStudentMeta
+      ? '<div class="id">' + esc(r.id) + (r.phone ? ' · ' + esc(r.phone) : '') + '</div>'
+      : '';
+    return '<tr>' +
+      '<td class="name"><div class="nm">' + esc(r.name) + '</div>' + meta + '</td>' +
+      cells + weekCell + out +
+      '</tr>';
+  }).join('');
+
+  let totalRow = '';
+  if (p.showDays || p.showWeek || p.showOutstanding) {
+    totalRow = '<tr class="totals"><td class="name"><strong>Collected / Day</strong></td>';
+    if (p.showDays) {
+      totalRow += ctx.dailyTotals.map(t => {
+        if (t == null) return emptyCell;
+        return t > 0 ? '<td class="c num"><strong>' + t.toFixed(2) + '</strong></td>' : emptyCell;
+      }).join('');
+    }
+    if (p.showWeek) totalRow += '<td></td>';
+    if (p.showOutstanding) totalRow += '<td></td>';
+    totalRow += '</tr>';
+  }
+
+  const pageSize = landscape ? 'A4 landscape' : 'A4 portrait';
+  const maxW = landscape ? '277mm' : '190mm';
+  const kpiCols = landscape ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)';
+  const orientLabel = landscape ? 'Landscape' : 'Portrait';
+
+  // Dynamic column widths
+  let colgroup = '<col class="c-name">';
+  if (p.showDays) colgroup += '<col class="c-day"><col class="c-day"><col class="c-day"><col class="c-day"><col class="c-day">';
+  if (p.showWeek) colgroup += '<col class="c-week">';
+  if (p.showOutstanding) colgroup += '<col class="c-out">';
+
+  let headCols = '<th>Student</th>' + dayHeaders;
+  if (p.showWeek) headCols += '<th>Week</th>';
+  if (p.showOutstanding) headCols += '<th>Outstanding</th>';
+
+  const kpisHtml = p.showKpis ? `
+  <div class="kpis">
+    <div class="kpi"><div class="l">Week collected</div><div class="v">GHS ${ctx.weekRevenue.toFixed(2)}</div><div class="s">of GHS ${ctx.weekExpectedTotal.toFixed(2)} expected</div></div>
+    <div class="kpi"><div class="l">Total outstanding</div><div class="v" style="color:${ctx.classTotalOutstanding>0?'#b84040':'#0f1f3d'}">GHS ${ctx.classTotalOutstanding.toFixed(2)}</div><div class="s">Since term start, to date</div></div>
+    <div class="kpi"><div class="l">Daily rate</div><div class="v">GHS ${ctx.dailyRate.toFixed(2)}</div><div class="s">From Fee Schedule</div></div>
+    <div class="kpi"><div class="l">Students</div><div class="v">${ctx.studentCount}</div><div class="s">${esc(ctx.selClass)}</div></div>
+  </div>` : '';
+
+  const footHtml = p.showFooter ? `
+  <div class="foot">
+    <span>Amounts in GHS.${p.showEmptyBoxes ? ' Empty box = unpaid.' : ''} “—” / Abs = no school or absent.</span>
+    <span>Feeding Revenue · ${orientLabel} A4 · Ecole Systems</span>
+  </div>` : '';
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Feeding Revenue — ${esc(ctx.selClass)} — ${esc(ctx.weekLabel)}</title>
+<style>
+  @page { size: ${pageSize}; margin: 8mm; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  html, body { margin: 0; padding: 0; width: 100%; }
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    color: #1a1a2e;
+    padding: 8px 10px;
+    font-size: 10px;
+    max-width: ${maxW};
+    background: #fff;
+  }
+  @media print {
+    @page { size: ${pageSize}; margin: 8mm; }
+    html, body { width: ${maxW}; max-width: ${maxW}; }
+    body { padding: 0; }
+  }
+  .sheet { width: 100%; max-width: ${maxW}; }
+  .hdr {
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 2px solid #0f1f3d;
+    padding-bottom: 6px; margin-bottom: 8px;
+  }
+  .hdr img { width: 42px; height: auto; flex-shrink: 0; }
+  .hdr h1 { font-family: Georgia, 'Playfair Display', serif; font-size: 15px; margin: 0 0 1px; color: #0f1f3d; }
+  .hdr .sub { font-size: 10px; color: #686f7d; }
+  .hdr .meta { margin-left: auto; text-align: right; font-size: 9px; color: #686f7d; flex-shrink: 0; }
+  .kpis { display: grid; grid-template-columns: ${kpiCols}; gap: 6px; margin-bottom: 8px; }
+  .kpi { border: 1px solid #e0d8c8; border-radius: 6px; padding: 5px 8px; }
+  .kpi .l { font-size: 8px; text-transform: uppercase; letter-spacing: 0.3px; color: #686f7d; margin-bottom: 1px; }
+  .kpi .v { font-family: Georgia, serif; font-size: 13px; font-weight: 700; color: #0f1f3d; }
+  .kpi .s { font-size: 8px; color: #686f7d; margin-top: 1px; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  col.c-name { width: ${p.showDays ? '24%' : '40%'}; }
+  col.c-day { width: 8.5%; }
+  col.c-week { width: 12%; }
+  col.c-out { width: 12%; }
+  th {
+    background: #0f1f3d; color: #e8c97a;
+    font-size: 9px; font-weight: 600;
+    padding: 5px 3px; text-align: center;
+    word-wrap: break-word;
+  }
+  th:first-child { text-align: left; padding-left: 6px; }
+  td {
+    border-bottom: 1px solid #e8e2d6;
+    padding: 4px 3px;
+    vertical-align: middle;
+  }
+  td.name { text-align: left; padding-left: 6px; padding-right: 4px; }
+  td.name .nm { font-weight: 600; color: #0f1f3d; font-size: 9.5px; line-height: 1.25; word-break: break-word; }
+  td.name .id { font-size: 8px; color: #686f7d; line-height: 1.2; }
+  td.c { text-align: center; }
+  td.num { font-variant-numeric: tabular-nums; font-size: 10px; }
+  .neg { color: #b84040; font-weight: 600; }
+  .pos { color: #2d7b51; font-weight: 600; }
+  .muted { color: #9aa0a8; }
+  .empty { text-align: center; vertical-align: middle; }
+  .empty-box {
+    display: inline-block; width: 22px; height: 14px;
+    border: 1px solid #c5bda8; border-radius: 2px; background: #fff; vertical-align: middle;
+  }
+  .empty-box.wide { width: 36px; }
+  .sub { font-size: 7.5px; color: #686f7d; font-weight: 400; }
+  tr.totals td { background: #f2ead8; border-top: 2px solid #0f1f3d; padding-top: 5px; padding-bottom: 5px; }
+  .foot {
+    margin-top: 8px; padding-top: 5px; border-top: 1px solid #e0d8c8;
+    font-size: 8.5px; color: #686f7d;
+    display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  }
+  .no-print { display: none !important; }
+</style></head><body><div class="sheet">
+  <div class="hdr">
+    ${logo ? '<img src="' + logo + '" alt="">' : ''}
+    <div>
+      <h1>${esc(school)}</h1>
+      <div class="sub">Feeding Revenue · ${esc(ctx.selClass)} · Week of ${esc(ctx.weekLabel)}</div>
+      <div class="sub">Academic Year ${esc(year)} · Daily rate GHS ${ctx.dailyRate.toFixed(2)}</div>
+    </div>
+    <div class="meta">Printed ${esc(printed)}<br>by ${esc(by)}</div>
+  </div>
+  ${kpisHtml}
+  <table>
+    <colgroup>${colgroup}</colgroup>
+    <thead><tr>${headCols}</tr></thead>
+    <tbody>${bodyRows}${totalRow}</tbody>
+  </table>
+  ${footHtml}
+</div></body></html>`;
+}
+
+function printFeedingRevenue(prefs) {
+  let html;
+  try {
+    html = buildFeedingRevenuePrintHtml(prefs);
+  } catch (err) {
+    console.error('buildFeedingRevenuePrintHtml failed', err);
+    toast('⚠ Could not build print layout — ' + (err && err.message ? err.message : 'see console'), 'error');
+    return;
+  }
+  if (!html) return;
+
+  const p = Object.assign(defaultFeedingPrintPrefs(), prefs || getFeedingPrintPrefs());
+  const frameW = p.orientation === 'portrait' ? 800 : 1050;
+
+  let frame = document.getElementById('fd-print-frame');
+  if (frame) frame.remove();
+  frame = document.createElement('iframe');
+  frame.id = 'fd-print-frame';
+  frame.setAttribute('title', 'Feeding Revenue print');
+  frame.style.cssText = 'position:fixed;left:-12000px;top:0;width:' + frameW + 'px;height:750px;border:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(frame);
+
+  const doc = frame.contentDocument || frame.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  const doPrint = () => {
+    try {
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+    } catch (e) {
+      console.error(e);
+      const w = window.open('', '_blank', 'width=1200,height=800');
+      if (!w) {
+        toast('⚠ Allow pop-ups to print, or use PDF', 'error');
+        return;
+      }
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      setTimeout(() => { try { w.focus(); w.print(); } catch (e2) {} }, 300);
+    }
+  };
+
+  setTimeout(doPrint, 500);
+  toast('🖨️ Print dialog opening — use ' + (p.orientation === 'portrait' ? 'Portrait' : 'Landscape') + ' if asked', 'success');
+}
+
+async function exportFeedingRevenuePDF(prefs) {
+  let html;
+  try {
+    html = buildFeedingRevenuePrintHtml(prefs);
+  } catch (err) {
+    console.error(err);
+    toast('⚠ Could not build PDF layout', 'error');
+    return;
+  }
+  if (!html) return;
+  if (typeof html2pdf === 'undefined') {
+    toast('⚠ PDF library not loaded — use Print instead', 'error');
+    return;
+  }
+
+  const p = Object.assign(defaultFeedingPrintPrefs(), prefs || getFeedingPrintPrefs());
+  const landscape = p.orientation !== 'portrait';
+  toast('⏳ Generating Feeding Revenue PDF…');
+
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  const styleMatch = html.match(/<style[^>]*>([\s\S]*)<\/style>/i);
+  const bodyHtml = bodyMatch ? bodyMatch[1] : html;
+  const styleHtml = styleMatch ? styleMatch[1] : '';
+  const captureW = landscape ? 1000 : 720;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'fd-pdf-export-root';
+  overlay.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;background:#ffffff;z-index:2147483646;overflow:auto;';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'fd-pdf-inner';
+  wrap.style.cssText = 'width:' + captureW + 'px;max-width:' + captureW + 'px;margin:0 auto;padding:12px 16px 16px;background:#ffffff;box-sizing:border-box;';
+  wrap.innerHTML = '<style>' + styleHtml + ' body,html{background:#fff!important;} .sheet{max-width:100%!important;width:100%!important;}</style>' + bodyHtml;
+  overlay.appendChild(wrap);
+  document.body.appendChild(overlay);
+
+  await new Promise(r => setTimeout(r, 250));
+  try {
+    const imgs = wrap.querySelectorAll('img');
+    await Promise.all(Array.from(imgs).map(img => {
+      if (img.complete && img.naturalWidth) return Promise.resolve();
+      return new Promise(res => { img.onload = res; img.onerror = res; setTimeout(res, 1200); });
+    }));
+  } catch (e) {}
+
+  const stamp = (typeof today === 'function' ? today() : new Date().toISOString().slice(0, 10));
+  const cls = (window._fdPrintCtx && window._fdPrintCtx.selClass)
+    ? String(window._fdPrintCtx.selClass).replace(/\s+/g, '-')
+    : 'class';
+
+  try {
+    const w = Math.max(wrap.scrollWidth, wrap.offsetWidth, captureW);
+    const h = Math.max(wrap.scrollHeight, wrap.offsetHeight, 400);
+    await html2pdf().set({
+      margin: [8, 8, 8, 8],
+      filename: 'feeding-revenue-' + cls + '-' + stamp + '.pdf',
+      image: { type: 'jpeg', quality: 0.96 },
+      html2canvas: {
+        scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff',
+        scrollX: 0, scrollY: 0, x: 0, y: 0, width: w, height: h,
+        windowWidth: w, windowHeight: h
+      },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: landscape ? 'landscape' : 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    }).from(wrap).save();
+    toast('✅ Feeding Revenue PDF downloaded', 'success');
+  } catch (err) {
+    console.error('Feeding Revenue PDF failed', err);
+    toast('⚠ PDF failed — try Print instead', 'error');
+  } finally {
+    if (overlay.parentNode) document.body.removeChild(overlay);
+  }
+}
+
 
 function renderFeedingReport() {
   const el = document.getElementById('fdr-inner');
@@ -20063,8 +21061,43 @@ function toggleLoginPasswordVisibility() {
 }
 
 // ── Logout ──
+function toggleUserMenu(ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  const menu = document.getElementById('user-menu');
+  const btn = document.getElementById('user-badge-btn');
+  if (!menu) return;
+  const open = !menu.classList.contains('open');
+  closeUserMenu();
+  if (open) {
+    menu.classList.add('open');
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+  }
+}
+
+function closeUserMenu() {
+  const menu = document.getElementById('user-menu');
+  const btn = document.getElementById('user-badge-btn');
+  if (menu) menu.classList.remove('open');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+// Close account menu on outside click / Escape
+(function installUserMenuDismiss() {
+  if (window.__userMenuDismissInstalled) return;
+  window.__userMenuDismissInstalled = true;
+  document.addEventListener('click', function (e) {
+    const wrap = document.querySelector('.user-badge-wrap');
+    if (!wrap) return;
+    if (!wrap.contains(e.target)) closeUserMenu();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeUserMenu();
+  });
+})();
+
 async function logoutUser() {
   if (!confirm('Sign out of Ecole Systems Finance?')) return;
+  closeUserMenu();
   clearSession();
   clearTimeout(inactivityTimer);
   if (fbAuth) { try { await fbAuth.signOut(); } catch(e) {} }
@@ -21128,7 +22161,7 @@ function renderKGReportCard(s, term, opts) {
         <div class="kg-rc-doctitle">TERMINAL REPORT</div>
       </div>
 
-      <div class="kg-rc-name-line"><b>Name:</b> ${esc(s.name)}</div>
+      <div class="kg-rc-name-line"><b>Name:</b> ${esc(s.name)}${s.status==='Withdrawn'?` <span class="badge badge-withdrawn">Withdrawn${s.withdrawnDate?' · '+s.withdrawnDate:''}</span>`:''}</div>
       <div class="kg-rc-meta-row">
         <span><b>Class:</b> ${esc(s.cls)}</span>
         <span><b>Term:</b> ${esc(term.replace('Term ',''))}</span>
@@ -21293,7 +22326,8 @@ function weeklyReportNeedsLandscape(rootEl) { return reportNeedsLandscape(rootEl
  * Print any report container with automatic @page orientation + body class
  * for CSS media queries. Pass an element id string or a DOM element.
  */
-function printReportSmart(containerIdOrEl) {
+function printReportSmart(containerIdOrEl, options) {
+  const opts = options || {};
   let source = null;
   if (typeof containerIdOrEl === 'string') {
     source = document.getElementById(containerIdOrEl);
@@ -21306,7 +22340,12 @@ function printReportSmart(containerIdOrEl) {
   }
   if (!source) { window.print(); return; }
 
-  const landscape = reportNeedsLandscape(source);
+  let landscape;
+  if (opts.orientation === 'landscape') landscape = true;
+  else if (opts.orientation === 'portrait') landscape = false;
+  else landscape = reportNeedsLandscape(source);
+
+  applyReportPrintHideClasses(opts);
   let style = document.getElementById('smart-print-orient-style');
   if (!style) {
     style = document.createElement('style');
@@ -21322,23 +22361,220 @@ function printReportSmart(containerIdOrEl) {
 
   const cleanup = () => {
     document.body.classList.remove('print-landscape', 'print-portrait');
+    clearReportPrintHideClasses();
     window.removeEventListener('afterprint', cleanup);
   };
   window.addEventListener('afterprint', cleanup);
 
   if (typeof toast === 'function') {
     toast(landscape
-      ? '🖨️ Print: landscape selected so wide content fits'
-      : '🖨️ Print: portrait selected');
+      ? '🖨️ Print: landscape'
+      : '🖨️ Print: portrait');
   }
   setTimeout(() => window.print(), 50);
 }
+
+// ── Shared report print settings (Weekly / Board / Management / Stats) ──
+const REPORT_PRINT_PREFS_KEY = 'nazareth_report_print_prefs';
+const REPORT_PRINT_DEFS = {
+  weekly: {
+    title: 'Weekly Report',
+    containerId: 'wr-inner',
+    filename: () => 'Weekly Report - ' + ACTIVE_YEAR.replace('_','-') + '.pdf',
+    reportTitle: 'Weekly Report',
+    useWeeklyPdf: true,
+    sections: { kpis: true, tables: true, charts: false, banner: false, notes: false, toolbars: false }
+  },
+  board: {
+    title: 'Board Report',
+    containerId: 'page-boardreport',
+    filename: () => 'Board Report - ' + ACTIVE_YEAR.replace('_','-') + '.pdf',
+    reportTitle: 'Board Report',
+    sections: { kpis: true, tables: true, charts: false, banner: false, notes: true, toolbars: false }
+  },
+  revenue: {
+    title: 'Revenue Tracker',
+    containerId: 'page-revenue',
+    filename: () => 'Revenue Tracker - ' + ACTIVE_YEAR.replace('_','-') + '.pdf',
+    reportTitle: 'Revenue Tracker',
+    sections: { kpis: true, tables: true, charts: false, banner: false, notes: false, toolbars: false }
+  },
+  management: {
+    title: 'Management Account Report',
+    containerId: null, // resolve active management page
+    filename: () => 'Management Account Report - ' + ACTIVE_YEAR.replace('_','-') + '.pdf',
+    reportTitle: 'Management Account Report',
+    sections: { kpis: true, tables: true, charts: false, banner: true, notes: false, toolbars: false }
+  },
+  stats: {
+    title: 'Statistical Report',
+    containerId: 'stats-inner',
+    filename: () => 'Statistical Report - ' + ACTIVE_YEAR.replace('_','-') + '.pdf',
+    reportTitle: 'Statistical Report',
+    useStatsPdf: true,
+    sections: { kpis: true, tables: true, charts: true, banner: true, notes: false, toolbars: false }
+  }
+};
+
+function defaultReportPrintPrefs(key) {
+  const def = REPORT_PRINT_DEFS[key] || {};
+  const sec = Object.assign({ kpis: true, tables: true, charts: true, banner: true, notes: true, toolbars: false }, def.sections || {});
+  return { orientation: 'auto', sections: sec };
+}
+
+function getReportPrintPrefs(key) {
+  const base = defaultReportPrintPrefs(key);
+  try {
+    const all = JSON.parse(localStorage.getItem(REPORT_PRINT_PREFS_KEY) || '{}');
+    if (all[key]) {
+      if (all[key].orientation) base.orientation = all[key].orientation;
+      if (all[key].sections) Object.assign(base.sections, all[key].sections);
+    }
+  } catch (e) {}
+  return base;
+}
+
+function saveReportPrintPrefs(key, prefs) {
+  let all = {};
+  try { all = JSON.parse(localStorage.getItem(REPORT_PRINT_PREFS_KEY) || '{}'); } catch (e) {}
+  all[key] = prefs;
+  try { localStorage.setItem(REPORT_PRINT_PREFS_KEY, JSON.stringify(all)); } catch (e) {}
+  return prefs;
+}
+
+function applyReportPrintHideClasses(opts) {
+  clearReportPrintHideClasses();
+  const s = (opts && opts.sections) || {};
+  if (s.kpis === false) document.body.classList.add('rpt-hide-kpis');
+  if (s.tables === false) document.body.classList.add('rpt-hide-tables');
+  if (s.charts === false) document.body.classList.add('rpt-hide-charts');
+  if (s.banner === false) document.body.classList.add('rpt-hide-banner');
+  if (s.notes === false) document.body.classList.add('rpt-hide-notes');
+  if (s.toolbars === false) document.body.classList.add('rpt-hide-toolbars');
+}
+
+function clearReportPrintHideClasses() {
+  document.body.classList.remove(
+    'rpt-hide-kpis', 'rpt-hide-tables', 'rpt-hide-charts',
+    'rpt-hide-banner', 'rpt-hide-notes', 'rpt-hide-toolbars'
+  );
+}
+
+function resolveReportContainerId(key) {
+  const def = REPORT_PRINT_DEFS[key];
+  if (!def) return null;
+  if (key === 'management') {
+    const active = document.querySelector('.page.active');
+    if (active && active.id) return active.id;
+    return 'page-report_management';
+  }
+  return def.containerId;
+}
+
+window._rpsCurrentKey = null;
+
+function openReportPrintSettings(key) {
+  const def = REPORT_PRINT_DEFS[key];
+  if (!def) { toast('⚠ Unknown report', 'error'); return; }
+  window._rpsCurrentKey = key;
+  const prefs = getReportPrintPrefs(key);
+  const titleEl = document.getElementById('rps-title');
+  if (titleEl) titleEl.textContent = '🖨️ ' + def.title + ' — Print Settings';
+  const sub = document.getElementById('rps-sub');
+  if (sub) sub.textContent = 'Orientation and sections for ' + def.title + '. Saved on this device.';
+
+  const setOrient = (v) => {
+    const a = document.getElementById('rps-orient-auto');
+    const l = document.getElementById('rps-orient-landscape');
+    const p = document.getElementById('rps-orient-portrait');
+    if (a) a.checked = v === 'auto';
+    if (l) l.checked = v === 'landscape';
+    if (p) p.checked = v === 'portrait';
+  };
+  setOrient(prefs.orientation || 'auto');
+
+  const setChk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+  setChk('rps-kpis', prefs.sections.kpis !== false);
+  setChk('rps-tables', prefs.sections.tables !== false);
+  setChk('rps-charts', prefs.sections.charts !== false);
+  setChk('rps-banner', prefs.sections.banner !== false);
+  setChk('rps-notes', prefs.sections.notes !== false);
+  setChk('rps-toolbars', !!prefs.sections.toolbars);
+
+  // Show/hide section options that apply to this report
+  const show = (wrapId, on) => {
+    const w = document.getElementById(wrapId);
+    if (w) w.style.display = on ? '' : 'none';
+  };
+  const sec = def.sections || {};
+  show('rps-charts-wrap', sec.charts !== false || key === 'stats');
+  show('rps-banner-wrap', sec.banner !== false || key === 'management' || key === 'stats');
+  show('rps-notes-wrap', sec.notes !== false || key === 'board');
+  show('rps-toolbar-wrap', true);
+
+  const m = document.getElementById('report-print-settings-modal');
+  if (m) m.classList.add('open');
+}
+
+function readReportPrintPrefsFromModal() {
+  const key = window._rpsCurrentKey;
+  const prefs = defaultReportPrintPrefs(key);
+  if (document.getElementById('rps-orient-landscape')?.checked) prefs.orientation = 'landscape';
+  else if (document.getElementById('rps-orient-portrait')?.checked) prefs.orientation = 'portrait';
+  else prefs.orientation = 'auto';
+  prefs.sections = {
+    kpis: !!document.getElementById('rps-kpis')?.checked,
+    tables: !!document.getElementById('rps-tables')?.checked,
+    charts: !!document.getElementById('rps-charts')?.checked,
+    banner: !!document.getElementById('rps-banner')?.checked,
+    notes: !!document.getElementById('rps-notes')?.checked,
+    toolbars: !!document.getElementById('rps-toolbars')?.checked
+  };
+  return prefs;
+}
+
+function saveReportPrintPrefsFromModal() {
+  const key = window._rpsCurrentKey;
+  if (!key) return null;
+  return saveReportPrintPrefs(key, readReportPrintPrefsFromModal());
+}
+
+async function runReportPrintFromSettings(mode) {
+  const key = window._rpsCurrentKey;
+  const def = REPORT_PRINT_DEFS[key];
+  if (!key || !def) return;
+  const prefs = saveReportPrintPrefsFromModal();
+  closeModal('report-print-settings-modal');
+  const containerId = resolveReportContainerId(key);
+  const opts = { orientation: prefs.orientation, sections: prefs.sections };
+
+  if (mode === 'print') {
+    printReportSmart(containerId, opts);
+    return;
+  }
+
+  // PDF
+  applyReportPrintHideClasses(opts);
+  try {
+    if (def.useWeeklyPdf) {
+      await exportWeeklyReportToPDF(opts);
+    } else if (def.useStatsPdf) {
+      await exportStatsReportToPDF(opts);
+    } else {
+      await exportPageToPDF(containerId, def.filename(), def.reportTitle, opts);
+    }
+  } finally {
+    clearReportPrintHideClasses();
+  }
+}
+
 
 function printWeeklyReport() { printReportSmart('wr-inner'); }
 
 
 /** Export Weekly Report to PDF with automatic portrait/landscape. */
-async function exportWeeklyReportToPDF() {
+async function exportWeeklyReportToPDF(options) {
+  const opts = options || {};
   const source = document.getElementById('wr-inner');
   if (!source) { toast('⚠ Could not find the Weekly Report on the page'); return; }
   if (typeof html2pdf === 'undefined') {
@@ -21346,8 +22582,12 @@ async function exportWeeklyReportToPDF() {
     return;
   }
 
-  const landscape = weeklyReportNeedsLandscape(source);
+  let landscape;
+  if (opts.orientation === 'landscape') landscape = true;
+  else if (opts.orientation === 'portrait') landscape = false;
+  else landscape = weeklyReportNeedsLandscape(source);
   const orientation = landscape ? 'landscape' : 'portrait';
+  if (opts.sections) applyReportPrintHideClasses(opts);
   toast('⏳ Generating PDF (' + orientation + ')…');
 
   const wrap = document.createElement('div');
@@ -21404,15 +22644,27 @@ async function exportWeeklyReportToPDF() {
     toast('⚠ Could not generate PDF — try Print instead', 'error');
   } finally {
     if (wrap.parentNode) document.body.removeChild(wrap);
+    if (typeof clearReportPrintHideClasses === 'function') clearReportPrintHideClasses();
   }
 }
 
-async function exportPageToPDF(containerId, filename, reportTitle) {
+async function exportPageToPDF(containerId, filename, reportTitle, options) {
+  const _pdfOpts = options || {};
+
   const source = document.getElementById(containerId);
   if (!source) { toast('⚠ Could not find that report on the page'); return; }
   if (typeof html2pdf === 'undefined') { toast('⚠ PDF export library failed to load — check your internet connection', 'error'); return; }
 
-  const landscape = typeof reportNeedsLandscape === 'function' ? reportNeedsLandscape(source) : false;
+  let landscape = typeof reportNeedsLandscape === 'function' ? reportNeedsLandscape(source) : false;
+  if (typeof _pdfOpts !== 'undefined' && _pdfOpts) {
+    if (_pdfOpts.orientation === 'landscape') landscape = true;
+    else if (_pdfOpts.orientation === 'portrait') landscape = false;
+    if (_pdfOpts.sections) applyReportPrintHideClasses(_pdfOpts);
+  }
+  if (typeof opts !== 'undefined' && opts && opts.orientation) {
+    if (opts.orientation === 'landscape') landscape = true;
+    else if (opts.orientation === 'portrait') landscape = false;
+  }
   const orientation = landscape ? 'landscape' : 'portrait';
   const captureW = landscape ? 1250 : 900;
   toast('⏳ Generating PDF (' + orientation + ')…');
@@ -21463,6 +22715,7 @@ async function exportPageToPDF(containerId, filename, reportTitle) {
     toast('⚠ Could not generate PDF — try Print instead', 'error');
   } finally {
     if (wrap.parentNode) document.body.removeChild(wrap);
+    if (typeof clearReportPrintHideClasses === 'function') clearReportPrintHideClasses();
   }
 }
 
@@ -21481,7 +22734,9 @@ async function exportPageToPDF(containerId, filename, reportTitle) {
 // them onto that same jsPDF document ourselves. Nothing on the live page is
 // touched, and nothing here depends on jsPDF/html2canvas being available as
 // separate globals — only html2pdf's own documented Worker methods are used.
-async function exportStatsReportToPDF() {
+async function exportStatsReportToPDF(options) {
+  const opts = options || {};
+  if (opts.sections) applyReportPrintHideClasses(opts);
   const source = document.getElementById('stats-inner');
   if (!source) { toast('⚠ Could not find the Statistical Report on the page'); return; }
   if (typeof html2pdf === 'undefined') { toast('⚠ PDF export library failed to load — check your internet connection', 'error'); return; }
@@ -21567,6 +22822,7 @@ async function exportStatsReportToPDF() {
   } finally {
     document.body.removeChild(coverWrap);
     document.body.removeChild(bodyWrap);
+    if (typeof clearReportPrintHideClasses === 'function') clearReportPrintHideClasses();
   }
 }
 
@@ -21737,7 +22993,7 @@ function classScoreCompositionSummary(cls) {
 
 function renderGradeEntry() {
   const el = document.getElementById('ge-inner');
-  const admitted = db.admissions || [];
+  const admitted = enrolledAdmissions(); // exclude Withdrawn / Pending
   const lockedClass = lockedClassFor();
   let selClass = lockedClass || CLASSES[0] || '';
   let selTerm  = TERMS[0];
@@ -22137,7 +23393,7 @@ function latestSkillMonth(studentId) {
 function renderSkillsAssessment() {
   const el = document.getElementById('sa-inner');
   if (!el) return;
-  const admitted = db.admissions || [];
+  const admitted = enrolledAdmissions();
   const lockedClass = lockedClassFor();
   const MONTHS = skillMonths();
   const _sa = window._saSel || {}; // keep the teacher's place when the page refreshes after someone else's change
@@ -22342,10 +23598,15 @@ function skColor(avg) {
 function skRows(sub) {
   const names = sub.students || {};
   return Object.keys(sub.ratings || {}).map(id => {
+    const adm = (db.admissions || []).find(a => a.id === id);
+    // Soft withdrawal: keep historical skills report rows; hide Pending / non-enrolled without snapshot name
+    if (adm && !isEligibleForSkillsReportRow(id)) return null;
+    if (!adm && !names[id]) return null;
     const r = sub.ratings[id] || {};
     const vals = skillsFor(sub.cls).map(sk => r[sk.key]).filter(v => v > 0);
-    return { id, name: names[id] || id, cls: sub.cls, month: sub.month, ratings: r, comments: (sub.comments && sub.comments[id]) || {}, avg: skMean(vals), status: sub.status, subId: sub.id };
-  });
+    const withdrawnTag = adm && adm.status === 'Withdrawn' ? ' (Withdrawn)' : '';
+    return { id, name: (names[id] || (adm && adm.name) || id) + withdrawnTag, cls: sub.cls, month: sub.month, ratings: r, comments: (sub.comments && sub.comments[id]) || {}, avg: skMean(vals), status: sub.status, subId: sub.id, withdrawn: !!(adm && adm.status === 'Withdrawn') };
+  }).filter(Boolean);
 }
 function skNeedsAttention(r) {
   return r.avg !== null && (r.avg < 2.5 || skillsFor(r.cls).some(sk => r.ratings[sk.key] === 1));
@@ -22381,7 +23642,7 @@ function skPrevSubmission(sub) {
 
 // Freeze what the teacher currently sees for this class + month.
 function skSnapshot(cls, month) {
-  const students = (db.admissions || []).filter(s => s.cls === cls);
+  const students = enrolledAdmissions().filter(s => s.cls === cls);
   const ratings = {}, comments = {}, names = {};
   let rated = 0;
   students.forEach(s => {
@@ -25705,8 +26966,8 @@ function renderSubjects() {
         <td style="padding:10px 14px"><span class="badge badge-continuing">${s.code}</span></td>
         <td style="padding:10px 8px;max-width:340px"><div style="display:flex;flex-wrap:wrap">${classChips}</div></td>
         ${!isReadOnly ? `<td style="padding:10px 14px;text-align:center">
-          <button class="btn btn-sm btn-outline" onclick="subEdit(${i})">✏️ Edit</button>
-          <button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="subDelete(${i})">🗑️</button>
+          ${gsAllow('allowEditSubject') ? `<button class="btn btn-sm btn-outline" onclick="subEdit(${i})">✏️ Edit</button>` : ''}
+          ${gsAllow('allowDeleteSubject') ? `<button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="subDelete(${i})">🗑️</button>` : ''}
         </td>` : ''}
       </tr>`;
     }).join('');
@@ -25829,10 +27090,15 @@ function renderSubjects() {
       ${activeTab==='manage' ? drawManage() : drawSummary()}`;
 
     window.subSwitchTab = t => { if (lockedClass) return; activeTab = t; draw(); };
-    window.subEdit      = i => { if (lockedClass) return; openSubModal(i); };
+    window.subEdit      = i => {
+      if (lockedClass) return;
+      if (!gsAllow('allowEditSubject')) { toast('⛔ Editing subjects is turned off in General Settings', 'error'); return; }
+      openSubModal(i);
+    };
     window.subAddModal  = () => { if (lockedClass) return; openSubModal(null); };
     window.subDelete    = i => {
       if (lockedClass) return;
+      if (!gsAllow('allowDeleteSubject')) { toast('⛔ Deleting subjects is turned off in General Settings', 'error'); return; }
       const subs = getSubjects();
       if (!confirm('Delete subject "' + subs[i].name + '"? All grades for this subject will remain in storage.')) return;
       db.subjects.splice(i, 1);
@@ -25892,6 +27158,10 @@ function renderSubjects() {
     document.body.appendChild(modal);
 
     window.subSave = idx => {
+      if (idx !== null && idx !== undefined && !gsAllow('allowEditSubject')) {
+        toast('⛔ Editing subjects is turned off in General Settings', 'error'); return;
+      }
+
       const sname  = document.getElementById('sub-name-inp').value.trim();
       const scode  = document.getElementById('sub-code-inp').value.trim().toUpperCase();
       const scolor = document.getElementById('sub-color-inp').value;
@@ -26013,8 +27283,7 @@ function renderBoardReport() {
         <div class="section-sub">Consolidated summary for Board review — ${ACTIVE_YEAR} Academic Year, as at ${dateStr}</div>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-outline btn-sm" onclick="exportPageToPDF('page-boardreport', 'Board Report - ' + ACTIVE_YEAR.replace('_','-') + '.pdf', 'Board Report')">📄 Export PDF</button>
-        <button class="btn btn-outline btn-sm" onclick="printReportSmart()">🖨️ Print</button>
+        <button class="btn btn-outline btn-sm" onclick="openReportPrintSettings('board')">🖨️ Print / PDF</button>
       </div>
     </div>
 
@@ -26185,7 +27454,6 @@ function saveBoardReportNotes() {
 
 function renderReportCard() {
   const el = document.getElementById('rc-inner');
-  const admitted = db.admissions || [];
   const lockedClass = lockedClassFor();
   let filterClass = lockedClass || '', filterTerm=TERMS[0], searchQ='';
 
@@ -26194,7 +27462,9 @@ function renderReportCard() {
       ? subjectsForClass(filterClass)
       : getSubjects();
 
-    let students = admitted.filter(s => {
+    // Soft withdrawal: enrolled + mid-term withdrawn still get a card for this term
+    let students = (db.admissions || []).filter(s => {
+      if (!isEligibleForTermReport(s, filterTerm)) return false;
       if (filterClass && s.cls!==filterClass) return false;
       if (searchQ && !s.name.toLowerCase().includes(searchQ.toLowerCase())) return false;
       if (!classHasReportCard(s.cls)) return false; // Creche — no report cards issued
@@ -26297,7 +27567,7 @@ function renderReportCard() {
         <div class="rc-student-header">
           <div class="rc-avatar">${initials}</div>
           <div style="flex:1">
-            <div class="rc-student-name">${esc(s.name)}${s.avg!==null?`<span class="rc-position-badge">🏆 #${idx+1}</span>`:''}</div>
+            <div class="rc-student-name">${esc(s.name)}${s.status==='Withdrawn'?` <span class="badge badge-withdrawn" style="font-size:10px;vertical-align:middle">Withdrawn${s.withdrawnDate?' · '+s.withdrawnDate:''}</span>`:''}${s.avg!==null?`<span class="rc-position-badge">🏆 #${idx+1}</span>`:''}</div>
             <div class="rc-student-meta">${esc(s.cls)} · ID: ${s.id} · ${filterTerm}</div>
           </div>
           <div style="text-align:right">
@@ -26332,8 +27602,9 @@ function renderReportCard() {
         <select id="rc-term" onchange="rcTerm(this.value)">
           ${TERMS.map(t=>`<option ${t===filterTerm?'selected':''}>${t}</option>`).join('')}
         </select>
-        <span style="font-size:12px;color:var(--muted)">${students.length} student${students.length!==1?'s':''}</span>
+        <span style="font-size:12px;color:var(--muted)">${students.length} student${students.length!==1?'s':''}${students.some(s=>s.status==='Withdrawn') ? ' · includes withdrawn (soft)' : ''}</span>
       </div>
+      <div style="font-size:11px;color:var(--muted);margin:-6px 0 12px">Day-to-day Grade Entry and Skills Assessment hide withdrawn students. Report cards still include mid-term withdrawals for the term they attended (uses <strong>withdrawn date</strong> on the student record).</div>
       ${cards||'<div class="empty-state"><div class="icon">📝</div>No students found (report cards are not issued for Creche)</div>'}`;
 
     window.rcSearch = v => { searchQ=v; draw(); };
@@ -35088,8 +36359,7 @@ function renderReport(type, mgmtDateFrom, mgmtDateTo) {
         <div>Prepared: ${today}</div>
         <div style="margin-top:4px">All figures in GHS</div>
         <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn btn-outline btn-sm" onclick="exportPageToPDF(pageId, '${m.label} - ' + ACTIVE_YEAR.replace('_','-') + '.pdf', '${esc(m.label)}')">📄 Export PDF</button>
-          <button class="btn btn-gold btn-sm" onclick="printReportSmart()">🖨️ Print Report</button>
+          <button class="btn btn-gold btn-sm" onclick="openReportPrintSettings('management')">🖨️ Print / PDF</button>
         </div>
       </div>
     </div>
