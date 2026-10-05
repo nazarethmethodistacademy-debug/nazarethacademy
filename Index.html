@@ -8434,10 +8434,192 @@ function ensureObject(val) {
  * Prevents "db.admissions.forEach is not a function" and similar crashes
  * when Firebase returns unexpected shapes or partial data.
  */
+// Current on-disk schema version. Bump when adding migrations in runSchemaMigrations().
+const DB_SCHEMA_VERSION = 4;
+
+/** Deep-ish defaults: set key only if undefined (never wipe existing values). */
+function defaultsDeep(target, defaults) {
+  if (!target || typeof target !== 'object') return defaults;
+  Object.keys(defaults).forEach(k => {
+    if (target[k] === undefined) {
+      const d = defaults[k];
+      target[k] = (d && typeof d === 'object' && !Array.isArray(d))
+        ? defaultsDeep({}, d)
+        : (Array.isArray(d) ? d.slice() : d);
+    } else if (
+      target[k] && typeof target[k] === 'object' && !Array.isArray(target[k]) &&
+      defaults[k] && typeof defaults[k] === 'object' && !Array.isArray(defaults[k])
+    ) {
+      defaultsDeep(target[k], defaults[k]);
+    }
+  });
+  return target;
+}
+
+/** One-way schema migrations keyed by version number. */
+function runSchemaMigrations() {
+  let ver = parseInt(db.schemaVersion, 10);
+  if (!Number.isFinite(ver) || ver < 0) ver = 0;
+
+  // v1: staff HR moved to staffHrRecords array; keep legacy object if present
+  if (ver < 1) {
+    try {
+      if (!Array.isArray(db.staffHrRecords)) db.staffHrRecords = [];
+      const legacy = db.staffHrDetails;
+      if (legacy && typeof legacy === 'object') {
+        Object.keys(legacy).forEach(empId => {
+          const row = legacy[empId];
+          if (!row || typeof row !== 'object') return;
+          if (!db.staffHrRecords.some(r => String(r.empId) === String(empId))) {
+            db.staffHrRecords.push(Object.assign({ empId: String(empId) }, row));
+          }
+        });
+      }
+    } catch (e) { console.warn('migration v1', e); }
+    ver = 1;
+  }
+
+  // v2: admissions get withdrawnDate field (null when not withdrawn)
+  if (ver < 2) {
+    try {
+      (db.admissions || []).forEach(s => {
+        if (!s || typeof s !== 'object') return;
+        if (s.withdrawnDate === undefined) {
+          s.withdrawnDate = (s.status === 'Withdrawn' && s.updatedAt) ? s.updatedAt : null;
+        }
+      });
+    } catch (e) { console.warn('migration v2', e); }
+    ver = 2;
+  }
+
+  // v3: txHistory status defaults; skillSubmissions array guarantee
+  if (ver < 3) {
+    try {
+      (db.txHistory || []).forEach(t => {
+        if (!t || typeof t !== 'object') return;
+        if (!t.status) t.status = 'approved'; // legacy rows treated as already decided
+      });
+      db.skillSubmissions = ensureArray(db.skillSubmissions);
+      db.dutyRoster = ensureObject(db.dutyRoster);
+    } catch (e) { console.warn('migration v3', e); }
+    ver = 3;
+  }
+
+  // v4: workflow/status defaults for skills, promotion, leave, training;
+  //     revenue/expense row shape; approvalConfig defaults; training audit log
+  if (ver < 4) {
+    try {
+      db.skillSubmissions = ensureArray(db.skillSubmissions);
+      db.skillSubmissions.forEach(s => {
+        if (!s || typeof s !== 'object') return;
+        if (!s.status) s.status = 'approved';
+        if (s.cls == null) s.cls = '';
+        if (s.month == null) s.month = '';
+      });
+
+      db.promotionLists = ensureArray(db.promotionLists);
+      db.promotionLists.forEach(p => {
+        if (!p || typeof p !== 'object') return;
+        if (!p.status) p.status = 'draft';
+        if (p.cls == null) p.cls = '';
+        if (!Array.isArray(p.students)) p.students = ensureArray(p.students);
+      });
+
+      db.staffLeave = ensureArray(db.staffLeave);
+      db.staffLeave.forEach(l => {
+        if (!l || typeof l !== 'object') return;
+        if (!l.status) l.status = 'pending';
+        if (l.empId != null) l.empId = String(l.empId);
+      });
+
+      db.trainings = ensureArray(db.trainings);
+      db.trainings.forEach(t => {
+        if (!t || typeof t !== 'object') return;
+        if (t.title == null) t.title = t.name || '';
+        if (!Array.isArray(t.completedBy)) t.completedBy = ensureArray(t.completedBy);
+        if (t.link == null) t.link = t.url || '';
+      });
+
+      db.trainingLinkAuditLog = ensureArray(db.trainingLinkAuditLog);
+      db.trainingLinkAuditLog.forEach(a => {
+        if (!a || typeof a !== 'object') return;
+        if (a.trainingId == null && a.id != null) a.trainingId = a.id;
+        if (a.clickedAt == null && a.at) a.clickedAt = a.at;
+      });
+
+      // Revenue / expense: ensure amount is numeric; keep all other fields
+      (db.revenue || []).forEach(r => {
+        if (!r || typeof r !== 'object') return;
+        const amt = parseFloat(r.amount);
+        r.amount = Number.isFinite(amt) ? amt : 0;
+        if (r.date == null) r.date = r.at || '';
+      });
+      (db.expenses || []).forEach(r => {
+        if (!r || typeof r !== 'object') return;
+        const amt = parseFloat(r.amount);
+        r.amount = Number.isFinite(amt) ? amt : 0;
+        if (r.date == null) r.date = r.at || '';
+      });
+
+      // approvalConfig — fill missing keys only
+      db.approvalConfig = ensureObject(db.approvalConfig);
+      if (db.approvalConfig.feePaymentNeedsApproval === undefined) {
+        db.approvalConfig.feePaymentNeedsApproval = true;
+      }
+      if (db.approvalConfig.revenueNeedsApproval === undefined) {
+        db.approvalConfig.revenueNeedsApproval = true;
+      }
+      if (db.approvalConfig.expenseNeedsApproval === undefined) {
+        db.approvalConfig.expenseNeedsApproval = true;
+      }
+
+      // grades map must be an object
+      db.grades = ensureObject(db.grades);
+
+      // skillsAssessments map
+      db.skillsAssessments = ensureObject(db.skillsAssessments);
+    } catch (e) { console.warn('migration v4', e); }
+    ver = 4;
+  }
+
+  db.schemaVersion = Math.max(ver, DB_SCHEMA_VERSION);
+}
+
+function normalizeAdmissionRecord(s) {
+  if (!s || typeof s !== 'object') return s;
+  if (s.id == null && s.admId != null) s.id = s.admId;
+  if (typeof s.name !== 'string') s.name = s.name != null ? String(s.name) : '';
+  if (typeof s.cls !== 'string') s.cls = s.cls != null ? String(s.cls) : '';
+  if (!s.status) s.status = 'Admitted';
+  if (s.withdrawnDate === undefined) s.withdrawnDate = null;
+  if (s.gender === undefined) s.gender = s.gender || '';
+  if (s.phone1 === undefined && s.phone !== undefined) s.phone1 = s.phone;
+  return s;
+}
+
+function normalizeStaffHrRecord(r) {
+  if (!r || typeof r !== 'object') return null;
+  const out = Object.assign({}, r);
+  out.empId = String(out.empId != null ? out.empId : (out.id != null ? out.id : ''));
+  ['dob', 'gender', 'contractType', 'highestQualification', 'address',
+   'emergencyContact', 'emergencyPhone', 'emergencyRelation', 'notes'].forEach(f => {
+    if (out[f] === undefined) out[f] = '';
+  });
+  return out;
+}
+
+function normalizeTxHistoryRow(t) {
+  if (!t || typeof t !== 'object') return t;
+  if (!t.status) t.status = 'approved';
+  if (t.type === undefined) t.type = t.action || 'transaction';
+  return t;
+}
+
 function ensureDbShape() {
   if (!db || typeof db !== 'object') {
     try { db = JSON.parse(JSON.stringify(DB_SEED)); } catch (e) { db = {}; }
   }
+
   // Arrays that code assumes are always arrays
   const ARR_KEYS = [
     'admissions', 'revenue', 'expenses', 'pettyCash', 'txHistory', 'journalEntries',
@@ -8445,51 +8627,126 @@ function ensureDbShape() {
     'shopItems', 'shopTransactions', 'complianceItems', 'statutoryFilings',
     'departments', 'houses', 'appraisals', 'trainings', 'trainingLinkAuditLog',
     'skillSubmissions', 'promotionLists', 'pendingSmsQueue', 'subjects',
-    'users', 'roles', 'staffHrRecords'
+    'users', 'roles', 'staffHrRecords', 'staffLeave'
   ];
   ARR_KEYS.forEach(k => {
     try { db[k] = ensureArray(db[k]); } catch (e) { db[k] = []; }
   });
-  // Objects
+
+  // Objects (maps)
   const OBJ_KEYS = [
     'payments', 'budgets', 'htComments', 'timetable', 'skillsAssessments',
     'skillComments', 'attendance', 'staffAttendance', 'dutyRoster', 'feeding', 'feedingBudgetOverrides',
     'fixedAssets', 'approvalConfig', 'generalSettings', 'gradeCategories',
-    'carryForwards', 'boardReportNotes', 'staffHrDetails', 'mgmtComments'
+    'carryForwards', 'boardReportNotes', 'staffHrDetails', 'mgmtComments',
+    'grades', 'usageLog', 'fees', 'feedingFees'
   ];
   OBJ_KEYS.forEach(k => {
     try { db[k] = ensureObject(db[k]); } catch (e) { db[k] = {}; }
   });
-  // Numeric counters
+
+  // Numeric counters — never wipe a larger existing counter to 1 accidentally if NaN
   const NUM_KEYS = [
     'nextAdmId', 'nextRevId', 'nextExpId', 'nextSubId', 'nextEmpId', 'nextPrId',
     'nextAssetId', 'nextBankId', 'nextJournalId', 'nextShopItemId', 'nextShopTxId',
     'nextComplianceId', 'nextFilingId', 'nextDeptId', 'nextHouseId',
-    'nextAppraisalId', 'nextTrainingId', 'feedingMonthlyBudget', 'inventory'
+    'nextAppraisalId', 'nextTrainingId', 'nextPcId', 'nextTxId',
+    'feedingMonthlyBudget', 'inventory'
   ];
   NUM_KEYS.forEach(k => {
     const n = parseInt(db[k], 10);
-    db[k] = Number.isFinite(n) && n >= 0 ? n : (DB_SEED[k] != null ? DB_SEED[k] : 1);
+    if (Number.isFinite(n) && n >= 0) {
+      db[k] = n;
+    } else {
+      db[k] = (DB_SEED && DB_SEED[k] != null) ? DB_SEED[k] : 1;
+    }
   });
-  // General settings defaults (idempotent)
+
+  // Schema migrations (idempotent per version)
+  try { runSchemaMigrations(); } catch (e) { console.warn('runSchemaMigrations', e); }
+
+  // General settings defaults (idempotent — only fills undefined keys)
   ensureGeneralSettingsDefaults();
-  // Payment rows for every enrolled student
+
+  // Normalize admission rows (preserve unknown extra fields)
+  try {
+    db.admissions = (db.admissions || []).filter(s => s && typeof s === 'object').map(normalizeAdmissionRecord);
+  } catch (e) { console.warn('ensureDbShape admissions', e); }
+
+  // Normalize staff HR records
+  try {
+    db.staffHrRecords = (db.staffHrRecords || [])
+      .map(normalizeStaffHrRecord)
+      .filter(r => r && r.empId);
+  } catch (e) { console.warn('ensureDbShape staffHrRecords', e); }
+
+  // Normalize workflow history
+  try {
+    db.txHistory = (db.txHistory || []).filter(t => t && typeof t === 'object').map(normalizeTxHistoryRow);
+  } catch (e) { console.warn('ensureDbShape txHistory', e); }
+
+  // Payment rows for every enrolled student + term (create missing, never delete extras)
   try {
     (db.admissions || []).forEach(s => {
       if (!s || !s.id) return;
-      TERMS.forEach(t => {
+      (typeof TERMS !== 'undefined' ? TERMS : []).forEach(t => {
         const key = s.id + '|' + t;
         if (!db.payments[key] || typeof db.payments[key] !== 'object') {
           db.payments[key] = { paid: 0, notes: '' };
         } else {
           const p = db.payments[key];
-          p.paid = parseFloat(p.paid) || 0;
+          const paid = parseFloat(p.paid);
+          p.paid = Number.isFinite(paid) ? paid : 0;
           if (p.notes == null) p.notes = '';
         }
       });
     });
   } catch (e) { console.warn('ensureDbShape payments', e); }
+
+  // Duty roster: each week key → { slots: {} }
+  try {
+    Object.keys(db.dutyRoster || {}).forEach(weekKey => {
+      const w = db.dutyRoster[weekKey];
+      if (!w || typeof w !== 'object') {
+        db.dutyRoster[weekKey] = { slots: {} };
+        return;
+      }
+      if (!w.slots || typeof w.slots !== 'object') w.slots = {};
+    });
+  } catch (e) { console.warn('ensureDbShape dutyRoster', e); }
+
+  // Employees: basic required fields without stripping extras
+  try {
+    (db.employees || []).forEach(e => {
+      if (!e || typeof e !== 'object') return;
+      if (e.status === undefined) e.status = 'Active';
+      if (e.name == null) e.name = '';
+      if (e.role == null) e.role = '';
+    });
+  } catch (e) { console.warn('ensureDbShape employees', e); }
+
+  // Persist schema version
+  if (db.schemaVersion == null) db.schemaVersion = DB_SCHEMA_VERSION;
 }
+
+/** Merge server snapshot into local db without dropping unknown top-level keys. */
+function mergeServerDb(data) {
+  if (!data || typeof data !== 'object') return;
+  // Absorb every top-level key from the server first (preserves new fields
+  // even before this client’s code knows about them).
+  Object.keys(data).forEach(k => {
+    // usageLog can be huge — still accept server value
+    db[k] = data[k];
+  });
+  // Arrays that Firebase may return as objects
+  ['admissions', 'revenue', 'expenses', 'pettyCash', 'txHistory', 'employees',
+   'payrollRuns', 'assets', 'subjects', 'staffHrRecords', 'skillSubmissions',
+   'promotionLists', 'staffLeave', 'trainings', 'trainingLinkAuditLog',
+   'departments', 'houses', 'appraisals'].forEach(k => {
+    if (data[k] !== undefined) db[k] = ensureArray(data[k]);
+  });
+}
+
 
 function ensureGeneralSettingsDefaults() {
   if (!db.generalSettings || typeof db.generalSettings !== 'object') {
@@ -8561,6 +8818,20 @@ function saveDb(bypassLock) {
   // Normalize shape so we never serialize broken structures
   try { ensureDbShape(); } catch (e) { console.warn('ensureDbShape before save', e); }
 
+  // Server-minded client gate: payments.paid cannot include unapproved fee txs
+  try {
+    const corr = typeof enforceFeeApprovalBeforeSave === 'function' ? enforceFeeApprovalBeforeSave() : [];
+    if (corr && corr.length) {
+      console.warn('[fee-approval] clamped payments before save', corr);
+      try {
+        if (typeof toast === 'function') {
+          toast('🔒 Fee approval gate adjusted ' + corr.length + ' payment balance(s) — only approved fees post to revenue', 'error');
+        }
+      } catch (e2) {}
+    }
+    if (typeof enforceFeeApprovalRoleGates === 'function') enforceFeeApprovalRoleGates();
+  } catch (e) { console.warn('fee approval gate', e); }
+
   const changedKeys = [];
   const serialized = {};
   Object.keys(db).forEach(key => {
@@ -8610,6 +8881,8 @@ function saveDb(bypassLock) {
     .then(() => {
       changedKeys.forEach(key => { _lastSavedSnapshot[key] = serialized[key]; });
       try { window._liveAnalyticsAt = Date.now(); } catch (e) {}
+      try { if (typeof aidCacheInvalidate === 'function') aidCacheInvalidate('saveDb'); } catch (e) {}
+      try { if (typeof persistCriticalLocalMirrors === 'function') persistCriticalLocalMirrors(); } catch (e) {}
       setSyncStatus('saved'); setTimeout(() => { _isSaving = false; }, 500);
       // If Academic Intelligence is open, soft-refresh with new numbers
       try {
@@ -8661,6 +8934,11 @@ function initDb(callback) {
 
     const data = snap.val();
     if (data && data.admissions) {
+      // Full merge first so unknown / newly added top-level keys are never dropped
+      try {
+        if (typeof mergeServerDb === 'function') mergeServerDb(data);
+        else Object.keys(data).forEach(k => { db[k] = data[k]; });
+      } catch (e) { console.warn('mergeServerDb', e); }
       db.admissions = data.admissions || [];
       db.payments   = data.payments   || {};
       db.revenue    = data.revenue    || [];
@@ -8829,8 +9107,17 @@ function initDb(callback) {
 
     // Normalize arrays/objects/settings so renderers never see bad shapes
     try { ensureDbShape(); } catch (e) { console.warn('ensureDbShape after load', e); }
+    // Mark fee txs that arrived from the server as already approved when status says so
+    try {
+      (db.txHistory || []).forEach(t => {
+        if (t && t.status === 'approved') t._serverApproved = true;
+      });
+    } catch (e) {}
     // HR profiles: restore any local-only saves the Cloud Function / rules may have dropped
     try { if (typeof rehydrateStaffHrRecordsFromLocal === 'function') rehydrateStaffHrRecordsFromLocal(); } catch (e) { console.warn(e); }
+    // Best-effort local mirrors for critical collections (survives partial cloud drops)
+    try { if (typeof persistCriticalLocalMirrors === 'function') persistCriticalLocalMirrors(); } catch (e) {}
+    try { if (typeof rehydrateCriticalLocalMirrors === 'function') rehydrateCriticalLocalMirrors(); } catch (e) {}
 
     // Rebuild the change-tracking baseline against this freshly-loaded data —
     // whether this is the first load this session or a fresh load after
@@ -8906,6 +9193,7 @@ function initDb(callback) {
         if (renders[pid]) safeRender(pid, renders[pid]);
         // Stamp live analytics refresh time whenever cloud data changes
         try { window._liveAnalyticsAt = Date.now(); } catch (e) {}
+        try { if (typeof aidCacheInvalidate === 'function') aidCacheInvalidate('remote'); } catch (e) {}
         setSyncStatus('saved');
       }
       // Notifications live in the topbar, not tied to any one page — always refresh them
@@ -8965,8 +9253,113 @@ function feePaymentNeedsApproval() {
   // Strict: every new fee payment / adjustment / clear is queued pending.
   // Even finance approvers submit into the queue — they then approve in Workflow.
   // This prevents accidental or unilateral bypass of the revenue pipeline.
+  // Server rules / Cloud Function must also enforce this — client alone is not enough.
   return true;
 }
+
+/** Fee tx types that affect student payment balances. */
+function isFeeBalanceTxType(type) {
+  return type === 'payment' || type === 'adjustment_add' || type === 'adjustment_sub' || type === 'clear';
+}
+
+/**
+ * Sum of APPROVED fee transactions for a student|term.
+ * Pending / rejected never count. Missing status = legacy approved.
+ */
+function feeApprovedPaidFromTx(studentId, term) {
+  let total = 0;
+  let saw = 0;
+  (db.txHistory || []).forEach(t => {
+    if (!t || String(t.studentId) !== String(studentId) || t.term !== term) return;
+    if (!isFeeBalanceTxType(t.type)) return;
+    if (t.status === 'pending' || t.status === 'rejected') return;
+    // approved or legacy (no status)
+    if (t.status && t.status !== 'approved') return;
+    saw++;
+    const amt = parseFloat(t.amount) || 0;
+    if (t.type === 'payment' || t.type === 'adjustment_add') total += amt;
+    else total = Math.max(0, total - amt);
+  });
+  return { total: Math.round(total * 100) / 100, saw };
+}
+
+/**
+ * CLIENT GATE — before saveDb, prevent payments.paid from reflecting unapproved fees.
+ * If a student|term has any fee txs in history, paid is clamped to the approved sum.
+ * Keys with no fee txs are left alone (legacy balances entered before the workflow).
+ * Returns list of corrections applied.
+ */
+function enforceFeeApprovalBeforeSave() {
+  const corrections = [];
+  if (!db.payments || typeof db.payments !== 'object') return corrections;
+  // Also: pending fee txs must never have been applied to payments already
+  // (repair path: if paid exceeds approved, clamp)
+  const keys = new Set(Object.keys(db.payments));
+  (db.txHistory || []).forEach(t => {
+    if (t && t.studentId && t.term && isFeeBalanceTxType(t.type)) {
+      keys.add(String(t.studentId) + '|' + t.term);
+    }
+  });
+  keys.forEach(key => {
+    const parts = String(key).split('|');
+    if (parts.length < 2) return;
+    const studentId = parts[0];
+    const term = parts.slice(1).join('|');
+    const { total, saw } = feeApprovedPaidFromTx(studentId, term);
+    if (!saw) return; // no workflow history — do not rewrite legacy
+    if (!db.payments[key] || typeof db.payments[key] !== 'object') {
+      db.payments[key] = { paid: total, notes: '' };
+      corrections.push({ key, from: 0, to: total, reason: 'missing payment row' });
+      return;
+    }
+    const prev = parseFloat(db.payments[key].paid) || 0;
+    if (Math.abs(prev - total) > 0.02) {
+      db.payments[key].paid = total;
+      corrections.push({ key, from: prev, to: total, reason: 'unapproved or out-of-sync paid' });
+    }
+  });
+
+  // Pending fee txs must not carry approvedBy as if already approved
+  (db.txHistory || []).forEach(t => {
+    if (!t || !isFeeBalanceTxType(t.type)) return;
+    if (t.status === 'pending') {
+      // Strip any forged approval metadata on pending rows
+      if (t.approvedBy) { delete t.approvedBy; corrections.push({ key: 'tx:' + t.id, reason: 'stripped approvedBy on pending' }); }
+      if (t.approvedAt) { delete t.approvedAt; }
+    }
+  });
+
+  return corrections;
+}
+
+/**
+ * Block non-approvers from flipping pending fee txs to approved in memory
+ * before save (stops console/API abuse on the same session).
+ */
+function enforceFeeApprovalRoleGates() {
+  if (typeof isFinApprover === 'function' && isFinApprover()) return [];
+  const blocked = [];
+  (db.txHistory || []).forEach(t => {
+    if (!t || !isFeeBalanceTxType(t.type)) return;
+    // Non-approver cannot create approved fee txs on the fly
+    if (t.status === 'approved' && t.approvedBy && t.approvedAt) {
+      // Allow if this was already approved on server snapshot — hard to know;
+      // only force-pending brand-new rows missing history markers that look forged:
+      // If approvedAt is today and approvedBy is current user and they are not approver — reject
+      if (currentUser && t.approvedBy === currentUser.username) {
+        const wasPending = !t._serverApproved;
+        if (wasPending && t.approvedAt === (typeof today === 'function' ? today() : t.approvedAt)) {
+          t.status = 'pending';
+          delete t.approvedBy;
+          delete t.approvedAt;
+          blocked.push(t.id);
+        }
+      }
+    }
+  });
+  return blocked;
+}
+
 // Revenue & Expense: strict dual-control. Non-approvers always queue pending.
 // If needsApprovalRoles is configured, those roles always need approval.
 // Approvers post immediately unless their role is also listed under needsApprovalRoles.
@@ -9008,9 +9401,45 @@ function approveFeePayment(txId) {
   if (!isFinApprover()) { toast('⛔ You do not have permission to approve fee payments'); return; }
   const tx = (db.txHistory || []).find(x => x.id === txId);
   if (!tx || tx.status !== 'pending') { toast('⚠ Entry not found or already processed'); return; }
+
+  // Prefer server-side approval when Cloud Function is deployed
+  try {
+    if (typeof firebase !== 'undefined' && firebase.functions) {
+      const callable = firebase.functions().httpsCallable('approveFeePayment');
+      callable({ yearKey: (typeof ACTIVE_YEAR !== 'undefined' ? ACTIVE_YEAR : null), txId: txId })
+        .then(function(res) {
+          // Server updated RTDB — local listener will refresh; optimistically mirror
+          tx.status = 'approved';
+          tx.approvedBy = currentUser ? currentUser.username : 'system';
+          tx.approvedAt = today();
+          tx._serverApproved = true;
+          try { applyApprovedFeePayment(tx); } catch (e) {}
+          try { renderPayments(); } catch(e) {}
+          try { renderDashboard(); } catch(e) {}
+          try { if (typeof renderWorkflow === 'function') renderWorkflow(); } catch(e) {}
+          try { if (_txHistorySid) renderTxHistory(_txHistorySid); } catch(e) {}
+          toast('✅ Fee payment approved (server)');
+        })
+        .catch(function(err) {
+          // Function not deployed or denied — fall back to client approve + saveDb gates/rules
+          console.warn('approveFeePayment CF fallback', err);
+          approveFeePaymentLocal(txId);
+        });
+      return;
+    }
+  } catch (e) { console.warn(e); }
+
+  approveFeePaymentLocal(txId);
+}
+
+function approveFeePaymentLocal(txId) {
+  if (!isFinApprover()) { toast('⛔ You do not have permission to approve fee payments'); return; }
+  const tx = (db.txHistory || []).find(x => x.id === txId);
+  if (!tx || tx.status !== 'pending') { toast('⚠ Entry not found or already processed'); return; }
   tx.status = 'approved';
   tx.approvedBy = currentUser ? currentUser.username : 'system';
   tx.approvedAt = today();
+  tx._serverApproved = true; // local session marker — server rules should require approver claim
   applyApprovedFeePayment(tx);
   // SMS only after approval for real payments
   if (tx.type === 'payment' && tx._sendSms !== false) {
@@ -9057,6 +9486,7 @@ function approveAllPendingFeePayments() {
     tx.status = 'approved';
     tx.approvedBy = currentUser ? currentUser.username : 'system';
     tx.approvedAt = today();
+    tx._serverApproved = true;
     applyApprovedFeePayment(tx);
     if (tx.type === 'payment' && tx._sendSms !== false) {
       const s = (db.admissions || []).find(a => a.id === tx.studentId);
@@ -10760,22 +11190,12 @@ function saveTxEntry() {
   _savingPayment = true;
   setTimeout(() => { _savingPayment = false; }, 1500);
 
-  const needsApproval = feePaymentNeedsApproval();
-  // Strict: queue pending — do NOT touch payments totals or GL until approved
+  // Strict server-enforced model: ALWAYS pending until Workflow approval.
+  // Never touch payments totals or GL here — approveFeePayment() does that.
   const _txEntry1 = pushTxEntry({
     studentId: sid, term, amount, date, ref, notes, method, bankAccountId,
-    type: 'payment', status: needsApproval ? 'pending' : 'approved', _sendSms: true
+    type: 'payment', status: 'pending', _sendSms: true
   });
-  if (!needsApproval) {
-    const key = sid + '|' + term;
-    if (!db.payments[key]) db.payments[key] = {paid:0, notes:''};
-    db.payments[key].paid += amount;
-    if (notes) db.payments[key].notes = notes;
-    postJournalEntry(date, 'Fee payment: ' + sid + ' (' + term + ')', [
-      { account: cashAccountForMode(method), debit: amount, credit: 0 },
-      { account: '4010', debit: 0, credit: amount }
-    ], 'fee', _txEntry1.id);
-  }
   saveDb();
   document.getElementById('tx-amount').value = '';
   document.getElementById('tx-ref').value = '';
@@ -10788,7 +11208,7 @@ function saveTxEntry() {
   renderDashboard();
   try { updateWorkflowNavBadge(); } catch(e) {}
 
-  if (needsApproval) {
+  if (true) {
     toast('⏳ Fee payment of GHS ' + fmt(amount) + ' submitted — awaiting approval before it posts to revenue');
     return;
   }
@@ -31407,10 +31827,167 @@ function startAidLiveClock() {
       badge.className = 'aid-live-badge aid-live-' + st.cls;
     }
     if (age) age.textContent = 'Data as of ' + liveAnalyticsLabel();
+    const cacheEl = document.getElementById('aid-cache-status');
+    if (cacheEl && typeof aidCacheStatusLabel === 'function') {
+      cacheEl.textContent = aidCacheStatusLabel();
+    }
   }, 1000);
 }
 
+
+// ── AID / ML result cache ───────────────────────────────────────────────────
+// Heavy Academic Intelligence and ML work is memoized by a monotonic data
+// revision. Any saveDb success or remote Firebase snapshot bumps the revision
+// and clears the store so the next draw recomputes once, then reuses results
+// for term/class switches that share the same underlying data where possible.
+window._aidCacheRev = window._aidCacheRev || 0;
+window._aidCacheStore = window._aidCacheStore || new Map();
+window._aidCacheStats = window._aidCacheStats || { hits: 0, misses: 0, invalidations: 0 };
+
+function aidCacheInvalidate(reason) {
+  window._aidCacheRev = (window._aidCacheRev || 0) + 1;
+  if (window._aidCacheStore && typeof window._aidCacheStore.clear === 'function') {
+    window._aidCacheStore.clear();
+  }
+  window._aidCacheStats = window._aidCacheStats || { hits: 0, misses: 0, invalidations: 0 };
+  window._aidCacheStats.invalidations++;
+  try {
+    if (typeof console !== 'undefined' && console.debug) {
+      console.debug('[aid-cache] invalidate', reason || '', 'rev=', window._aidCacheRev);
+    }
+  } catch (e) {}
+}
+
+/** Stable cache key from term / class / extra parts. */
+function aidCacheKey(name, parts) {
+  const rev = window._aidCacheRev || 0;
+  const extra = (parts || []).map(p => (p == null ? '' : String(p))).join('|');
+  return rev + '::' + name + '::' + extra;
+}
+
+/**
+ * Memoize an expensive AID/ML computation.
+ * @param {string} name logical name
+ * @param {Array} parts key parts (term, class filter, …)
+ * @param {Function} fn zero-arg producer
+ */
+function aidMemo(name, parts, fn) {
+  try {
+    if (!window._aidCacheStore) window._aidCacheStore = new Map();
+    const key = aidCacheKey(name, parts);
+    if (window._aidCacheStore.has(key)) {
+      window._aidCacheStats.hits++;
+      return window._aidCacheStore.get(key);
+    }
+    const value = fn();
+    window._aidCacheStore.set(key, value);
+    window._aidCacheStats.misses++;
+    // Soft cap: if the store grows huge (many term/class combos), drop oldest-ish
+    if (window._aidCacheStore.size > 80) {
+      const first = window._aidCacheStore.keys().next().value;
+      if (first != null) window._aidCacheStore.delete(first);
+    }
+    return value;
+  } catch (e) {
+    // On cache failure, still return a fresh computation
+    return fn();
+  }
+}
+
+function aidCacheStatusLabel() {
+  const s = window._aidCacheStats || { hits: 0, misses: 0, invalidations: 0 };
+  const total = (s.hits || 0) + (s.misses || 0);
+  const rate = total ? Math.round((s.hits / total) * 100) : 0;
+  return `Cache rev ${window._aidCacheRev || 0} · hit ${rate}% (${s.hits || 0}/${total})`;
+}
+
+// Wrap the heaviest pure analyzers so every caller (draw, live strip, cross
+// insights) shares the same memoized result for the current data revision.
+(function installAidMemoWrappers() {
+  function wrap(name, arity) {
+    const orig = typeof window[name] === 'function' ? window[name] : (typeof eval === 'function' ? null : null);
+    return orig;
+  }
+  // Wrapping is done via explicit aliases below once functions exist — see
+  // aidMemoizeAnalyzers() called after analyzer definitions load... actually
+  // these functions are declared as function declarations later in the file
+  // so we install wrappers at first AID render instead.
+})();
+
+function aidMemoizeAnalyzers() {
+  if (window._aidMemoInstalled) return;
+  const pairs = [
+    ['aidGradeCoverage', 2],
+    ['aidSkillsReport', 1],
+    ['aidFeesReport', 1],
+    ['aidAttendanceDetail', 1],
+    ['aidStaffAttendanceReport', 0],
+    ['aidEnrollmentReport', 1],
+    ['aidPromotionReport', 1],
+    ['aidCrossSourceInsights', 2],
+    ['aidDecliningStudents', 1],
+    ['aidPredictiveModels', 2],
+    ['aidRunMLModels', 2],
+    ['aidClassAverages', 1],
+    ['aidSubjectAverages', 2],
+    ['aidSchoolAverage', 2],
+    ['aidSchoolAttendanceRate', 1],
+    ['aidAttendancePerformanceLink', 2]
+  ];
+  pairs.forEach(([name]) => {
+    // function declarations are global in browser script scope
+    const fn = (typeof window[name] === 'function') ? window[name] : (typeof globalThis !== 'undefined' ? globalThis[name] : null);
+    // In non-module classic scripts, function declarations become global props
+  });
+  // Classic script: bind via eval-free lookup on globalThis after assignment
+  const g = (typeof window !== 'undefined') ? window : globalThis;
+  // Assign from unbound names by referencing them in this closure once render runs
+  const bind = (name, impl) => {
+    if (typeof impl !== 'function') return;
+    if (impl.__aidMemoized) return impl;
+    const wrapped = function() {
+      const args = Array.prototype.slice.call(arguments);
+      return aidMemo(name, args, function() { return impl.apply(null, args); });
+    };
+    wrapped.__aidMemoized = true;
+    wrapped.__aidOriginal = impl;
+    g[name] = wrapped;
+    return wrapped;
+  };
+  // Resolve originals from current global scope (function declarations)
+  try {
+    if (typeof aidGradeCoverage === 'function' && !aidGradeCoverage.__aidMemoized) {
+      // Re-bind each through a local reference captured before overwrite
+      const originals = {
+        aidGradeCoverage: aidGradeCoverage,
+        aidSkillsReport: typeof aidSkillsReport === 'function' ? aidSkillsReport : null,
+        aidFeesReport: typeof aidFeesReport === 'function' ? aidFeesReport : null,
+        aidAttendanceDetail: typeof aidAttendanceDetail === 'function' ? aidAttendanceDetail : null,
+        aidStaffAttendanceReport: typeof aidStaffAttendanceReport === 'function' ? aidStaffAttendanceReport : null,
+        aidEnrollmentReport: typeof aidEnrollmentReport === 'function' ? aidEnrollmentReport : null,
+        aidPromotionReport: typeof aidPromotionReport === 'function' ? aidPromotionReport : null,
+        aidCrossSourceInsights: typeof aidCrossSourceInsights === 'function' ? aidCrossSourceInsights : null,
+        aidDecliningStudents: typeof aidDecliningStudents === 'function' ? aidDecliningStudents : null,
+        aidPredictiveModels: typeof aidPredictiveModels === 'function' ? aidPredictiveModels : null,
+        aidRunMLModels: typeof aidRunMLModels === 'function' ? aidRunMLModels : null,
+        aidClassAverages: typeof aidClassAverages === 'function' ? aidClassAverages : null,
+        aidSubjectAverages: typeof aidSubjectAverages === 'function' ? aidSubjectAverages : null,
+        aidSchoolAverage: typeof aidSchoolAverage === 'function' ? aidSchoolAverage : null,
+        aidSchoolAttendanceRate: typeof aidSchoolAttendanceRate === 'function' ? aidSchoolAttendanceRate : null,
+        aidAttendancePerformanceLink: typeof aidAttendancePerformanceLink === 'function' ? aidAttendancePerformanceLink : null
+      };
+      Object.keys(originals).forEach(name => {
+        if (originals[name]) bind(name, originals[name]);
+      });
+      window._aidMemoInstalled = true;
+    }
+  } catch (e) {
+    console.warn('aidMemoizeAnalyzers', e);
+  }
+}
+
 function renderAcademicIntelligence() {
+  try { aidMemoizeAnalyzers(); } catch (e) {}
   ensurePage('academicintelligence', 'aid-inner');
   const el = document.getElementById('aid-inner');
   if (!el) return;
@@ -31541,9 +32118,10 @@ function renderAcademicIntelligence() {
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <span id="aid-live-badge" class="aid-live-badge aid-live-${st.cls}">${st.cls === 'live' ? '● LIVE' : '● ' + esc(st.text)}</span>
             <span id="aid-live-age" style="font-size:12px;color:var(--muted)">Data as of ${esc(liveAnalyticsLabel())}</span>
+            <span id="aid-cache-status" style="font-size:11px;color:var(--muted)">${esc(typeof aidCacheStatusLabel === 'function' ? aidCacheStatusLabel() : '')}</span>
             <span style="font-size:11px;color:var(--muted)">Real-time · ${esc(live.todayStr || '')} · auto-updates on every save</span>
           </div>
-          <button class="btn btn-outline btn-sm" onclick="window._liveAnalyticsAt=Date.now();liveRefreshAcademicIntelligence(false)">↻ Refresh now</button>
+          <button class="btn btn-outline btn-sm" onclick="window._liveAnalyticsAt=Date.now();if(typeof aidCacheInvalidate==='function')aidCacheInvalidate('manual');liveRefreshAcademicIntelligence(false)">↻ Refresh now</button>
         </div>
 
         <div class="sr-stat-row" style="margin-bottom:8px">
@@ -35595,6 +36173,89 @@ async function saveStaffHrDetails() {
 }
 
 /** Merge localStorage backup of staffHrRecords after a Firebase load. */
+
+/** Local mirrors for collections that have historically been stripped by rules/CF. */
+function criticalMirrorKey(collection) {
+  const year = (typeof ACTIVE_YEAR !== 'undefined' ? ACTIVE_YEAR : 'year');
+  return 'nazareth_mirror_' + year + '_' + collection;
+}
+
+function persistCriticalLocalMirrors() {
+  try {
+    const packs = {
+      staffHrRecords: db.staffHrRecords || [],
+      dutyRoster: db.dutyRoster || {},
+      skillSubmissions: db.skillSubmissions || [],
+      generalSettings: db.generalSettings || {},
+      schemaVersion: db.schemaVersion
+    };
+    Object.keys(packs).forEach(col => {
+      try {
+        safeLocalStorageSet(criticalMirrorKey(col), JSON.stringify({
+          at: new Date().toISOString(),
+          data: packs[col]
+        }));
+      } catch (e) {}
+    });
+  } catch (e) { console.warn('persistCriticalLocalMirrors', e); }
+}
+
+function rehydrateCriticalLocalMirrors() {
+  try {
+    // staffHrRecords — merge by empId (prefer cloud row, fill gaps from local)
+    try {
+      const raw = localStorage.getItem(criticalMirrorKey('staffHrRecords'));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const localRows = ensureArray(parsed && parsed.data);
+        if (!Array.isArray(db.staffHrRecords)) db.staffHrRecords = [];
+        localRows.forEach(lr => {
+          if (!lr || lr.empId == null) return;
+          const existing = db.staffHrRecords.find(r => String(r.empId) === String(lr.empId));
+          if (!existing) {
+            db.staffHrRecords.push(lr);
+          } else {
+            // Fill only undefined/empty fields from local mirror
+            Object.keys(lr).forEach(f => {
+              if (existing[f] === undefined || existing[f] === null || existing[f] === '') {
+                if (lr[f] !== undefined && lr[f] !== null && lr[f] !== '') existing[f] = lr[f];
+              }
+            });
+          }
+        });
+      }
+    } catch (e) {}
+    // dutyRoster — if cloud empty but local has weeks, restore
+    try {
+      const raw = localStorage.getItem(criticalMirrorKey('dutyRoster'));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const localDuty = (parsed && parsed.data) || {};
+        if (!db.dutyRoster || typeof db.dutyRoster !== 'object') db.dutyRoster = {};
+        if (Object.keys(db.dutyRoster).length === 0 && Object.keys(localDuty).length) {
+          db.dutyRoster = localDuty;
+        } else {
+          Object.keys(localDuty).forEach(week => {
+            if (!db.dutyRoster[week]) db.dutyRoster[week] = localDuty[week];
+          });
+        }
+      }
+    } catch (e) {}
+    // generalSettings — fill undefined keys from local
+    try {
+      const raw = localStorage.getItem(criticalMirrorKey('generalSettings'));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const localGs = (parsed && parsed.data) || {};
+        if (!db.generalSettings || typeof db.generalSettings !== 'object') db.generalSettings = {};
+        Object.keys(localGs).forEach(k => {
+          if (db.generalSettings[k] === undefined) db.generalSettings[k] = localGs[k];
+        });
+      }
+    } catch (e) {}
+  } catch (e) { console.warn('rehydrateCriticalLocalMirrors', e); }
+}
+
 function rehydrateStaffHrRecordsFromLocal() {
   try {
     const lsKey = 'nazareth_staffHrRecords_' + String(typeof ACTIVE_YEAR !== 'undefined' ? ACTIVE_YEAR : 'default');
