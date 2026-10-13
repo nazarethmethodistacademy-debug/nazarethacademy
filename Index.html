@@ -1836,6 +1836,723 @@
   .sr-ai-loading { font-size:12px;color:var(--muted);margin-top:10px; }
   .sr-ai-text { margin-top:10px;background:linear-gradient(135deg,rgba(201,168,76,0.08),rgba(15,31,61,0.04));border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:14px;font-size:12.5px;line-height:1.6;color:var(--text); }
   .sr-ai-error { margin-top:10px;font-size:12px;color:var(--red); }
+
+  /* Student Performance — real search bar */
+  .spr-search-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1.6;
+    min-width: 240px;
+    position: relative;
+  }
+  .spr-search-field > label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .spr-search-shell {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: var(--white);
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    padding: 0 4px 0 14px;
+    min-height: 42px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 1px 2px rgba(15, 31, 61, 0.04);
+  }
+  .spr-search-shell:hover { border-color: #c5cdd8; }
+  .spr-search-shell.is-focused {
+    border-color: var(--navy);
+    box-shadow: 0 0 0 3px rgba(15, 31, 61, 0.12);
+  }
+  .spr-search-shell .spr-search-icon {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .spr-search-shell input#spr-q {
+    flex: 1;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    padding: 10px 8px !important;
+    font-size: 13.5px !important;
+    min-width: 0;
+    width: 100%;
+    border-radius: 0 !important;
+  }
+  .spr-search-shell input#spr-q::placeholder { color: #9aa3b2; }
+  .spr-search-shell input#spr-q::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .spr-search-clear {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 4px;
+    transition: background 0.12s, color 0.12s;
+  }
+  .spr-search-clear:hover {
+    background: var(--cream);
+    color: var(--navy);
+  }
+  .spr-search-kbd {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--cream);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 2px 6px;
+    margin-right: 8px;
+    letter-spacing: 0.02em;
+  }
+  .spr-toolbar,
+  .spr-toolbar-row,
+  .spr-search-field {
+    overflow: visible !important;
+  }
+  #spr-suggest.spr-suggest-panel,
+  #spr-suggest-portal.spr-suggest-panel {
+    display: none;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 320px;
+    max-width: calc(100vw - 24px);
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 16px 48px rgba(15, 31, 61, 0.18), 0 4px 12px rgba(15, 31, 61, 0.08);
+    z-index: 100000;
+    max-height: min(360px, 55vh);
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+  #spr-suggest.spr-suggest-panel.is-open,
+  #spr-suggest-portal.spr-suggest-panel.is-open { display: block; }
+  /* Prevent clipping of the search field itself; list is portaled to body */
+  #page-studentperformance,
+  #page-studentperformance.page,
+  #spr-inner,
+  #spr-inner.spr-page,
+  #spr-inner .spr-toolbar,
+  #spr-inner .spr-toolbar-row,
+  #spr-inner .spr-search-field {
+    overflow: visible !important;
+  }
+  .spr-suggest-head {
+    padding: 6px 10px 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  .spr-suggest-item {
+    padding: 8px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    transition: background 0.1s;
+  }
+  .spr-suggest-item:hover,
+  .spr-suggest-item.is-active { background: var(--cream); }
+  .spr-suggest-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0f1f3d, #1a3a6b);
+    color: #e8c97a;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .spr-suggest-body { flex: 1; min-width: 0; }
+  .spr-suggest-name {
+    font-weight: 600;
+    color: var(--navy);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .spr-suggest-meta {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 1px;
+  }
+  .spr-suggest-meta mark,
+  .spr-suggest-name mark {
+    background: #fef3c7;
+    color: inherit;
+    padding: 0 2px;
+    border-radius: 2px;
+  }
+  .spr-suggest-status {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    background: rgba(15,31,61,0.06);
+    border-radius: 999px;
+    padding: 3px 8px;
+    white-space: nowrap;
+  }
+  .spr-suggest-empty {
+    padding: 18px 14px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .spr-suggest-foot {
+    padding: 8px 10px;
+    font-size: 10.5px;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .spr-suggest-foot kbd {
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 600;
+    background: var(--cream);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  #spr-search-hint {
+    font-size: 11px;
+    color: var(--muted);
+    padding-left: 4px;
+  }
+  .spr-toolbar {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    box-shadow: 0 1px 3px rgba(15,31,61,0.04);
+  }
+  .spr-toolbar-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+  .spr-toolbar-row + .spr-toolbar-row {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .spr-toolbar .spr-search-field {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .spr-toolbar .spr-search-shell {
+    min-height: 46px;
+    background: #f7f8fb;
+    border-color: #e2e6ee;
+  }
+  .spr-toolbar .spr-search-shell.is-focused {
+    background: var(--white);
+    border-color: var(--navy);
+    box-shadow: 0 0 0 3px rgba(15, 31, 61, 0.12);
+  }
+  .spr-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 120px;
+  }
+  .spr-filter-group label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .spr-filter-group select {
+    min-height: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    font-size: 13px;
+    background: var(--white);
+    color: var(--navy);
+  }
+  .spr-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .spr-chip {
+    border: 1px solid var(--border);
+    background: var(--white);
+    color: var(--navy);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    line-height: 1.2;
+  }
+  .spr-chip:hover { background: var(--cream); }
+  .spr-chip.is-active {
+    background: var(--navy);
+    border-color: var(--navy);
+    color: #fff;
+  }
+  .spr-chip.is-active.spr-chip-risk { background: #b84040; border-color: #b84040; }
+  .spr-chip.is-active.spr-chip-exc { background: #1a7a4c; border-color: #1a7a4c; }
+  .spr-chip.is-active.spr-chip-fair { background: #c9a84c; border-color: #c9a84c; color: #1a1a1a; }
+  .spr-active-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    min-height: 0;
+  }
+  .spr-active-filters:empty { display: none; }
+  .spr-active-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(15,31,61,0.06);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 8px 4px 10px;
+    font-size: 12px;
+    color: var(--navy);
+  }
+  .spr-active-pill button {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    padding: 2px;
+    border-radius: 50%;
+  }
+  .spr-active-pill button:hover { color: var(--red); }
+  .spr-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-left: auto;
+  }
+  .spr-result-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .spr-result-meta b { color: var(--navy); }
+  .spr-suggest-score {
+    font-size: 12px;
+    font-weight: 700;
+    min-width: 42px;
+    text-align: right;
+  }
+  /* SPR page — refined visual system */
+  #spr-inner.spr-page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding-bottom: 28px;
+  }
+  #spr-inner .spr-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+    padding: 18px 20px;
+    border-radius: 18px;
+    background:
+      radial-gradient(120% 80% at 100% 0%, rgba(232,201,122,0.22) 0%, transparent 55%),
+      linear-gradient(135deg, #0f1f3d 0%, #162a52 48%, #1a3560 100%);
+    color: #fff;
+    box-shadow: 0 10px 30px rgba(15,31,61,0.18);
+    position: relative;
+    overflow: hidden;
+  }
+  #spr-inner .spr-page-header::after {
+    content: '';
+    position: absolute;
+    right: -20px;
+    top: -30px;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    border: 18px solid rgba(232,201,122,0.12);
+    pointer-events: none;
+  }
+  #spr-inner .spr-page-header .section-title {
+    font-size: 24px;
+    letter-spacing: -0.03em;
+    color: #fff !important;
+    margin: 0 0 4px;
+  }
+  #spr-inner .spr-page-header .section-sub {
+    color: rgba(255,255,255,0.72) !important;
+    font-size: 13px;
+  }
+  #spr-inner .spr-page-header .btn-outline {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.28);
+    color: #fff;
+  }
+  #spr-inner .spr-page-header .btn-outline:hover {
+    background: rgba(255,255,255,0.16);
+  }
+  #spr-inner .spr-page-header .btn-primary {
+    background: linear-gradient(135deg, #e8c97a, #c9a84c);
+    border: none;
+    color: #0f1f3d;
+    font-weight: 700;
+  }
+  #spr-inner .spr-search-shell {
+    background: #f4f6fa;
+    border: 1.5px solid #e4e8f0;
+    box-shadow: inset 0 1px 2px rgba(15,31,61,0.03);
+  }
+  #spr-inner .spr-search-shell.is-focused {
+    background: #fff;
+    border-color: #0f1f3d;
+    box-shadow: 0 0 0 4px rgba(15,31,61,0.1);
+  }
+  #spr-inner .spr-toolbar {
+    border-radius: 16px;
+    border: 1px solid rgba(15,31,61,0.06);
+    box-shadow: 0 4px 20px rgba(15,31,61,0.05);
+    background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+    overflow: visible;
+  }
+  #spr-inner .spr-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  #spr-inner .spr-kpi {
+    position: relative;
+    background: #fff;
+    border: 1px solid rgba(15,31,61,0.07);
+    border-radius: 16px;
+    padding: 14px 14px 12px;
+    min-height: 92px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow: hidden;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    box-shadow: 0 2px 8px rgba(15,31,61,0.03);
+  }
+  #spr-inner .spr-kpi::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, #c9a84c, #0f1f3d);
+    opacity: 0.85;
+  }
+  #spr-inner .spr-kpi:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(15,31,61,0.08);
+  }
+  #spr-inner .spr-kpi-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #7b8798;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+  #spr-inner .spr-kpi-value {
+    font-size: 24px;
+    font-weight: 800;
+    color: #0f1f3d;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+  #spr-inner .spr-kpi-value.is-risk { color: #c23b3b; }
+  #spr-inner .spr-kpi-value.is-good { color: #178a52; }
+  #spr-inner .spr-kpi-hint {
+    font-size: 11px;
+    color: #8b95a5;
+    margin-top: 5px;
+  }
+  #spr-inner .spr-tab {
+    border: 1px solid rgba(15,31,61,0.1);
+    background: #fff;
+    color: #3d4a63;
+    border-radius: 999px;
+    padding: 8px 15px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  #spr-inner .spr-tab:hover { background: #f4f1e8; border-color: #ddd4b8; }
+  #spr-inner .spr-tab.is-active {
+    background: linear-gradient(135deg, #0f1f3d, #1a3560);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(15,31,61,0.2);
+  }
+  #spr-inner .spr-panel {
+    background: #fff;
+    border: 1px solid rgba(15,31,61,0.07);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 14px;
+    box-shadow: 0 2px 10px rgba(15,31,61,0.03);
+  }
+  #spr-inner .spr-panel-hd {
+    padding: 13px 16px;
+    border-bottom: 1px solid rgba(15,31,61,0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(180deg, #fbfcfe 0%, #f6f8fb 100%);
+  }
+  #spr-inner .spr-panel-hd h3 {
+    margin: 0;
+    font-size: 13.5px;
+    font-weight: 750;
+    color: #0f1f3d;
+    letter-spacing: -0.01em;
+  }
+  #spr-inner .spr-panel-bd { padding: 16px; }
+  #spr-inner .spr-insight {
+    background:
+      radial-gradient(80% 120% at 0% 0%, rgba(232,201,122,0.14) 0%, transparent 50%),
+      linear-gradient(180deg, #fffdf8 0%, #ffffff 70%);
+    border: 1px solid rgba(201,168,76,0.28);
+    border-radius: 16px;
+    padding: 15px 18px;
+    margin-bottom: 14px;
+    box-shadow: 0 2px 10px rgba(201,168,76,0.06);
+  }
+  #spr-inner .spr-insight .sr-chart-title {
+    color: #0f1f3d;
+    font-size: 13px;
+  }
+  #spr-inner .spr-insight ul {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #3d4a63;
+  }
+  #spr-inner .spr-insight li { margin-bottom: 5px; }
+  #spr-inner .spr-insight b { color: #0f1f3d; }
+  #spr-inner table.sr-table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  #spr-inner table.sr-table thead th {
+    background: #f6f8fb !important;
+    color: #5a6780 !important;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+    border-bottom: 1px solid rgba(15,31,61,0.08) !important;
+    padding: 11px 12px !important;
+  }
+  #spr-inner table.sr-table tbody td {
+    padding: 11px 12px !important;
+    border-bottom: 1px solid rgba(15,31,61,0.05) !important;
+    vertical-align: middle;
+  }
+  #spr-inner table.sr-table tbody tr.spr-row {
+    cursor: pointer;
+    transition: background 0.12s ease;
+  }
+  #spr-inner table.sr-table tbody tr.spr-row:hover {
+    background: linear-gradient(90deg, rgba(232,201,122,0.12), rgba(15,31,61,0.03));
+  }
+  #spr-inner .spr-avg-cell {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  #spr-inner .spr-mini-bar {
+    width: 52px;
+    height: 7px;
+    background: #eef1f6;
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  #spr-inner .spr-mini-bar > i {
+    display: block;
+    height: 100%;
+    border-radius: 99px;
+  }
+  #spr-inner .spr-empty {
+    text-align: center;
+    padding: 48px 24px;
+    color: #8b95a5;
+  }
+  #spr-inner .spr-empty .spr-empty-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 12px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    background: linear-gradient(135deg, #f7f1df, #eef2f8);
+    box-shadow: inset 0 0 0 1px rgba(15,31,61,0.05);
+  }
+  #spr-inner .spr-empty h4 {
+    margin: 0 0 6px;
+    color: #0f1f3d;
+    font-size: 16px;
+  }
+  #spr-inner .spr-empty p {
+    margin: 0 0 16px;
+    font-size: 13px;
+    max-width: 320px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  #spr-inner .spr-person-hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 20px 18px;
+    background:
+      radial-gradient(90% 120% at 100% 0%, rgba(232,201,122,0.28) 0%, transparent 45%),
+      linear-gradient(135deg, #0c1a33 0%, #15305a 50%, #1c3d6e 100%);
+    color: #fff;
+    border-radius: 16px 16px 0 0;
+    position: relative;
+    overflow: hidden;
+  }
+  #spr-inner .spr-person-hero::after {
+    content: '';
+    position: absolute;
+    left: -30px;
+    bottom: -40px;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: rgba(232,201,122,0.08);
+    pointer-events: none;
+  }
+  #spr-inner .spr-person-hero .spr-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(232,201,122,0.35), rgba(232,201,122,0.12));
+    border: 1px solid rgba(232,201,122,0.35);
+    color: #f3df9a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 16px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+  }
+  #spr-inner .spr-person-score {
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1;
+    color: #f0d78a;
+    letter-spacing: -0.03em;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.2);
+  }
+  #spr-inner .spr-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 4px;
+    border-bottom: 1px solid rgba(15,31,61,0.05);
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background 0.12s, padding 0.12s;
+  }
+  #spr-inner .spr-list-item:last-child { border-bottom: none; }
+  #spr-inner .spr-list-item:hover {
+    background: rgba(15,31,61,0.03);
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  #spr-inner .spr-charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  #spr-inner .aid-chart-canvas-wrap {
+    min-height: 220px;
+  }
+  #spr-inner .badge {
+    border-radius: 999px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  @media (max-width: 900px) {
+    #spr-inner .spr-kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    #spr-inner .spr-charts { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 720px) {
+    .spr-tabs { margin-left: 0; width: 100%; }
+    .spr-filter-group { flex: 1 1 40%; }
+    .spr-toolbar .spr-search-shell { min-height: 44px; }
+  }
+
   @media print {
     .sr-sidebar, .sr-tabs, .sr-detail-header button { display:none !important; }
     .sr-layout { display:block; }
@@ -2218,7 +2935,8 @@
     button[onclick*="printWeeklyReport"], button[onclick*="exportWeeklyReportToPDF"],
     button[onclick*="printReportSmart"], button[onclick*="exportPageToPDF"],
     button[onclick*="printFeedingRevenue"], button[onclick*="exportFeedingRevenuePDF"],
-    button[onclick*="openReportPrintSettings"], button[onclick*="openFeedingPrintSettings"] { display: none !important; }
+    button[onclick*="openReportPrintSettings"], button[onclick*="openFeedingPrintSettings"],
+    button[onclick*="printStudentPerformanceReport"] { display: none !important; }
     body.rpt-hide-kpis .kpi-grid,
     body.rpt-hide-kpis .kpi-card,
     body.rpt-hide-kpis .sr-stat-card,
@@ -2253,7 +2971,108 @@
 
     /* Statistical Report's term-switcher tabs are navigation, not report
        content — only the term currently on screen matters on paper. */
+
     .stat-tab-bar { display: none !important; }
+
+    /* ── Student Performance Report — A4 print ── */
+    #page-studentperformance .spr-no-print,
+    #spr-inner .spr-no-print,
+    #spr-inner .section-header .btn,
+    #spr-inner button,
+    #spr-inner select,
+    #spr-inner input[type="search"],
+    #spr-inner .form-group label { display: none !important; }
+    #spr-inner .spr-print-header { display: block !important; }
+    #spr-inner {
+      font-size: 11px !important;
+      color: #111 !important;
+    }
+    #spr-inner .section-title { font-size: 16pt !important; color: #0f1f3d !important; margin: 0 0 2mm !important; }
+    #spr-inner .section-sub { font-size: 9pt !important; color: #444 !important; margin-bottom: 3mm !important; }
+    #spr-inner .card {
+      break-inside: avoid;
+      page-break-inside: avoid;
+      box-shadow: none !important;
+      border: 1px solid #ccc !important;
+      margin-bottom: 4mm !important;
+      padding: 3mm !important;
+    }
+    #spr-inner .sr-stat-row {
+      display: grid !important;
+      grid-template-columns: repeat(3, 1fr) !important;
+      gap: 2mm !important;
+      margin-bottom: 3mm !important;
+    }
+    #spr-inner .sr-stat-card {
+      border: 1px solid #ddd !important;
+      padding: 2mm !important;
+      background: #fafafa !important;
+    }
+    #spr-inner .sr-stat-value { font-size: 14pt !important; }
+    #spr-inner .sr-stat-label { font-size: 8pt !important; }
+    #spr-inner table.sr-table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      font-size: 9pt !important;
+    }
+    #spr-inner table.sr-table th,
+    #spr-inner table.sr-table td {
+      border: 1px solid #bbb !important;
+      padding: 1.5mm 2mm !important;
+    }
+    #spr-inner table.sr-table th {
+      background: #f0f0f0 !important;
+      color: #111 !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    #spr-inner table.sr-table thead { display: table-header-group; }
+    #spr-inner table.sr-table tr { break-inside: avoid; page-break-inside: avoid; }
+    #spr-inner .aid-chart-row {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr !important;
+      gap: 3mm !important;
+    }
+    #spr-inner .aid-chart-canvas-wrap {
+      height: 55mm !important;
+      max-height: 55mm !important;
+    }
+    #spr-inner canvas {
+      max-height: 55mm !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    #spr-inner .badge {
+      border: 1px solid #999 !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    #spr-inner .spr-print-meta {
+      display: flex !important;
+      justify-content: space-between;
+      font-size: 8pt;
+      color: #555;
+      border-bottom: 1.5pt solid #0f1f3d;
+      padding-bottom: 2mm;
+      margin-bottom: 3mm;
+    }
+    #spr-inner .spr-print-footer {
+      display: block !important;
+      margin-top: 4mm;
+      padding-top: 2mm;
+      border-top: 0.5pt solid #ccc;
+      font-size: 8pt;
+      color: #666;
+      text-align: center;
+    }
+    body.print-portrait #spr-inner .aid-chart-row,
+    body:not(.print-landscape) #spr-inner .aid-chart-row {
+      grid-template-columns: 1fr !important;
+    }
+    body.print-landscape #spr-inner .aid-chart-row {
+      grid-template-columns: 1fr 1fr !important;
+    }
+
     /* Search boxes and filter dropdowns (class/status/term/mode filters,
        search inputs) — used across Admissions, Payment Tracker, Revenue,
        Expenses, Bank Account, and more, all via this one shared class — plus
@@ -3568,6 +4387,11 @@
     <div class="nav-section" id="nav-section-workflow">
       <div class="nav-item" onclick="navigate('workflow')"><span class="icon">✅</span> Workflow <span class="nav-item-badge" id="workflow-nav-badge" style="display:none">0</span></div>
     </div>
+    <div class="nav-section" id="nav-section-external">
+      <div class="nav-label-toggle" id="external-toggle" onclick="openModuleLauncher('externalassess')">
+        <span class="toggle-label"><span class="toggle-label-icon">📋</span> External Assessments</span> <span class="toggle-arrow">▶</span>
+      </div>
+    </div>
     <div class="nav-section" id="nav-section-admin">
       <div class="nav-label-toggle" id="admin-toggle" onclick="openModuleLauncher('administration')">
         <span class="toggle-label"><span class="toggle-label-icon">🏛️</span> Administration</span> <span class="toggle-arrow">▶</span>
@@ -3722,6 +4546,7 @@
       </div>
 
       <div id="dash-term-banner"></div>
+      <div id="dash-birthday-banner"></div>
 
       <div class="kpi-grid" id="dash-section-kpis" data-dash-section="kpis">
         <div class="kpi-card gold kpi-clickable" id="kpi-card-students" onclick="dashDrill('students')" title="Click to view all students">
@@ -6438,6 +7263,18 @@ const DB_SEED = {
   nextHouseId: 1,
   appraisals: [], // [{id, employeeId, period, criteria:{teaching,punctuality,engagement,professionalism,classroom}, overallRating, strengths, improvements, goals, reviewer, date}]
   nextAppraisalId: 1,
+  // Teachers External Assessments — parameters (school defaults + per-teacher overrides) and assessment records
+  externalAssessmentParams: [
+    { id: 'p1', name: 'Subject mastery', maxScore: 10, description: 'Depth of content knowledge' },
+    { id: 'p2', name: 'Lesson delivery', maxScore: 10, description: 'Clarity, pace, engagement' },
+    { id: 'p3', name: 'Classroom management', maxScore: 10, description: 'Order, routines, behaviour' },
+    { id: 'p4', name: 'Assessment & feedback', maxScore: 10, description: 'Checks for understanding, marking' },
+    { id: 'p5', name: 'Professional conduct', maxScore: 10, description: 'Punctuality, ethics, collaboration' }
+  ],
+  teacherExternalParamOverrides: {}, // { [employeeId]: [{id,name,maxScore,description}, ...] }
+  teacherExternalAssessments: [], // [{id, employeeId, date, term, year, assessor, body, scores:{paramId:number}, notes, createdAt, createdBy}]
+  nextExternalAssessmentId: 1,
+  nextExternalParamId: 6,
   trainings: [], // [{id, title, provider, category, date, duration, cost, participants:[employeeId], completions:{empId:{at,by}}, certificateIssued, notes}]
   trainingLinkAuditLog: [], // [{id, at, trainingId, trainingTitle, empId, empName, username, outcome, link}]
   nextTrainingId: 1,
@@ -7679,8 +8516,8 @@ function drawSkillsSetup() {
       </div>
       <div style="padding:12px 20px 0;font-size:12px;color:var(--muted);line-height:1.6">
         Set which skills are rated on the monthly Skills Assessment — per class or a whole level, the same way subjects are assigned.
-        Order here is the column order on the assessment sheet. Removing a skill or unassigning a class hides it from that class's sheet;
-        ratings already saved are kept.
+        Order here is the column order on the assessment sheet. Removing a skill or unassigning a class hides it from that class's sheet for <b>new</b> entry.
+        <b>Submitted assessments are frozen</b> — changing parameters does not alter what teachers already submitted (pending or approved).
       </div>
       <div style="padding:8px 20px 0;display:flex;flex-wrap:wrap;gap:2px;align-items:center"><span style="font-size:11px;color:var(--muted);margin-right:6px">Skills per class:</span>${perClass}</div>
       <div style="padding:6px 20px 0;font-size:11px;color:var(--muted)">Rating scale: ${skillScaleSummary()}</div>
@@ -8435,7 +9272,7 @@ function ensureObject(val) {
  * when Firebase returns unexpected shapes or partial data.
  */
 // Current on-disk schema version. Bump when adding migrations in runSchemaMigrations().
-const DB_SCHEMA_VERSION = 4;
+const DB_SCHEMA_VERSION = 5;
 
 /** Deep-ish defaults: set key only if undefined (never wipe existing values). */
 function defaultsDeep(target, defaults) {
@@ -8582,7 +9419,22 @@ function runSchemaMigrations() {
     ver = 4;
   }
 
+  if (ver < 5) {
+    try {
+      if (!Array.isArray(db.externalAssessmentParams) || !db.externalAssessmentParams.length) {
+        db.externalAssessmentParams = JSON.parse(JSON.stringify((DB_SEED && DB_SEED.externalAssessmentParams) || []));
+      }
+      if (!db.teacherExternalParamOverrides || typeof db.teacherExternalParamOverrides !== 'object') {
+        db.teacherExternalParamOverrides = {};
+      }
+      if (!Array.isArray(db.teacherExternalAssessments)) db.teacherExternalAssessments = [];
+      if (!db.nextExternalAssessmentId) db.nextExternalAssessmentId = 1;
+      if (!db.nextExternalParamId) db.nextExternalParamId = 6;
+    } catch (e) { console.warn('schema v5 external assessments', e); }
+    ver = 5;
+  }
   db.schemaVersion = Math.max(ver, DB_SCHEMA_VERSION);
+
 }
 
 function normalizeAdmissionRecord(s) {
@@ -8625,9 +9477,9 @@ function ensureDbShape() {
     'admissions', 'revenue', 'expenses', 'pettyCash', 'txHistory', 'journalEntries',
     'employees', 'payrollRuns', 'assets', 'bankLedger', 'bankReconciliations',
     'shopItems', 'shopTransactions', 'complianceItems', 'statutoryFilings',
-    'departments', 'houses', 'appraisals', 'trainings', 'trainingLinkAuditLog',
+    'departments', 'houses', 'appraisals', 'teacherExternalAssessments', 'trainings', 'trainingLinkAuditLog',
     'skillSubmissions', 'promotionLists', 'pendingSmsQueue', 'subjects',
-    'users', 'roles', 'staffHrRecords', 'staffLeave'
+    'users', 'roles', 'staffHrRecords', 'staffLeave', 'externalAssessmentParams'
   ];
   ARR_KEYS.forEach(k => {
     try { db[k] = ensureArray(db[k]); } catch (e) { db[k] = []; }
@@ -8639,7 +9491,7 @@ function ensureDbShape() {
     'skillComments', 'attendance', 'staffAttendance', 'dutyRoster', 'feeding', 'feedingBudgetOverrides',
     'fixedAssets', 'approvalConfig', 'generalSettings', 'gradeCategories',
     'carryForwards', 'boardReportNotes', 'staffHrDetails', 'mgmtComments',
-    'grades', 'usageLog', 'fees', 'feedingFees'
+    'grades', 'usageLog', 'fees', 'feedingFees', 'teacherExternalParamOverrides'
   ];
   OBJ_KEYS.forEach(k => {
     try { db[k] = ensureObject(db[k]); } catch (e) { db[k] = {}; }
@@ -8650,7 +9502,7 @@ function ensureDbShape() {
     'nextAdmId', 'nextRevId', 'nextExpId', 'nextSubId', 'nextEmpId', 'nextPrId',
     'nextAssetId', 'nextBankId', 'nextJournalId', 'nextShopItemId', 'nextShopTxId',
     'nextComplianceId', 'nextFilingId', 'nextDeptId', 'nextHouseId',
-    'nextAppraisalId', 'nextTrainingId', 'nextPcId', 'nextTxId',
+    'nextAppraisalId', 'nextExternalAssessmentId', 'nextExternalParamId', 'nextTrainingId', 'nextPcId', 'nextTxId',
     'feedingMonthlyBudget', 'inventory'
   ];
   NUM_KEYS.forEach(k => {
@@ -8679,6 +9531,28 @@ function ensureDbShape() {
       .map(normalizeStaffHrRecord)
       .filter(r => r && r.empId);
   } catch (e) { console.warn('ensureDbShape staffHrRecords', e); }
+
+  // Backfill skillParamsSnapshot on older submissions so Skills Setup edits never rewrite them
+  try {
+    (db.skillSubmissions || []).forEach(sub => {
+      if (!sub || !sub.cls) return;
+      if (Array.isArray(sub.skillParamsSnapshot) && sub.skillParamsSnapshot.length) return;
+      const fromLive = (typeof skillsFor === 'function' ? skillsFor(sub.cls) : []).map(p => ({
+        key: p.key, label: p.label, classes: [sub.cls]
+      }));
+      const keysInRatings = new Set();
+      Object.values(sub.ratings || {}).forEach(r => Object.keys(r || {}).forEach(k => keysInRatings.add(k)));
+      const byKey = {};
+      fromLive.forEach(p => { byKey[p.key] = p; });
+      keysInRatings.forEach(k => {
+        if (!byKey[k]) byKey[k] = { key: k, label: (typeof skillLabelFor === 'function' ? skillLabelFor(k) : k), classes: [sub.cls] };
+      });
+      sub.skillParamsSnapshot = Object.keys(byKey).map(k => byKey[k]);
+      if (!sub.scaleSnapshot && typeof skillScaleFor === 'function') {
+        try { sub.scaleSnapshot = Object.assign({}, skillScaleFor(sub.cls)); } catch (e2) {}
+      }
+    });
+  } catch (e) { console.warn('ensureDbShape skillSubmissions snapshot', e); }
 
   // Normalize workflow history
   try {
@@ -9002,6 +9876,11 @@ function initDb(callback) {
       db.nextHouseId   = data.nextHouseId   ?? 1;
       db.appraisals    = data.appraisals    || [];
       db.nextAppraisalId = data.nextAppraisalId ?? 1;
+      db.externalAssessmentParams = data.externalAssessmentParams || (DB_SEED.externalAssessmentParams ? JSON.parse(JSON.stringify(DB_SEED.externalAssessmentParams)) : []);
+      db.teacherExternalParamOverrides = data.teacherExternalParamOverrides || {};
+      db.teacherExternalAssessments = data.teacherExternalAssessments || [];
+      db.nextExternalAssessmentId = data.nextExternalAssessmentId ?? 1;
+      db.nextExternalParamId = data.nextExternalParamId ?? 6;
       db.trainings     = data.trainings     || [];
       db.trainingLinkAuditLog = data.trainingLinkAuditLog || [];
       db.nextTrainingId = data.nextTrainingId ?? 1;
@@ -9188,7 +10067,9 @@ function initDb(callback) {
           boardreport: function(){ if (typeof renderReport === 'function') renderReport('board'); },
           studentrecords: function(){ if (typeof renderStudentRecords === 'function') renderStudentRecords(); },
           anomalydetection: function(){ if (typeof renderAnomalyDetection === 'function') renderAnomalyDetection(); },
-          teacherdashboard: function(){ if (typeof renderTeacherDashboard === 'function') renderTeacherDashboard(); }
+          teacherdashboard: function(){ if (typeof renderTeacherDashboard === 'function') renderTeacherDashboard(); },
+          teacherexternal: function(){ if (typeof renderTeacherExternalAssessments === 'function') renderTeacherExternalAssessments(); },
+          staffperformance: function(){ if (typeof renderStaffPerformanceReport === 'function') renderStaffPerformanceReport(); }
         };
         if (renders[pid]) safeRender(pid, renders[pid]);
         // Stamp live analytics refresh time whenever cloud data changes
@@ -10526,10 +11407,10 @@ const pageTitles = {
   expenses:'Expense Tracker', pettycash:'Petty Cash', feedingbudget:'Monthly Feeding Expenditure Budget', bankaccount:'Bank Account', groupaccounts:'Group Accounts', income:'Statement of Comprehensive Income', weeklyreport:'Weekly Report',
   chartofaccounts:'Chart of Accounts', generalledger:'General Ledger', trialbalance:'Trial Balance', budgeting:'Budgeting', schoolshop:'School Shop', compliance:'Compliance',
   expenseledgers:'Expense Ledgers',
-  schoolstructure:'School Structure', staffdatabase:'Teachers & Staff Database', parentdatabase:'Parent Database', appraisals:'Performance Appraisal', training:'Training & Development',
+  schoolstructure:'School Structure', staffdatabase:'Teachers & Staff Database', parentdatabase:'Parent Database', appraisals:'Performance Appraisal', staffperformance:'Staff Performance Report', teacherexternal:'Teachers External Assessments', training:'Training & Development',
   feeschedule:'Fee Schedule', feedingschedule:'Feeding Revenue', stats:'Statistical Report', myappraisal:'My Appraisal', myworkspace:'My Workspace', staffdirectory:'Staff Directory', accesscontrol:'Access Control',
   export:'Export to Excel', backup:'Backup & Restore',
-  balancesheet:'Balance Sheet', assetmanagement:'Asset Management', cashflow:'Statement of Cash Flows', reportcard:'Report Cards', classanalytics:'Class Analytics', skillsreport:'Student Assessment Report', skillsdetailed:'Skill Assessment — Detailed',
+  balancesheet:'Balance Sheet', assetmanagement:'Asset Management', cashflow:'Statement of Cash Flows', reportcard:'Report Cards', classanalytics:'Class Analytics', studentperformance:'Student Performance Report', skillsreport:'Student Assessment Report', skillsdetailed:'Skill Assessment — Detailed',
   grades:'Grade Entry', skillsassessment:'Skills Assessment', promotion:'Promotion Management', academiccalendar:'Academic Calendar', attendance:'Attendance Register', attendancereport:'Attendance Report', staffattendance:'Staff Attendance', staffleave:'Staff Leave', staffattendancereport:'Staff Attendance Report', dutyroster:'Teachers on Duty Roster', timetable:'Class Timetable', subjects:'Subject Management',
   announce_pta:'Announcements — PTA', announce_graduation:'Announcements — Graduation',
   announce_midterms:'Announcements — Mid Terms', announce_events:'Announcements — Events',
@@ -10583,6 +11464,7 @@ const MODULE_DEFS = {
       { icon:'🎓', label:'Promotion Management',  page:'promotion' },
       { icon:'🗓️', label:'Academic Calendar',      page:'academiccalendar' },
       { icon:'🎓', label:'Class Analytics',      page:'classanalytics' },
+      { icon:'📈', label:'Student Performance',  page:'studentperformance' },
       { icon:'📅', label:'Attendance',           page:'attendance' },
       { icon:'📊', label:'Attendance Report',    page:'attendancereport' },
       { icon:'📝', label:'Report Cards',         page:'reportcard' },
@@ -10599,9 +11481,12 @@ const MODULE_DEFS = {
     title: 'Analytics and Reports',
     items: [
       { icon:'🧑‍🎓', label:'Student Records',             page:'studentrecords' },
+      { icon:'📈', label:'Student Performance Report',   page:'studentperformance' },
       { icon:'📊', label:'Student Assessment Report',     page:'skillsreport' },
       { icon:'🔎', label:'Skill Assessment — Detailed',   page:'skillsdetailed' },
       { icon:'📈', label:'Staff Attendance Report',       page:'staffattendancereport' },
+      { icon:'⭐', label:'Staff Performance Report',      page:'staffperformance' },
+      { icon:'📋', label:'Teachers External Assessments', page:'teacherexternal' },
       { icon:'🧠', label:'Academic Intelligence Dashboard', page:'academicintelligence' },
       { icon:'🤖', label:'AI Assistant',                  page:'aiassistant' },
       { icon:'🚨', label:'Anomaly Detection',              page:'anomalydetection' },
@@ -10619,6 +11504,15 @@ const MODULE_DEFS = {
       { icon:'🛡️', label:'Backup & Restore',     page:'backup' },
     ]
   },
+  externalassess: {
+    title: 'External Assessments',
+    items: [
+      { icon:'📋', label:'Teachers External Assessments', page:'teacherexternal' },
+      { icon:'⚙', label:'School Assessment Parameters', page:'teacherexternal', actionNote:'params' },
+      { icon:'⭐', label:'Staff Performance Report', page:'staffperformance' },
+      { icon:'📝', label:'Performance Appraisal', page:'appraisals', hideFromTeacher:true },
+    ]
+  },
   administration: {
     title: 'Administration',
     items: [
@@ -10626,6 +11520,8 @@ const MODULE_DEFS = {
       { icon:'🗂️', label:'Teachers & Staff Database',      page:'staffdatabase' },
       { icon:'👪', label:'Parent Database',                page:'parentdatabase' },
       { icon:'⭐', label:'Performance Appraisal',          page:'appraisals', hideFromTeacher:true },
+      { icon:'📊', label:'Staff Performance Report',       page:'staffperformance', hideFromTeacher:true },
+      { icon:'📋', label:'Teachers External Assessments',  page:'teacherexternal', hideFromTeacher:true },
       { icon:'🎓', label:'Training & Development',         page:'training' },
       { icon:'🔐', label:'Access Control',                 page:'accesscontrol', adminOnly:true },
     ]
@@ -10663,9 +11559,14 @@ function openModuleLauncher(key) {
   document.getElementById('ml-title').textContent = mod.title;
   document.getElementById('ml-grid').innerHTML = items.map(it => {
     const label = typeof it.label === 'function' ? it.label() : it.label;
-    const call = it.page
-      ? `closeModal('module-launcher-modal'); navigate('${it.page}')`
-      : `closeModal('module-launcher-modal'); ${it.action}()`;
+    let call;
+    if (it.actionNote === 'params' && it.page === 'teacherexternal') {
+      call = `closeModal('module-launcher-modal'); navigate('teacherexternal'); setTimeout(function(){ if (typeof teaOpenParamSetup==='function') teaOpenParamSetup(null); }, 200)`;
+    } else if (it.page) {
+      call = `closeModal('module-launcher-modal'); navigate('${it.page}')`;
+    } else {
+      call = `closeModal('module-launcher-modal'); ${it.action}()`;
+    }
     return `
     <div class="module-launcher-tile${it.danger ? ' danger' : ''}" onclick="${call}">
       <div class="ml-icon">${it.icon}</div>
@@ -10738,10 +11639,13 @@ const _dynamicPages = {
   weeklyreport:     'wr-inner',
   feedingbudget:    'fbe-inner',
   appraisals:       'ap-inner',
+  staffperformance: 'sperf-inner',
+  teacherexternal:  'tea-inner',
   training:         'tr-inner',
   cashflow:         'cf-inner',
   reportcard:       'rc-inner',
   classanalytics:   'ca-inner',
+  studentperformance: 'spr-inner',
   grades:           'ge-inner',
   skillsassessment: 'sa-inner',
   skillsreport:     'skr-inner',
@@ -10857,10 +11761,13 @@ function navigate(page) {
   if (page === 'parentdatabase') renderParentDatabase();
   if (page === 'weeklyreport') renderWeeklyReport();
   if (page === 'appraisals') renderAppraisals();
+  if (page === 'staffperformance') safeRender('staffperformance', function(){ renderStaffPerformanceReport(); });
+  if (page === 'teacherexternal') safeRender('teacherexternal', function(){ renderTeacherExternalAssessments(); });
   if (page === 'training') renderTraining();
   if (page === 'cashflow') renderCashFlow();
   if (page === 'reportcard') renderReportCard();
   if (page === 'classanalytics') renderClassAnalytics();
+  if (page === 'studentperformance') safeRender('studentperformance', function(){ renderStudentPerformance(); });
   if (page === 'feedingreport') renderFeedingReport();
   if (page === 'grades') renderGradeEntry();
   if (page === 'skillsassessment') renderSkillsAssessment();
@@ -12155,6 +13062,7 @@ const DASHBOARD_ROLE_VIEWS = {
     quickLinks: [
       { icon: '🧠', label: 'Academic Intel', page: 'academicintelligence' },
       { icon: '📊', label: 'Class Analytics', page: 'classanalytics' },
+      { icon: '📈', label: 'Student Performance', page: 'studentperformance' },
       { icon: '📈', label: 'Statistical Report', page: 'stats' },
       { icon: '🗓️', label: 'Weekly Report', page: 'weeklyreport' },
       { icon: '🎓', label: 'Promotion', page: 'promotion' },
@@ -12292,6 +13200,14 @@ function renderDashboard() {
       dashBanner.innerHTML = '';
     }
   }
+
+  // Staff / teacher birthday recognition
+  try {
+    const bdayHost = document.getElementById('dash-birthday-banner');
+    if (bdayHost && typeof renderStaffBirthdayBannerHtml === 'function') {
+      bdayHost.innerHTML = renderStaffBirthdayBannerHtml();
+    }
+  } catch (e) {}
 
   const admitted = db.admissions.filter(a => a.status === 'Admitted' || a.status === 'Continuing' || a.status === 'Scholarship');
   let totalBilled=0, totalPaid=0;
@@ -17125,6 +18041,25 @@ function buildFeedingRevenuePrintHtml(prefs) {
     <div class="kpi"><div class="l">Students</div><div class="v">${ctx.studentCount}</div><div class="s">${esc(ctx.selClass)}</div></div>
   </div>` : '';
 
+  const endorseHtml = `
+  <div class="endorse">
+    <div class="endorse-title">Endorsement</div>
+    <div class="endorse-grid">
+      <div class="endorse-block">
+        <div class="endorse-role">Class Teacher</div>
+        <div class="endorse-line"><span class="endorse-label">Name</span></div>
+        <div class="endorse-line"><span class="endorse-label">Signature</span></div>
+        <div class="endorse-line short"><span class="endorse-label">Date</span></div>
+      </div>
+      <div class="endorse-block">
+        <div class="endorse-role">School Administrator / Headteacher</div>
+        <div class="endorse-line"><span class="endorse-label">Name</span></div>
+        <div class="endorse-line"><span class="endorse-label">Signature</span></div>
+        <div class="endorse-line short"><span class="endorse-label">Date</span></div>
+      </div>
+    </div>
+  </div>`;
+
   const footHtml = p.showFooter ? `
   <div class="foot">
     <span>Amounts in GHS.${p.showEmptyBoxes ? ' Empty box = unpaid.' : ''} “—” / Abs = no school or absent.</span>
@@ -17198,9 +18133,59 @@ function buildFeedingRevenuePrintHtml(prefs) {
   .sub { font-size: 7.5px; color: #686f7d; font-weight: 400; }
   tr.totals td { background: #f2ead8; border-top: 2px solid #0f1f3d; padding-top: 5px; padding-bottom: 5px; }
   .foot {
-    margin-top: 8px; padding-top: 5px; border-top: 1px solid #e0d8c8;
+    margin-top: 6px; padding-top: 5px; border-top: 1px solid #e0d8c8;
     font-size: 8.5px; color: #686f7d;
     display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  }
+  .endorse {
+    margin-top: 14px;
+    page-break-inside: avoid;
+  }
+  .endorse-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: #0f1f3d;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    padding-bottom: 4px;
+    border-bottom: 1.5px solid #0f1f3d;
+  }
+  .endorse-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px 28px;
+  }
+  .endorse-block {
+    border: 1px solid #e0d8c8;
+    border-radius: 6px;
+    padding: 10px 12px 12px;
+    background: #fdfcfa;
+  }
+  .endorse-role {
+    font-size: 10px;
+    font-weight: 700;
+    color: #0f1f3d;
+    margin-bottom: 12px;
+  }
+  .endorse-line {
+    border-bottom: 1px solid #1a1a2e;
+    min-height: 22px;
+    margin-bottom: 12px;
+    position: relative;
+  }
+  .endorse-line.short {
+    width: 55%;
+    margin-bottom: 0;
+  }
+  .endorse-label {
+    position: absolute;
+    left: 0;
+    bottom: 3px;
+    font-size: 8px;
+    color: #686f7d;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
   }
   .no-print { display: none !important; }
 </style></head><body><div class="sheet">
@@ -17219,6 +18204,7 @@ function buildFeedingRevenuePrintHtml(prefs) {
     <thead><tr>${headCols}</tr></thead>
     <tbody>${bodyRows}${totalRow}</tbody>
   </table>
+  ${endorseHtml}
   ${footHtml}
 </div></body></html>`;
 }
@@ -18659,7 +19645,15 @@ function resetAllData() {
   }
 }
 
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.add('open');
+  else console.warn('openModal: element not found', id);
+}
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('open');
+}
 
 // Generic read-only info modal — for cases (like a staff profile summary or
 // an appraisal detail view) that just need to show some formatted content
@@ -21152,7 +22146,7 @@ function requireRole(...roles) {
 // kept as the fallback so nothing changes for a school that never touches this page.
 const TEACHER_DEFAULT_PAGES = [
   'teacherdashboard',
-  'grades','skillsassessment','promotion','academiccalendar','reportcard','classanalytics',
+  'grades','skillsassessment','promotion','academiccalendar','reportcard','classanalytics','studentperformance',
   'attendance','attendancereport','staffattendance','staffleave','dutyroster','timetable','subjects','myappraisal','myworkspace','staffdirectory',
   'schoolstructure','staffdatabase','training','parentdatabase'
 ];
@@ -23751,9 +24745,63 @@ function skillsForClasses(clsList) {
   return out;
 }
 // Labels for keys that have since been removed/unassigned (old submissions still reference them).
-function skillLabelFor(key) {
+function skillLabelFor(key, snapshot) {
+  if (Array.isArray(snapshot)) {
+    const hit = snapshot.find(x => x && x.key === key);
+    if (hit) return hit.label || key;
+  }
   const p = getSkillParams().find(x => x.key === key);
   return p ? p.label : key;
+}
+
+/**
+ * Skills list for a *submitted* assessment.
+ * Prefer the frozen skillParamsSnapshot so later Skills Setup changes
+ * (rename, reassign classes, remove skills) never rewrite what teachers submitted.
+ * Legacy submissions without a snapshot fall back to live params + any rating keys still on the record.
+ */
+function skillsForRow(r) {
+  if (r && Array.isArray(r._skills) && r._skills.length) return r._skills;
+  if (r && r.subId) {
+    const sub = (db.skillSubmissions || []).find(s => s.id === r.subId);
+    if (sub) return skillsForSubmission(sub);
+  }
+  return skillsFor(r && r.cls);
+}
+function skillsForSubmission(sub) {
+
+  if (!sub) return [];
+  if (Array.isArray(sub.skillParamsSnapshot) && sub.skillParamsSnapshot.length) {
+    return sub.skillParamsSnapshot.map(p => ({
+      key: p.key,
+      label: p.label || p.key,
+      classes: p.classes && p.classes.length ? p.classes.slice() : [sub.cls]
+    }));
+  }
+  const live = skillsFor(sub.cls);
+  const byKey = {};
+  live.forEach(s => { byKey[s.key] = { key: s.key, label: s.label, classes: (s.classes || []).slice() }; });
+  Object.values(sub.ratings || {}).forEach(r => {
+    Object.keys(r || {}).forEach(k => {
+      if (!byKey[k]) byKey[k] = { key: k, label: skillLabelFor(k), classes: [sub.cls] };
+    });
+  });
+  const ordered = [];
+  const seen = new Set();
+  live.forEach(s => {
+    if (byKey[s.key] && !seen.has(s.key)) { ordered.push(byKey[s.key]); seen.add(s.key); }
+  });
+  Object.keys(byKey).forEach(k => {
+    if (!seen.has(k)) ordered.push(byKey[k]);
+  });
+  return ordered;
+}
+
+function skillScaleForSubmission(sub) {
+  if (sub && sub.scaleSnapshot && typeof sub.scaleSnapshot === 'object') {
+    return sub.scaleSnapshot;
+  }
+  return typeof skillScaleFor === 'function' ? skillScaleFor(sub && sub.cls) : (SKILL_RATING_LABELS || {});
 }
 const SKILL_RATING_LABELS = { 1:'Need Urgent Attention', 2:'Need Improvement', 3:'Good', 4:'Excellent' };
 const SKILL_RATING_CLASS  = { 1:'skill-r1', 2:'skill-r2', 3:'skill-r3', 4:'skill-r5' };
@@ -24073,25 +25121,27 @@ function skColor(avg) {
 // One row per student in a submission snapshot.
 function skRows(sub) {
   const names = sub.students || {};
+  const SK = skillsForSubmission(sub);
   return Object.keys(sub.ratings || {}).map(id => {
     const adm = (db.admissions || []).find(a => a.id === id);
     // Soft withdrawal: keep historical skills report rows; hide Pending / non-enrolled without snapshot name
     if (adm && !isEligibleForSkillsReportRow(id)) return null;
     if (!adm && !names[id]) return null;
     const r = sub.ratings[id] || {};
-    const vals = skillsFor(sub.cls).map(sk => r[sk.key]).filter(v => v > 0);
+    const vals = SK.map(sk => r[sk.key]).filter(v => v > 0);
     const withdrawnTag = adm && adm.status === 'Withdrawn' ? ' (Withdrawn)' : '';
-    return { id, name: (names[id] || (adm && adm.name) || id) + withdrawnTag, cls: sub.cls, month: sub.month, ratings: r, comments: (sub.comments && sub.comments[id]) || {}, avg: skMean(vals), status: sub.status, subId: sub.id, withdrawn: !!(adm && adm.status === 'Withdrawn') };
+    return { id, name: (names[id] || (adm && adm.name) || id) + withdrawnTag, cls: sub.cls, month: sub.month, ratings: r, comments: (sub.comments && sub.comments[id]) || {}, avg: skMean(vals), status: sub.status, subId: sub.id, withdrawn: !!(adm && adm.status === 'Withdrawn'), _skills: SK };
   }).filter(Boolean);
 }
-function skNeedsAttention(r) {
-  return r.avg !== null && (r.avg < 2.5 || skillsFor(r.cls).some(sk => r.ratings[sk.key] === 1));
+function skNeedsAttention(r, sub) {
+  const SK = sub ? skillsForSubmission(sub) : skillsFor(r.cls);
+  return r.avg !== null && (r.avg < 2.5 || SK.some(sk => r.ratings[sk.key] === 1));
 }
 function skClassAverages(sub) {
   const rows = skRows(sub);
   const out = { overall: null, bySkill: {} };
   const all = [];
-  skillsFor(sub.cls).forEach(sk => {
+  skillsForSubmission(sub).forEach(sk => {
     const vals = rows.map(r => r.ratings[sk.key]).filter(v => v > 0);
     out.bySkill[sk.key] = skMean(vals);
     vals.forEach(v => all.push(v));
@@ -24102,8 +25152,8 @@ function skClassAverages(sub) {
 // Average of every rating (optionally one skill) across a set of submissions.
 function skPool(subs, key) {
   const vals = [];
-  subs.forEach(s => skRows(s).forEach(r => {
-    skillsFor(r.cls).forEach(sk => { if ((!key || sk.key === key) && r.ratings[sk.key] > 0) vals.push(r.ratings[sk.key]); });
+  (subs || []).forEach(s => skRows(s).forEach(r => {
+    skillsForSubmission(s).forEach(sk => { if ((!key || sk.key === key) && r.ratings[sk.key] > 0) vals.push(r.ratings[sk.key]); });
   }));
   return skMean(vals);
 }
@@ -24172,6 +25222,17 @@ function submitSkillAssessment(cls, month) {
   sub.students = snap.names;
   sub.ratedCount = snap.rated;
   sub.expectedCount = snap.expected;
+  // Freeze parameter definitions at submit time — Skills Setup edits must not alter this record
+  sub.skillParamsSnapshot = skillsFor(cls).map(p => ({
+    key: p.key,
+    label: p.label,
+    classes: [cls]
+  }));
+  try {
+    sub.scaleSnapshot = typeof skillScaleFor === 'function'
+      ? Object.assign({}, skillScaleFor(cls))
+      : Object.assign({}, SKILL_RATING_LABELS || {});
+  } catch (e) { sub.scaleSnapshot = Object.assign({}, SKILL_RATING_LABELS || {}); }
   sub.reviewedBy = '';
   sub.reviewedAt = '';
   sub.decisionNote = '';
@@ -24273,18 +25334,19 @@ function skPageBanner(sub, cls, month) {
 function skGridHtml(sub, prevAvgs) {
   const rows = skRows(sub).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   const avgs = skClassAverages(sub);
-  const SK = skillsFor(sub.cls);
+  const SK = skillsForSubmission(sub);
+  const scale = skillScaleForSubmission(sub);
   const head = SK.map(sk => `<th style="min-width:60px;padding:8px 4px;font-size:10px;text-align:center">${esc(sk.label)}</th>`).join('');
   const body = rows.map(r => {
     const cells = SK.map(sk => {
       const v = r.ratings[sk.key];
       const cm = (r.comments || {})[sk.key];
       const c = v ? skColor(v) : null;
-      const tip = (v ? esc(skillScaleFor(sub.cls)[v]) : 'Not rated') + (cm ? ' — ' + esc(cm) : '');
+      const tip = (v ? esc(scale[v] || skillScaleFor(sub.cls)[v] || '') : 'Not rated') + (cm ? ' — ' + esc(cm) : '');
       return `<td style="text-align:center;padding:5px 3px;font-size:12px;font-weight:600;${c ? `background:${c.bg};color:${c.fg}` : 'color:var(--muted)'}" title="${tip}">${v || '—'}${cm ? ' <span style="font-size:9px" title="' + esc(cm) + '">💬</span>' : ''}</td>`;
     }).join('');
     const c = skColor(r.avg);
-    return `<tr><td style="padding:6px 12px;white-space:nowrap;font-size:12.5px">${esc(r.name)}${skNeedsAttention(r) ? ' <span title="Needs attention" style="color:var(--red)">⚠</span>' : ''}</td>${cells}<td style="text-align:center;font-weight:700;font-size:12px;background:${c.bg};color:${c.fg}">${r.avg === null ? '—' : r.avg.toFixed(1)}</td></tr>`;
+    return `<tr><td style="padding:6px 12px;white-space:nowrap;font-size:12.5px">${esc(r.name)}${skNeedsAttention(r, sub) ? ' <span title="Needs attention" style="color:var(--red)">⚠</span>' : ''}</td>${cells}<td style="text-align:center;font-weight:700;font-size:12px;background:${c.bg};color:${c.fg}">${r.avg === null ? '—' : r.avg.toFixed(1)}</td></tr>`;
   }).join('');
   const deltaHtml = (cur, prev) => {
     if (cur === null || prev === null || prev === undefined) return '';
@@ -24317,7 +25379,7 @@ function openSkillReview(id) {
   const avgs = skClassAverages(sub);
   const rows = skRows(sub);
   const flagged = rows.filter(skNeedsAttention).sort((a, b) => a.avg - b.avg);
-  const skillList = skillsFor(sub.cls).map(sk => ({ label: sk.label, avg: avgs.bySkill[sk.key] })).filter(x => x.avg !== null).sort((a, b) => a.avg - b.avg);
+  const skillList = skillsForSubmission(sub).map(sk => ({ label: sk.label, avg: avgs.bySkill[sk.key] })).filter(x => x.avg !== null).sort((a, b) => a.avg - b.avg);
   const weakest = skillList[0], strongest = skillList[skillList.length - 1];
   const canDecide = isSkillsApprover() && sub.status === 'pending';
   const canReopen = isSkillsApprover() && sub.status === 'approved';
@@ -24446,7 +25508,7 @@ function renderSkillsReport() {
   // ── KPIs ──
   const inScopeAll = all.filter(s => inCls(s) && (S.month === 'all' || s.month === S.month));
   const cnt = st => inScopeAll.filter(s => s.status === st).length;
-  const allVals = curRows.flatMap(r => skillsFor(r.cls).map(sk => r.ratings[sk.key]).filter(v => v > 0));
+  const allVals = curRows.flatMap(r => skillsForRow(r).map(sk => r.ratings[sk.key]).filter(v => v > 0));
   const overall = skMean(allVals);
   const goodPct = allVals.length ? Math.round(allVals.filter(v => v >= 3).length / allVals.length * 100) : null;
   const uniqueStudents = new Set(curRows.map(r => r.id)).size;
@@ -24502,7 +25564,7 @@ function renderSkillsReport() {
     watch.push({
       ...r,
       delta: (p && p.avg !== null && r.avg !== null) ? r.avg - p.avg : null,
-      focus: skillsFor(r.cls).filter(sk => r.ratings[sk.key] > 0 && r.ratings[sk.key] <= 2).map(sk => ({ label: sk.label, v: r.ratings[sk.key] }))
+      focus: skillsForRow(r).filter(sk => r.ratings[sk.key] > 0 && r.ratings[sk.key] <= 2).map(sk => ({ label: sk.label, v: r.ratings[sk.key] }))
     });
   });
   const attentionList = watch.filter(skNeedsAttention).sort((a, b) => a.avg - b.avg);
@@ -24682,7 +25744,7 @@ function skdExportCsv() {
   const SKX = skillsForClasses([...new Set(rows.map(r => r.cls))]);
   const lines = [['Class', 'Month', 'Student ID', 'Student', ...SKX.map(sk => sk.label), 'Average', 'Status', 'Comments'].map(q).join(',')];
   rows.forEach(r => {
-    const ok = new Set(skillsFor(r.cls).map(x => x.key));
+    const ok = new Set(skillsForRow(r).map(x => x.key));
     const commentsCol = SKX.filter(sk => ok.has(sk.key) && (r.comments || {})[sk.key]).map(sk => `${sk.label}: ${r.comments[sk.key]}`).join(' | ');
     lines.push([r.cls, r.month, r.id, r.name, ...SKX.map(sk => ok.has(sk.key) ? (r.ratings[sk.key] || '') : 'n/a'), r.avg === null ? '' : r.avg.toFixed(2), SKILL_SUB_LABELS[r.status] || r.status, commentsCol].map(q).join(','));
   });
@@ -24703,7 +25765,7 @@ function renderSkillsDetailed() {
   const scopedClasses = [...new Set(rows.map(r => r.cls))].sort((a, b) => CLASSES.indexOf(a) - CLASSES.indexOf(b));
   const SKX = skillsForClasses(S.cls === 'all' ? scopedClasses : [S.cls]);
 
-  const overallVals = rows.flatMap(r => skillsFor(r.cls).map(sk => r.ratings[sk.key]).filter(v => v > 0));
+  const overallVals = rows.flatMap(r => skillsForRow(r).map(sk => r.ratings[sk.key]).filter(v => v > 0));
   const overall = skMean(overallVals);
   const oc = skColor(overall);
   const attentionCount = rows.filter(skNeedsAttention).length;
@@ -24712,7 +25774,7 @@ function renderSkillsDetailed() {
   const arrow = col => S.sortBy !== col ? '' : (S.sortDir === 'asc' ? ' ▲' : ' ▼');
   const skillHead = SKX.map(sk => `<th style="min-width:56px;padding:7px 3px;font-size:10px;text-align:center">${esc(sk.label)}</th>`).join('');
   const bodyRows = rows.map(r => {
-    const ok = new Set(skillsFor(r.cls).map(x => x.key));
+    const ok = new Set(skillsForRow(r).map(x => x.key));
     const cells = SKX.map(sk => {
       if (!ok.has(sk.key)) return `<td style="text-align:center;color:var(--muted);font-size:11px">n/a</td>`;
       const v = r.ratings[sk.key];
@@ -24887,11 +25949,139 @@ function getWeeklyTopUserNotification() {
   };
 }
 
+/** Parse staff DOB string (YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, etc.) → {month, day, year}|null */
+function parseStaffDobParts(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (!s) return null;
+  let y = null, m = null, d = null;
+  // ISO / HTML date: YYYY-MM-DD
+  let match = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (match) {
+    y = parseInt(match[1], 10); m = parseInt(match[2], 10); d = parseInt(match[3], 10);
+  } else {
+    // DD/MM/YYYY or DD-MM-YYYY (common in GH)
+    match = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+    if (match) {
+      d = parseInt(match[1], 10); m = parseInt(match[2], 10); y = parseInt(match[3], 10);
+    } else {
+      // MM/DD/YYYY fallback when first part > 12 is impossible for day-first already handled
+      match = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2})$/);
+      if (match) {
+        d = parseInt(match[1], 10); m = parseInt(match[2], 10);
+        y = 2000 + parseInt(match[3], 10);
+        if (y > 2050) y -= 100;
+      }
+    }
+  }
+  if (!m || !d || m < 1 || m > 12 || d < 1 || d > 31) return null;
+  return { year: y, month: m, day: d };
+}
+
+function getStaffDobString(emp) {
+  if (!emp) return '';
+  const hr = typeof getStaffHrDetails === 'function' ? getStaffHrDetails(emp.id) : {};
+  return (emp.hrDob || hr.hrDob || emp.dob || hr.dob || '').trim();
+}
+
+/**
+ * Active staff birthdays within the next `windowDays` days (including today).
+ * Uses month/day only so year-of-birth is optional.
+ */
+function getStaffBirthdaysUpcoming(windowDays) {
+  windowDays = windowDays == null ? 14 : windowDays;
+  const todayStr = typeof today === 'function' ? today() : new Date().toISOString().slice(0, 10);
+  const base = new Date(todayStr + 'T00:00:00');
+  const staff = (db.employees || []).filter(e => e && (e.status === 'Active' || !e.status));
+  const out = [];
+  staff.forEach(e => {
+    const parts = parseStaffDobParts(getStaffDobString(e));
+    if (!parts) return;
+    // Next occurrence of this month/day (this year or next)
+    let candidate = new Date(base.getFullYear(), parts.month - 1, parts.day);
+    // Handle invalid dates (e.g. Feb 30) by skipping
+    if (candidate.getMonth() !== parts.month - 1) return;
+    if (candidate < base) {
+      candidate = new Date(base.getFullYear() + 1, parts.month - 1, parts.day);
+      if (candidate.getMonth() !== parts.month - 1) return;
+    }
+    const daysUntil = Math.round((candidate - base) / 86400000);
+    if (daysUntil < 0 || daysUntil > windowDays) return;
+    let turningAge = null;
+    if (parts.year && parts.year > 1900 && parts.year < 2100) {
+      turningAge = candidate.getFullYear() - parts.year;
+    }
+    const dateStr = candidate.getFullYear() + '-' +
+      String(parts.month).padStart(2, '0') + '-' +
+      String(parts.day).padStart(2, '0');
+    out.push({
+      emp: e,
+      id: e.id,
+      name: e.name || 'Staff',
+      role: e.role || '',
+      dept: e.dept || '',
+      daysUntil,
+      date: dateStr,
+      turningAge,
+      isToday: daysUntil === 0
+    });
+  });
+  out.sort((a, b) => a.daysUntil - b.daysUntil || a.name.localeCompare(b.name));
+  return out;
+}
+
+function getStaffBirthdayNotifications() {
+  return getStaffBirthdaysUpcoming(14).map(b => {
+    const ageBit = b.turningAge ? ' (turning ' + b.turningAge + ')' : '';
+    const roleBit = b.role ? ' · ' + b.role : '';
+    const plain = b.isToday
+      ? 'Birthday today: ' + b.name + ageBit + roleBit
+      : 'Upcoming birthday: ' + b.name + ageBit + roleBit;
+    return {
+      icon: '🎂',
+      title: plain,
+      plainTitle: plain,
+      date: b.date,
+      daysUntil: b.daysUntil,
+      whenText: (b.isToday ? 'Today' : (typeof whenLabel === 'function' ? whenLabel(b.daysUntil) : (b.daysUntil + ' days'))) + ' · ' + b.date,
+      urgent: b.daysUntil <= 1,
+      page: 'staffdatabase',
+      birthday: true
+    };
+  });
+}
+
+/** HTML banner for dashboard / teacher home when staff birthdays are near. */
+function renderStaffBirthdayBannerHtml() {
+  const list = getStaffBirthdaysUpcoming(7);
+  if (!list.length) return '';
+  const todayList = list.filter(b => b.isToday);
+  const soon = list.filter(b => !b.isToday);
+  let body = '';
+  if (todayList.length) {
+    body += `<div style="font-weight:700;margin-bottom:4px">🎉 Today: ${todayList.map(b => esc(b.name) + (b.turningAge ? ' (' + b.turningAge + ')' : '') + (b.role ? ' · ' + esc(b.role) : '')).join(' · ')}</div>`;
+  }
+  if (soon.length) {
+    body += `<div style="font-size:12.5px;opacity:0.95">Upcoming: ${soon.slice(0, 6).map(b => esc(b.name) + ' (' + (typeof whenLabel === 'function' ? whenLabel(b.daysUntil) : b.daysUntil + 'd') + ')').join(' · ')}${soon.length > 6 ? '…' : ''}</div>`;
+  }
+  return `<div style="background:linear-gradient(135deg,#5b2a86,#7c3aed);border-radius:10px;padding:12px 18px;margin-bottom:16px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <div style="display:flex;gap:12px;align-items:flex-start">
+      <span style="font-size:22px;line-height:1">🎂</span>
+      <div>
+        <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;opacity:0.85;font-weight:700;margin-bottom:2px">Staff birthdays</div>
+        ${body}
+      </div>
+    </div>
+    <button class="btn btn-sm" style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.35)" onclick="navigate('staffdatabase')">Open Staff Database</button>
+  </div>`;
+}
+
 function getUpcomingNotifications() {
   const items = [];
   const weeklyTop = getWeeklyTopUserNotification();
   if (weeklyTop) items.push(weeklyTop);
   getSkillSubmissionNotifications().forEach(n => items.push(n));
+  try { getStaffBirthdayNotifications().forEach(n => items.push(n)); } catch (e) {}
   const events = (db.academicCalendar && db.academicCalendar.events) || [];
   events.forEach(e => {
     const d = daysBetween(e.date);
@@ -33387,6 +34577,975 @@ function renderAcademicIntelligence() {
   draw();
 }
 
+
+// ══════════════ STUDENT PERFORMANCE REPORT & ANALYTICS ══════════════
+// Multi-source academic analytics: grades, attendance, skills, rankings,
+// risk bands, subject gaps, and term trends — filterable by term/class/student.
+
+function sprStudentAvg(s, term) {
+  if (typeof aidStudentAverage === 'function') return aidStudentAverage(s, term);
+  const subs = subjectsForClass(s.cls);
+  const scores = subs.map(sub => {
+    const g = getGrade(s.id, sub.id, term);
+    return g && g.score != null ? Number(g.score) : null;
+  }).filter(v => v != null && !isNaN(v));
+  return scores.length ? scores.reduce((a, v) => a + v, 0) / scores.length : null;
+}
+
+function sprStudentAttendance(s) {
+  const att = db.attendance || {};
+  const prefix = (s.cls || '').replace(/\s/g, '_') + '|';
+  let P = 0, A = 0, L = 0, total = 0;
+  Object.keys(att).forEach(k => {
+    if (!k.startsWith(prefix)) return;
+    const st = att[k][s.id];
+    if (!st) return;
+    if (st === 'P' || st === 'A' || st === 'L') {
+      total++;
+      if (st === 'P') P++;
+      else if (st === 'A') A++;
+      else if (st === 'L') L++;
+    }
+  });
+  return {
+    rate: total ? Math.round((P / total) * 1000) / 10 : null,
+    present: P, absent: A, late: L, total
+  };
+}
+
+function sprStudentSkills(s) {
+  // Average skill rating 1–4 across approved submissions for this student
+  const subs = (db.skillSubmissions || []).filter(x => x && x.status === 'approved' && x.ratings && x.ratings[s.id]);
+  let sum = 0, n = 0;
+  subs.forEach(sub => {
+    const r = sub.ratings[s.id] || {};
+    Object.keys(r).forEach(sk => {
+      const v = parseFloat(r[sk]);
+      if (Number.isFinite(v)) { sum += v; n++; }
+    });
+  });
+  return n ? Math.round((sum / n) * 100) / 100 : null;
+}
+
+function sprBand(avg) {
+  if (avg == null) return { key: 'nograde', label: 'No grades', color: 'var(--muted)' };
+  if (avg >= 80) return { key: 'excellent', label: 'Excellent', color: 'var(--green)' };
+  if (avg >= 70) return { key: 'good', label: 'Good', color: '#1a7a4c' };
+  if (avg >= 50) return { key: 'fair', label: 'Fair', color: 'var(--amber)' };
+  return { key: 'atRisk', label: 'At risk', color: 'var(--red)' };
+}
+
+/** Tokenise search: supports multi-word, id fragments, and quoted phrases. */
+function sprSearchTokens(searchQ) {
+  const raw = (searchQ || '').trim();
+  if (!raw) return [];
+  const tokens = [];
+  const re = /"([^"]+)"|(\S+)/g;
+  let m;
+  while ((m = re.exec(raw)) !== null) {
+    const t = (m[1] || m[2] || '').toLowerCase().trim();
+    if (t) tokens.push(t);
+  }
+  return tokens;
+}
+
+/** Fields used for student search in performance report. */
+function sprStudentSearchHaystack(s) {
+  if (!s) return '';
+  return [
+    s.name, s.id, s.cls, s.status,
+    s.parent, s.rel, s.phone1, s.phone2, s.email, s.gender, s.nat
+  ].map(v => (v == null ? '' : String(v))).join(' ').toLowerCase();
+}
+
+/**
+ * Match score: higher = better.
+ * 100 exact id, 90 id prefix, 80 name starts-with, 60 all tokens in name,
+ * 40 all tokens somewhere, 0 no match.
+ */
+function sprMatchScore(s, tokens) {
+  if (!tokens || !tokens.length) return 1;
+  const name = String(s.name || '').toLowerCase();
+  const id = String(s.id || '').toLowerCase();
+  const hay = sprStudentSearchHaystack(s);
+  let score = 0;
+  let allOk = true;
+  tokens.forEach(t => {
+    if (id === t) score = Math.max(score, 100);
+    else if (id.startsWith(t) || id.includes(t)) score = Math.max(score, 90);
+    else if (name.startsWith(t)) score = Math.max(score, 80);
+    else if (name.split(/\s+/).some(w => w.startsWith(t))) score = Math.max(score, 70);
+    else if (name.includes(t)) score = Math.max(score, 60);
+    else if (hay.includes(t)) score = Math.max(score, 40);
+    else allOk = false;
+  });
+  if (!allOk) {
+    // Require every token to appear somewhere in the haystack
+    if (!tokens.every(t => hay.includes(t) || id.includes(t) || name.includes(t))) return 0;
+    score = Math.max(score, 30);
+  }
+  return score;
+}
+
+function sprEligibleStudents(term, clsFilter) {
+  return (db.admissions || []).filter(s => {
+    if (!s) return false;
+    if (typeof isEligibleForTermReport === 'function') {
+      if (!isEligibleForTermReport(s, term)) return false;
+    } else if (!['Admitted', 'Continuing', 'Scholarship'].includes(s.status)) {
+      return false;
+    }
+    if (clsFilter && s.cls !== clsFilter) return false;
+    return true;
+  });
+}
+
+/** Lightweight suggestions for the typeahead (no full analytics). */
+function sprSearchSuggestions(term, clsFilter, searchQ, limit) {
+  limit = limit || 12;
+  const tokens = sprSearchTokens(searchQ);
+  if (!tokens.length) return [];
+  const rows = sprEligibleStudents(term, clsFilter).map(s => ({
+    s, score: sprMatchScore(s, tokens)
+  })).filter(r => r.score > 0);
+  rows.sort((a, b) => b.score - a.score || String(a.s.name || '').localeCompare(String(b.s.name || '')));
+  return rows.slice(0, limit).map(r => r.s);
+}
+
+function sprBuildRoster(term, clsFilter, searchQ) {
+  const tokens = sprSearchTokens(searchQ);
+  let list = sprEligibleStudents(term, clsFilter);
+  if (tokens.length) {
+    list = list.map(s => ({ s, score: sprMatchScore(s, tokens) }))
+      .filter(r => r.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(r => r.s);
+  }
+
+  const rosterRows = list.map(s => {
+    const avg = sprStudentAvg(s, term);
+    const att = sprStudentAttendance(s);
+    const skills = sprStudentSkills(s);
+    const band = sprBand(avg);
+    // Subject breakdown
+    const subs = subjectsForClass(s.cls).map(sub => {
+      const g = getGrade(s.id, sub.id, term);
+      return { id: sub.id, name: sub.name, score: g && g.score != null ? Number(g.score) : null };
+    });
+    const graded = subs.filter(x => x.score != null);
+    const weakest = graded.length ? graded.slice().sort((a, b) => a.score - b.score)[0] : null;
+    const strongest = graded.length ? graded.slice().sort((a, b) => b.score - a.score)[0] : null;
+    // Term trend
+    const trend = (typeof TERMS !== 'undefined' ? TERMS : []).map(t => ({
+      term: t, avg: sprStudentAvg(s, t)
+    }));
+    return {
+      student: s,
+      avg: avg != null ? Math.round(avg * 10) / 10 : null,
+      att, skills, band, subs, weakest, strongest, trend,
+      gradedCount: graded.length,
+      subjectCount: subs.length
+    };
+  });
+  // When searching, keep relevance order; otherwise rank by average
+  if (!tokens.length) {
+    rosterRows.sort((a, b) => {
+      if (a.avg == null && b.avg == null) return (a.student.name || '').localeCompare(b.student.name || '');
+      if (a.avg == null) return 1;
+      if (b.avg == null) return -1;
+      return b.avg - a.avg;
+    });
+  }
+  return rosterRows;
+}
+
+function sprExportCsv(roster, term, clsFilter) {
+  const headers = ['Rank', 'Student ID', 'Name', 'Class', 'Status', 'Average %', 'Band', 'Attendance %', 'Skills avg', 'Subjects graded', 'Weakest subject', 'Weakest score', 'Strongest subject', 'Strongest score'];
+  const lines = [headers.join(',')];
+  roster.forEach((r, i) => {
+    const row = [
+      i + 1,
+      r.student.id,
+      '"' + String(r.student.name || '').replace(/"/g, '""') + '"',
+      r.student.cls || '',
+      r.student.status || '',
+      r.avg != null ? r.avg : '',
+      r.band.label,
+      r.att.rate != null ? r.att.rate : '',
+      r.skills != null ? r.skills : '',
+      r.gradedCount + '/' + r.subjectCount,
+      r.weakest ? '"' + String(r.weakest.name).replace(/"/g, '""') + '"' : '',
+      r.weakest ? r.weakest.score : '',
+      r.strongest ? '"' + String(r.strongest.name).replace(/"/g, '""') + '"' : '',
+      r.strongest ? r.strongest.score : ''
+    ];
+    lines.push(row.join(','));
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'student-performance-' + (clsFilter || 'all') + '-' + String(term).replace(/\s+/g, '-') + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  try { URL.revokeObjectURL(a.href); } catch (e) {}
+  if (typeof toast === 'function') toast('✅ Performance CSV exported');
+}
+
+
+/** A4 print for Student Performance Report — portrait by default; landscape if rankings table is wide. */
+function printStudentPerformanceReport() {
+  const source = document.getElementById('spr-inner') || document.getElementById('page-studentperformance');
+  if (!source) { window.print(); return; }
+  const tab = (window._sprSel && window._sprSel.tab) || 'overview';
+  // Rankings print better landscape; overview/subjects/individual fit portrait A4
+  const orientation = (tab === 'rankings') ? 'landscape' : 'portrait';
+  if (typeof printReportSmart === 'function') {
+    printReportSmart(source, { orientation: orientation });
+  } else {
+    window.print();
+  }
+}
+
+
+// ── Student Performance search interactions ───────────────────────────────
+window._sprSearchTimer = null;
+window._sprSuggestIdx = -1;
+
+/** Body-level portal so the list is never clipped by page/toolbar overflow. */
+function sprGetSuggestBox() {
+  let box = document.getElementById('spr-suggest-portal');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'spr-suggest-portal';
+    box.className = 'spr-suggest-panel spr-no-print';
+    box.setAttribute('role', 'listbox');
+    box.setAttribute('aria-label', 'Student suggestions');
+    box.style.display = 'none';
+    document.body.appendChild(box);
+  }
+  // Prefer portal; hide any in-page leftover node
+  const inline = document.getElementById('spr-suggest');
+  if (inline && inline !== box) {
+    inline.style.display = 'none';
+    inline.classList.remove('is-open');
+    inline.innerHTML = '';
+  }
+  return box;
+}
+
+function sprHideSuggestions() {
+  const box = document.getElementById('spr-suggest-portal') || document.getElementById('spr-suggest');
+  if (box) {
+    box.style.display = 'none';
+    box.classList.remove('is-open');
+    box.innerHTML = '';
+    box.style.left = '';
+    box.style.top = '';
+    box.style.width = '';
+    box.style.maxHeight = '';
+  }
+  window._sprSuggestIdx = -1;
+  if (window._sprSuggestReposition) {
+    window.removeEventListener('scroll', window._sprSuggestReposition, true);
+    window.removeEventListener('resize', window._sprSuggestReposition);
+    window._sprSuggestReposition = null;
+  }
+}
+
+/** Pin the suggestion list under the Student Performance search bar. */
+function sprPositionSuggest() {
+  const box = sprGetSuggestBox();
+  const shell = document.getElementById('spr-search-shell') || document.getElementById('spr-q');
+  if (!box || !shell || !box.classList.contains('is-open')) return;
+  const r = shell.getBoundingClientRect();
+  const gap = 6;
+  const width = Math.max(r.width, 300);
+  let left = r.left;
+  if (left + width > window.innerWidth - 12) left = Math.max(12, window.innerWidth - width - 12);
+  if (left < 12) left = 12;
+
+  const maxH = Math.min(360, Math.max(160, window.innerHeight * 0.55));
+  const spaceBelow = window.innerHeight - r.bottom - 12;
+  const spaceAbove = r.top - 12;
+  let openUp = false;
+  if (spaceBelow < 180 && spaceAbove > spaceBelow) openUp = true;
+
+  box.style.position = 'fixed';
+  box.style.left = left + 'px';
+  box.style.width = width + 'px';
+  box.style.maxHeight = maxH + 'px';
+  box.style.zIndex = '100000';
+  box.style.overflowY = 'auto';
+  box.style.display = 'block';
+
+  if (openUp) {
+    // Anchor bottom of panel to top of search shell
+    const h = Math.min(maxH, box.scrollHeight || maxH);
+    let top = r.top - gap - h;
+    if (top < 8) top = 8;
+    box.style.top = top + 'px';
+  } else {
+    box.style.top = (r.bottom + gap) + 'px';
+  }
+}
+
+function sprBindSuggestReposition() {
+  if (window._sprSuggestReposition) {
+    window.removeEventListener('scroll', window._sprSuggestReposition, true);
+    window.removeEventListener('resize', window._sprSuggestReposition);
+  }
+  window._sprSuggestReposition = function() {
+    const page = document.getElementById('page-studentperformance');
+    if (!page || !page.classList.contains('active')) {
+      sprHideSuggestions();
+      return;
+    }
+    sprPositionSuggest();
+  };
+  window.addEventListener('scroll', window._sprSuggestReposition, true);
+  window.addEventListener('resize', window._sprSuggestReposition);
+}
+
+function sprSearchFocus(on) {
+  const shell = document.getElementById('spr-search-shell');
+  if (!shell) return;
+  if (on) shell.classList.add('is-focused');
+  else setTimeout(function() {
+    if (document.activeElement && document.activeElement.id === 'spr-q') return;
+    shell.classList.remove('is-focused');
+  }, 150);
+}
+
+function sprInitials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function sprHighlightText(text, token) {
+  const safe = esc(text || '');
+  if (!token) return safe;
+  try {
+    const re = new RegExp('(' + String(token).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
+    return safe.replace(re, '<mark>$1</mark>');
+  } catch (e) {
+    return safe;
+  }
+}
+
+function sprClearSearch() {
+  if (!window._sprSel) window._sprSel = {};
+  window._sprSel.q = '';
+  window._sprSel.focusId = null;
+  sprHideSuggestions();
+  if (typeof window._sprRedraw === 'function') window._sprRedraw();
+}
+
+function sprSelectStudent(id) {
+  if (!window._sprSel) window._sprSel = {};
+  window._sprSel.focusId = String(id);
+  window._sprSel.tab = 'individual';
+  // Keep query as the student's name for context
+  const s = (db.admissions || []).find(a => String(a.id) === String(id));
+  if (s && s.name) window._sprSel.q = s.name;
+  sprHideSuggestions();
+  if (typeof window._sprRedraw === 'function') window._sprRedraw();
+}
+
+function sprRenderSuggestions(list, q) {
+  const box = sprGetSuggestBox();
+  if (!box) return;
+  if (!list.length) {
+    if ((q || '').trim()) {
+      box.classList.add('is-open');
+      box.style.display = 'block';
+      box.innerHTML = '<div class="spr-suggest-empty">No students match “' + esc(q.trim()) + '”'
+        + '<div style="font-size:11px;margin-top:4px">Try another name, ID, or parent phone</div></div>';
+      sprPositionSuggest();
+      sprBindSuggestReposition();
+    } else {
+      sprHideSuggestions();
+    }
+    return;
+  }
+  const tokens = sprSearchTokens(q);
+  window._sprSuggestList = list;
+  window._sprSuggestIdx = -1;
+  box.classList.add('is-open');
+  box.style.display = 'block';
+  let html = '<div class="spr-suggest-head">' + list.length + ' suggestion' + (list.length === 1 ? '' : 's') + '</div>';
+  const termForScore = (window._sprSel && window._sprSel.term) || null;
+  list.forEach(function(s, i) {
+    const name = sprHighlightText(s.name || '', tokens[0]);
+    const meta = [s.id, s.cls, s.parent].filter(Boolean).map(function(x) { return esc(String(x)); }).join(' · ');
+    let scoreHtml = '';
+    try {
+      if (termForScore && typeof sprStudentAvg === 'function') {
+        const avg = sprStudentAvg(s, termForScore);
+        if (avg != null) {
+          const rounded = Math.round(avg * 10) / 10;
+          const color = rounded < 50 ? 'var(--red)' : rounded >= 80 ? 'var(--green)' : 'var(--navy)';
+          scoreHtml = '<div class="spr-suggest-score" style="color:' + color + '">' + rounded + '%</div>';
+        }
+      }
+    } catch (e) {}
+    html += '<div class="spr-suggest-item" role="option" data-idx="' + i + '" data-id="' + esc(String(s.id)) + '"'
+      + ' onmousedown="event.preventDefault();sprSelectStudent(\'' + esc(String(s.id)) + '\')"'
+      + ' onmouseenter="sprHighlightSuggest(' + i + ')">'
+      + '<div class="spr-suggest-avatar">' + esc(sprInitials(s.name)) + '</div>'
+      + '<div class="spr-suggest-body">'
+      + '<div class="spr-suggest-name">' + name + '</div>'
+      + '<div class="spr-suggest-meta">' + meta + '</div>'
+      + '</div>'
+      + scoreHtml
+      + '<div class="spr-suggest-status">' + esc(s.status || '') + '</div>'
+      + '</div>';
+  });
+
+  html += '<div class="spr-suggest-foot"><span><kbd>↑</kbd> <kbd>↓</kbd> navigate</span>'
+    + '<span><kbd>Enter</kbd> open</span><span><kbd>Esc</kbd> close</span></div>';
+  box.innerHTML = html;
+  requestAnimationFrame(function() {
+    sprPositionSuggest();
+    sprBindSuggestReposition();
+  });
+}
+
+function sprHighlightSuggest(idx) {
+  window._sprSuggestIdx = idx;
+  const box = document.getElementById('spr-suggest-portal') || document.getElementById('spr-suggest');
+  if (!box) return;
+  box.querySelectorAll('.spr-suggest-item').forEach(function(el, i) {
+    el.classList.toggle('is-active', i === idx);
+  });
+}
+
+function sprOnSearchInput(val, forceSuggest) {
+  if (!window._sprSel) window._sprSel = {};
+  window._sprSel.q = val;
+  // Immediate suggestions (light)
+  const sel = window._sprSel;
+  const clsFilter = sel.cls === '__ALL__' ? null : sel.cls;
+  const suggestions = sprSearchSuggestions(sel.term, clsFilter, val, 12);
+  if (forceSuggest || (val || '').trim()) sprRenderSuggestions(suggestions, val);
+  else sprHideSuggestions();
+  // Debounced full report redraw
+  if (window._sprSearchTimer) clearTimeout(window._sprSearchTimer);
+  window._sprSearchTimer = setTimeout(() => {
+    if (typeof window._sprRedraw === 'function') window._sprRedraw();
+    // Restore focus/caret after redraw
+    const input = document.getElementById('spr-q');
+    if (input && document.activeElement !== input) {
+      try {
+        const end = input.value.length;
+        input.focus();
+        input.setSelectionRange(end, end);
+      } catch (e) {}
+    }
+    // Re-show suggestions after redraw if still typing
+    if ((window._sprSel.q || '').trim()) {
+      const c2 = window._sprSel.cls === '__ALL__' ? null : window._sprSel.cls;
+      sprRenderSuggestions(sprSearchSuggestions(window._sprSel.term, c2, window._sprSel.q, 12), window._sprSel.q);
+    }
+  }, 220);
+}
+
+function sprOnSearchKey(ev) {
+  const box = document.getElementById('spr-suggest-portal') || document.getElementById('spr-suggest');
+  const list = window._sprSuggestList || [];
+  if (ev.key === 'Escape') {
+    sprHideSuggestions();
+    return;
+  }
+  if (ev.key === 'ArrowDown') {
+    if (!list.length) return;
+    ev.preventDefault();
+    let i = (window._sprSuggestIdx == null ? -1 : window._sprSuggestIdx) + 1;
+    if (i >= list.length) i = 0;
+    sprHighlightSuggest(i);
+    return;
+  }
+  if (ev.key === 'ArrowUp') {
+    if (!list.length) return;
+    ev.preventDefault();
+    let i = (window._sprSuggestIdx == null ? list.length : window._sprSuggestIdx) - 1;
+    if (i < 0) i = list.length - 1;
+    sprHighlightSuggest(i);
+    return;
+  }
+  if (ev.key === 'Enter') {
+    const idx = window._sprSuggestIdx;
+    if (idx >= 0 && list[idx]) {
+      ev.preventDefault();
+      sprSelectStudent(list[idx].id);
+      return;
+    }
+    // Enter with exact one match → open individual
+    if (list.length === 1) {
+      ev.preventDefault();
+      sprSelectStudent(list[0].id);
+      return;
+    }
+    // Otherwise apply search filter immediately
+    if (window._sprSearchTimer) clearTimeout(window._sprSearchTimer);
+    sprHideSuggestions();
+    if (typeof window._sprRedraw === 'function') window._sprRedraw();
+  }
+}
+
+document.addEventListener('click', function(e) {
+  const box = document.getElementById('spr-suggest-portal') || document.getElementById('spr-suggest');
+  const input = document.getElementById('spr-q');
+  const shell = document.getElementById('spr-search-shell');
+  if (!box || box.style.display === 'none') return;
+  if (box.contains(e.target)) return;
+  if (input && (input === e.target || input.contains(e.target))) return;
+  if (shell && shell.contains(e.target)) return;
+  sprHideSuggestions();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+  const page = document.getElementById('page-studentperformance');
+  if (!page || !page.classList.contains('active')) return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+  const input = document.getElementById('spr-q');
+  if (!input) return;
+  e.preventDefault();
+  input.focus();
+  input.select();
+});
+
+
+function renderStudentPerformance() {
+  ensurePage('studentperformance', 'spr-inner');
+  const el = document.getElementById('spr-inner');
+  if (!el) return;
+
+  const lockedClass = typeof lockedClassFor === 'function' ? lockedClassFor() : null;
+  if (!window._sprSel) {
+    window._sprSel = {
+      term: (typeof TERMS !== 'undefined' && TERMS.length) ? TERMS[TERMS.length - 1] : 'Term 1',
+      cls: lockedClass || '__ALL__',
+      q: '',
+      band: 'all', // all | excellent | good | fair | atRisk | nograde
+      focusId: null,
+      tab: 'overview' // overview | rankings | subjects | individual
+    };
+  }
+  if (window._sprSel.band == null) window._sprSel.band = 'all';
+  window._sprSel.q = ''; // search removed from this report
+  if (lockedClass) window._sprSel.cls = lockedClass;
+  try { sprHideSuggestions(); } catch (e) {}
+
+  const chartStore = window._sprCharts || (window._sprCharts = {});
+  function destroyCharts() {
+    Object.keys(chartStore).forEach(k => {
+      try { chartStore[k].destroy(); } catch (e) {}
+      delete chartStore[k];
+    });
+  }
+
+  function draw() {
+    el.classList.add('spr-page');
+    const sel = window._sprSel;
+    const term = sel.term;
+    const clsFilter = sel.cls === '__ALL__' ? null : sel.cls;
+    let roster = sprBuildRoster(term, clsFilter, ''); // search removed
+    const rosterBeforeBand = roster.length;
+    if (sel.band && sel.band !== 'all') {
+      roster = roster.filter(r => r.band && r.band.key === sel.band);
+    }
+
+    const withAvg = roster.filter(r => r.avg != null);
+    const classAvg = withAvg.length
+      ? Math.round((withAvg.reduce((s, r) => s + r.avg, 0) / withAvg.length) * 10) / 10
+      : null;
+    const atRisk = roster.filter(r => r.band.key === 'atRisk');
+    const excellent = roster.filter(r => r.band.key === 'excellent');
+    const attRates = roster.map(r => r.att.rate).filter(v => v != null);
+    const avgAtt = attRates.length
+      ? Math.round((attRates.reduce((a, b) => a + b, 0) / attRates.length) * 10) / 10
+      : null;
+    const coverage = roster.length
+      ? Math.round((withAvg.length / roster.length) * 1000) / 10
+      : null;
+
+    // Distribution buckets
+    const dist = { excellent: 0, good: 0, fair: 0, atRisk: 0, nograde: 0 };
+    roster.forEach(r => { dist[r.band.key] = (dist[r.band.key] || 0) + 1; });
+
+    // Subject aggregates for filter
+    const subMap = {};
+    roster.forEach(r => {
+      r.subs.forEach(sub => {
+        if (sub.score == null) return;
+        if (!subMap[sub.name]) subMap[sub.name] = [];
+        subMap[sub.name].push(sub.score);
+      });
+    });
+    const subjectRows = Object.keys(subMap).map(name => {
+      const arr = subMap[name];
+      const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+      return { name, avg: Math.round(avg * 10) / 10, count: arr.length, min: Math.min(...arr), max: Math.max(...arr) };
+    }).sort((a, b) => a.avg - b.avg);
+
+    // Focus student
+    let focus = null;
+    if (sel.focusId) focus = roster.find(r => String(r.student.id) === String(sel.focusId)) || null;
+    if (!focus && roster.length === 1) focus = roster[0];
+
+    const termOpts = (typeof TERMS !== 'undefined' ? TERMS : []).map(t =>
+      `<option value="${esc(t)}" ${t === term ? 'selected' : ''}>${esc(t)}</option>`
+    ).join('');
+    const classOpts = `<option value="__ALL__" ${sel.cls === '__ALL__' ? 'selected' : ''}>All classes</option>` +
+      (typeof CLASSES !== 'undefined' ? CLASSES : []).map(c =>
+        `<option value="${esc(c)}" ${sel.cls === c ? 'selected' : ''}>${esc(c)}</option>`
+      ).join('');
+
+    const tabBtn = (id, label) =>
+      `<button type="button" class="spr-tab ${sel.tab === id ? 'is-active' : ''}" onclick="window._sprSel.tab='${id}';window._sprRedraw && window._sprRedraw()">${label}</button>`;
+
+    // Rank table
+    const rankRows = roster.slice(0, 80).map((r, i) => {
+      const pos = i + 1;
+      const barW = r.avg != null ? Math.max(0, Math.min(100, r.avg)) : 0;
+      return `<tr class="spr-row" onclick="window._sprSel.focusId='${esc(String(r.student.id))}';window._sprSel.tab='individual';window._sprRedraw && window._sprRedraw()">
+        <td style="font-weight:700;color:var(--navy);width:40px">${pos}</td>
+        <td><b>${esc(r.student.name)}</b><div style="font-size:11px;color:var(--muted)">${esc(r.student.id)}</div></td>
+        <td>${esc(r.student.cls)}</td>
+        <td>
+          <div class="spr-avg-cell">
+            <span class="spr-mini-bar" title="${r.avg != null ? r.avg + '%' : '—'}"><i style="width:${barW}%;background:${r.band.color}"></i></span>
+            <span style="font-weight:700;color:${r.band.color};min-width:40px;text-align:right">${r.avg != null ? r.avg + '%' : '—'}</span>
+          </div>
+        </td>
+        <td><span class="badge" style="background:${r.band.color}22;color:${r.band.color}">${esc(r.band.label)}</span></td>
+        <td style="text-align:right">${r.att.rate != null ? r.att.rate + '%' : '—'}</td>
+        <td style="text-align:right">${r.skills != null ? r.skills : '—'}</td>
+        <td style="text-align:right">${r.gradedCount}/${r.subjectCount}</td>
+        <td style="font-size:12px;color:var(--muted)">${r.weakest ? esc(r.weakest.name) + ' (' + r.weakest.score + '%)' : '—'}</td>
+      </tr>`;
+    }).join('');
+
+    // Subject table
+    const subTable = subjectRows.map(s => `<tr>
+      <td>${esc(s.name)}</td>
+      <td style="text-align:right;font-weight:700">${s.avg}%</td>
+      <td style="text-align:right">${s.min}%</td>
+      <td style="text-align:right">${s.max}%</td>
+      <td style="text-align:right">${s.count}</td>
+      <td style="width:140px"><div style="background:var(--cream);border-radius:4px;height:8px;overflow:hidden"><div style="height:100%;width:${Math.min(100, s.avg)}%;background:${s.avg < 50 ? 'var(--red)' : s.avg < 70 ? 'var(--amber)' : 'var(--green)'}"></div></div></td>
+    </tr>`).join('');
+
+    // Individual panel
+    let individualHtml = '';
+    if (sel.tab === 'individual') {
+      if (!focus) {
+        individualHtml = `<div class="spr-panel"><div class="spr-empty">
+          <div class="spr-empty-icon">👤</div>
+          <h4>Select a student</h4>
+          <p>Open Rankings, or click a name in Top / At-risk lists.</p>
+          <button type="button" class="btn btn-primary btn-sm" onclick="window._sprSel.tab='rankings';window._sprRedraw&&window._sprRedraw()">Browse rankings</button>
+        </div></div>`;
+      } else {
+        const s = focus.student;
+        const subRows = focus.subs.map(sub => `<tr>
+          <td>${esc(sub.name)}</td>
+          <td style="text-align:right;font-weight:700;color:${sub.score == null ? 'var(--muted)' : sub.score < 50 ? 'var(--red)' : sub.score >= 80 ? 'var(--green)' : 'var(--navy)'}">${sub.score != null ? sub.score + '%' : '—'}</td>
+        </tr>`).join('');
+        const trendCells = focus.trend.map(t =>
+          `<div style="flex:1;min-width:70px;text-align:center;padding:8px;background:var(--cream);border-radius:8px">
+            <div style="font-size:10px;color:var(--muted)">${esc(t.term)}</div>
+            <div style="font-weight:700;font-size:16px;color:var(--navy)">${t.avg != null ? Math.round(t.avg * 10) / 10 + '%' : '—'}</div>
+          </div>`
+        ).join('');
+        individualHtml = `
+          <div class="spr-panel" style="margin-bottom:14px">
+            <div class="spr-person-hero">
+              <div style="display:flex;gap:12px;align-items:center">
+                <div class="spr-avatar">${esc((s.name||'?').split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase() || '?')}</div>
+                <div>
+                  <div style="font-size:18px;font-weight:800">${esc(s.name)}</div>
+                  <div style="font-size:12px;opacity:0.85">${esc(s.id)} · ${esc(s.cls)} · ${esc(s.status || '')}</div>
+                </div>
+              </div>
+              <div style="text-align:right">
+                <div class="spr-person-score" style="color:${focus.avg != null && focus.avg < 50 ? '#fca5a5' : '#e8c97a'}">${focus.avg != null ? focus.avg + '%' : '—'}</div>
+                <div style="font-size:12px;opacity:0.9">${esc(focus.band.label)} · ${esc(term)}</div>
+              </div>
+            </div>
+            <div class="spr-panel-bd">
+              <div class="sr-stat-row" style="margin-bottom:12px">
+                <div class="sr-stat-card"><div class="sr-stat-value">${focus.att.rate != null ? focus.att.rate + '%' : '—'}</div><div class="sr-stat-label">Attendance</div></div>
+                <div class="sr-stat-card"><div class="sr-stat-value">${focus.skills != null ? focus.skills : '—'}</div><div class="sr-stat-label">Skills avg (1–4)</div></div>
+                <div class="sr-stat-card"><div class="sr-stat-value">${focus.gradedCount}/${focus.subjectCount}</div><div class="sr-stat-label">Subjects graded</div></div>
+                <div class="sr-stat-card"><div class="sr-stat-value">${focus.weakest ? esc(focus.weakest.score) + '%' : '—'}</div><div class="sr-stat-label">Weakest: ${focus.weakest ? esc(focus.weakest.name) : '—'}</div></div>
+                <div class="sr-stat-card"><div class="sr-stat-value">${focus.strongest ? esc(focus.strongest.score) + '%' : '—'}</div><div class="sr-stat-label">Strongest: ${focus.strongest ? esc(focus.strongest.name) : '—'}</div></div>
+              </div>
+              <div class="sr-chart-title">Term trend</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">${trendCells}</div>
+              <div class="aid-chart-row">
+                <div style="flex:1;min-width:240px">
+                  <div class="sr-chart-title">Subject scores · ${esc(term)}</div>
+                  <div class="aid-chart-canvas-wrap"><canvas id="spr-chart-subject-focus"></canvas></div>
+                </div>
+                <div style="flex:1;min-width:240px">
+                  <div class="sr-chart-title">Score table</div>
+                  <table class="sr-table"><thead><tr><th>Subject</th><th style="text-align:right">Score</th></tr></thead><tbody>${subRows || '<tr><td colspan="2">No subjects</td></tr>'}</tbody></table>
+                </div>
+              </div>
+            </div>
+          </div>`;
+      }
+    }
+
+    // Insights
+    const insights = [];
+    if (classAvg != null) insights.push(`Class/filter average is <b>${classAvg}%</b> across ${withAvg.length} graded learner${withAvg.length === 1 ? '' : 's'}.`);
+    if (coverage != null && coverage < 70) insights.push(`Only <b>${coverage}%</b> of students in this filter have grades for ${esc(term)} — complete Grade Entry before high-stakes decisions.`);
+    if (atRisk.length) insights.push(`<b>${atRisk.length}</b> student${atRisk.length === 1 ? '' : 's'} average below 50% (at risk).`);
+    if (excellent.length) insights.push(`<b>${excellent.length}</b> student${excellent.length === 1 ? '' : 's'} at Excellent (80%+).`);
+    if (subjectRows.length) {
+      const weakSub = subjectRows[0];
+      const strongSub = subjectRows[subjectRows.length - 1];
+      if (weakSub) insights.push(`Weakest subject: <b>${esc(weakSub.name)}</b> (${weakSub.avg}% avg).`);
+      if (strongSub && strongSub !== weakSub) insights.push(`Strongest subject: <b>${esc(strongSub.name)}</b> (${strongSub.avg}% avg).`);
+    }
+    if (avgAtt != null) insights.push(`Average attendance in filter: <b>${avgAtt}%</b>.`);
+
+    destroyCharts();
+
+    const schoolName = (typeof schoolInfo !== 'undefined' && schoolInfo && schoolInfo.name)
+      ? schoolInfo.name
+      : ((typeof getSchoolName === 'function' && getSchoolName()) || 'School');
+    const printedAt = new Date().toLocaleString('en-GH', { dateStyle: 'medium', timeStyle: 'short' });
+    const filterLabel = (clsFilter || 'All classes') + ' · ' + term;
+
+    el.innerHTML = `
+      <div class="spr-print-header">
+        <div class="spr-print-meta">
+          <div>
+            <div style="font-weight:800;font-size:12pt;color:#0f1f3d">${esc(schoolName)}</div>
+            <div style="font-weight:700;margin-top:1mm">Student Performance Report &amp; Analytics</div>
+            <div>${esc(filterLabel)}${typeof ACTIVE_YEAR !== 'undefined' ? ' · ' + esc(String(ACTIVE_YEAR).replace('_','/')) : ''}</div>
+          </div>
+          <div style="text-align:right">
+            <div>Printed ${esc(printedAt)}</div>
+            <div>${roster.length} student${roster.length === 1 ? '' : 's'} · Avg ${classAvg != null ? classAvg + '%' : '—'}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spr-page-header spr-no-print">
+        <div>
+          <div class="section-title">📈 Student Performance</div>
+          <div class="section-sub">Report &amp; analytics · grades · attendance · skills${typeof ACTIVE_YEAR !== 'undefined' ? ' · ' + esc(String(ACTIVE_YEAR).replace('_','/')) : ''}</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="sprExportCsv(window._sprLastRoster||[], window._sprSel.term, window._sprSel.cls==='__ALL__'?null:window._sprSel.cls)">⬇ CSV</button>
+          <button class="btn btn-primary btn-sm" onclick="printStudentPerformanceReport()">🖨 Print A4</button>
+        </div>
+      </div>
+
+      <div class="spr-toolbar spr-no-print">
+        <div class="spr-toolbar-row">
+          <div class="spr-filter-group">
+            <label>Term</label>
+            <select id="spr-term" onchange="window._sprSel.term=this.value;window._sprRedraw&&window._sprRedraw()">${termOpts}</select>
+          </div>
+          <div class="spr-filter-group">
+            <label>Class</label>
+            <select id="spr-cls" onchange="window._sprSel.cls=this.value;window._sprSel.focusId=null;window._sprRedraw&&window._sprRedraw()" ${lockedClass ? 'disabled' : ''}>${classOpts}</select>
+          </div>
+          <div class="spr-filter-group" style="flex:1;min-width:200px">
+            <label>Performance band</label>
+            <div class="spr-chip-row">
+              ${['all','excellent','good','fair','atRisk','nograde'].map(k => {
+                const labels = { all:'All', excellent:'Excellent', good:'Good', fair:'Fair', atRisk:'At risk', nograde:'No grades' };
+                const cls = k === 'atRisk' ? 'spr-chip-risk' : k === 'excellent' ? 'spr-chip-exc' : k === 'fair' ? 'spr-chip-fair' : '';
+                return `<button type="button" class="spr-chip ${cls} ${sel.band===k?'is-active':''}" onclick="window._sprSel.band='${k}';window._sprRedraw&&window._sprRedraw()">${labels[k]}</button>`;
+              }).join('')}
+            </div>
+          </div>
+          <div class="spr-tabs">
+            ${tabBtn('overview', 'Overview')}
+            ${tabBtn('rankings', 'Rankings')}
+            ${tabBtn('subjects', 'Subjects')}
+            ${tabBtn('individual', 'Individual')}
+          </div>
+        </div>
+        <div class="spr-toolbar-row" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);align-items:center">
+          <div class="spr-result-meta">
+            ${(() => {
+              const totalPool = sprEligibleStudents(term, clsFilter).length;
+              let bits = [];
+              bits.push('<span><b>' + roster.length + '</b> shown</span>');
+              if (sel.band && sel.band !== 'all') {
+                bits.push('<span>of <b>' + totalPool + '</b> in class/term</span>');
+                const labels = { excellent:'Excellent', good:'Good', fair:'Fair', atRisk:'At risk', nograde:'No grades' };
+                bits.push('<span>band: <b>' + esc(labels[sel.band] || sel.band) + '</b></span>');
+              } else {
+                bits.push('<span>students in filter</span>');
+              }
+              return bits.join('<span style="opacity:0.4">·</span>');
+            })()}
+          </div>
+          <div class="spr-active-filters" style="margin-left:auto">
+            ${sel.band && sel.band !== 'all' ? `<span class="spr-active-pill">Band: ${esc({excellent:'Excellent',good:'Good',fair:'Fair',atRisk:'At risk',nograde:'No grades'}[sel.band]||sel.band)}<button type="button" title="Clear band" onclick="window._sprSel.band='all';window._sprRedraw&&window._sprRedraw()">✕</button></span>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <div class="spr-kpi-grid">
+        <div class="spr-kpi"><div class="spr-kpi-label">Students</div><div class="spr-kpi-value">${roster.length}</div><div class="spr-kpi-hint">in current filter</div></div>
+        <div class="spr-kpi"><div class="spr-kpi-label">Average</div><div class="spr-kpi-value">${classAvg != null ? classAvg + '%' : '—'}</div><div class="spr-kpi-hint">${withAvg.length} graded</div></div>
+        <div class="spr-kpi"><div class="spr-kpi-label">Coverage</div><div class="spr-kpi-value">${coverage != null ? coverage + '%' : '—'}</div><div class="spr-kpi-hint">grades entered</div></div>
+        <div class="spr-kpi"><div class="spr-kpi-label">At risk</div><div class="spr-kpi-value is-risk">${atRisk.length}</div><div class="spr-kpi-hint">below 50%</div></div>
+        <div class="spr-kpi"><div class="spr-kpi-label">Excellent</div><div class="spr-kpi-value is-good">${excellent.length}</div><div class="spr-kpi-hint">80% and above</div></div>
+        <div class="spr-kpi"><div class="spr-kpi-label">Attendance</div><div class="spr-kpi-value">${avgAtt != null ? avgAtt + '%' : '—'}</div><div class="spr-kpi-hint">class average</div></div>
+      </div>
+
+      ${insights.length ? `<div class="spr-insight"><div class="sr-chart-title" style="margin:0 0 8px">Insights</div><ul>${insights.map(t => `<li>${t}</li>`).join('')}</ul></div>` : ''}
+
+      ${sel.tab === 'overview' ? `
+        <div class="spr-charts">
+          <div class="spr-panel">
+            <div class="spr-panel-hd"><h3>Performance distribution</h3></div>
+            <div class="spr-panel-bd"><div class="aid-chart-canvas-wrap"><canvas id="spr-chart-dist"></canvas></div></div>
+          </div>
+          <div class="spr-panel">
+            <div class="spr-panel-hd"><h3>Subject averages (lowest first)</h3></div>
+            <div class="spr-panel-bd"><div class="aid-chart-canvas-wrap"><canvas id="spr-chart-subjects"></canvas></div></div>
+          </div>
+        </div>
+        <div class="spr-charts">
+          <div class="spr-panel">
+            <div class="spr-panel-hd"><h3>🏆 Top performers</h3><button type="button" class="spr-chip" onclick="window._sprSel.band='excellent';window._sprRedraw&&window._sprRedraw()">View all</button></div>
+            <div class="spr-panel-bd">
+              ${excellent.slice(0, 8).map((r, i) => `<div class="spr-list-item" onclick="window._sprSel.focusId='${esc(String(r.student.id))}';window._sprSel.tab='individual';window._sprRedraw&&window._sprRedraw()"><span>${i + 1}. ${esc(r.student.name)}</span><b style="color:var(--green)">${r.avg}%</b></div>`).join('') || '<div class="spr-empty" style="padding:20px"><p>None at 80%+ yet</p></div>'}
+            </div>
+          </div>
+          <div class="spr-panel">
+            <div class="spr-panel-hd"><h3>⚠ At risk</h3><button type="button" class="spr-chip spr-chip-risk" onclick="window._sprSel.band='atRisk';window._sprRedraw&&window._sprRedraw()">View all</button></div>
+            <div class="spr-panel-bd">
+              ${atRisk.slice(0, 8).map((r, i) => `<div class="spr-list-item" onclick="window._sprSel.focusId='${esc(String(r.student.id))}';window._sprSel.tab='individual';window._sprRedraw&&window._sprRedraw()"><span>${i + 1}. ${esc(r.student.name)}</span><b style="color:var(--red)">${r.avg != null ? r.avg + '%' : '—'}</b></div>`).join('') || '<div class="spr-empty" style="padding:20px"><p>No students below 50%</p></div>'}
+            </div>
+          </div>
+        </div>
+      ` : ''}
+
+      ${sel.tab === 'rankings' ? `
+        <div class="spr-panel">
+          <div class="spr-panel-hd">
+            <h3>Rankings · ${esc(term)}${clsFilter ? ' · ' + esc(clsFilter) : ''}</h3>
+            <span style="font-size:12px;color:var(--muted)">${roster.length} student${roster.length===1?'':'s'}</span>
+          </div>
+          <div style="overflow:auto">
+            <table class="sr-table">
+              <thead><tr>
+                <th>#</th><th>Student</th><th>Class</th>
+                <th style="text-align:right">Average</th><th>Band</th>
+                <th style="text-align:right">Att.</th><th style="text-align:right">Skills</th>
+                <th style="text-align:right">Graded</th><th>Weakest</th>
+              </tr></thead>
+              <tbody>${rankRows || '<tr><td colspan="9"><div class="spr-empty"><div class="spr-empty-icon">🔎</div><h4>No matches</h4><p>Try clearing band filters or changing term/class.</p></div></td></tr>'}</tbody>
+            </table>
+          </div>
+          ${roster.length > 80 ? `<div style="padding:10px 16px;font-size:12px;color:var(--muted);border-top:1px solid var(--border)">Showing top 80 of ${roster.length}. Export CSV for the full list.</div>` : ''}
+        </div>
+      ` : ''}
+
+      ${sel.tab === 'subjects' ? `
+        <div class="spr-panel" style="margin-bottom:14px">
+          <div class="spr-panel-hd"><h3>Subject performance</h3><span style="font-size:12px;color:var(--muted)">${subjectRows.length} subjects</span></div>
+          <div style="overflow:auto">
+            <table class="sr-table">
+              <thead><tr>
+                <th>Subject</th>
+                <th style="text-align:right">Average</th>
+                <th style="text-align:right">Min</th>
+                <th style="text-align:right">Max</th>
+                <th style="text-align:right">n</th>
+                <th style="width:160px">Spread</th>
+              </tr></thead>
+              <tbody>${subTable || '<tr><td colspan="6"><div class="spr-empty"><div class="spr-empty-icon">📚</div><h4>No graded subjects</h4><p>Enter grades for this term to unlock subject analytics.</p></div></td></tr>'}</tbody>
+            </table>
+          </div>
+        </div>
+      ` : ''}
+
+      ${sel.tab === 'individual' ? individualHtml : ''}
+
+      <div class="spr-print-footer">
+        ${esc(schoolName)} · Student Performance Report · ${esc(filterLabel)} · Confidential · Page generated ${esc(printedAt)}
+      </div>
+    `;
+
+    window._sprLastRoster = roster;
+
+    // Charts
+    requestAnimationFrame(() => {
+      if (typeof Chart === 'undefined') return;
+      if (sel.tab === 'overview') {
+        const distCv = document.getElementById('spr-chart-dist');
+        if (distCv) {
+          chartStore.dist = new Chart(distCv, {
+            type: 'doughnut',
+            data: {
+              labels: ['Excellent', 'Good', 'Fair', 'At risk', 'No grades'],
+              datasets: [{
+                data: [dist.excellent, dist.good, dist.fair, dist.atRisk, dist.nograde],
+                backgroundColor: ['#1a7a4c', '#2d9f6f', '#c9a84c', '#b84040', '#94a3b8']
+              }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
+          });
+        }
+        const subCv = document.getElementById('spr-chart-subjects');
+        if (subCv && subjectRows.length) {
+          const top = subjectRows.slice(0, 12);
+          chartStore.subs = new Chart(subCv, {
+            type: 'bar',
+            data: {
+              labels: top.map(s => s.name),
+              datasets: [{ data: top.map(s => s.avg), backgroundColor: top.map(s => s.avg < 50 ? '#b84040' : s.avg < 70 ? '#c9a84c' : '#1a56b0') }]
+            },
+            options: {
+              indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: { x: { min: 0, max: 100, ticks: { callback: v => v + '%' } } }
+            }
+          });
+        }
+      }
+      if (sel.tab === 'individual' && focus) {
+        const foc = document.getElementById('spr-chart-subject-focus');
+        if (foc) {
+          const graded = focus.subs.filter(x => x.score != null);
+          chartStore.focus = new Chart(foc, {
+            type: 'bar',
+            data: {
+              labels: graded.map(s => s.name),
+              datasets: [{ data: graded.map(s => s.score), backgroundColor: graded.map(s => s.score < 50 ? '#b84040' : s.score >= 80 ? '#1a7a4c' : '#1a56b0') }]
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' } } }
+            }
+          });
+        }
+      }
+    });
+  }
+
+  window._sprRedraw = draw;
+  draw();
+}
+
 function renderClassAnalytics() {
   const el = document.getElementById('ca-inner');
   const admitted = db.admissions || [];
@@ -36684,6 +38843,948 @@ function renderParentDatabase() {
     </div>`;
 }
 
+
+// ══════════════ STAFF PERFORMANCE REPORT ══════════════
+// Aggregates appraisals, attendance, training, and overdue reviews into
+// management-ready analytics (separate from the data-entry Appraisals page).
+
+function sperfStaffAttRate(empId) {
+  const att = db.staffAttendance || {};
+  let present = 0, total = 0;
+  Object.keys(att).forEach(date => {
+    const row = att[date] && att[date][empId];
+    if (!row) return;
+    const st = (row.status || '').toLowerCase();
+    if (!st && !row.in) return;
+    total++;
+    if (st === 'present' || st === 'late' || row.in) present++;
+    else if (st === 'absent') { /* counted in total only */ }
+    else if (row.in) present++;
+  });
+  return total ? Math.round((present / total) * 1000) / 10 : null;
+}
+
+function sperfTrainingCount(empId) {
+  const list = db.trainings || [];
+  // completed if staff marked trained / clicked link audit / status done
+  let done = 0, assigned = 0;
+  list.forEach(t => {
+    if (!t) return;
+    const targets = t.staffIds || t.employeeIds || [];
+    const applies = !targets.length || targets.map(String).includes(String(empId));
+    if (!applies) return;
+    assigned++;
+    const audit = (db.trainingLinkAuditLog || []).some(a =>
+      a && String(a.trainingId) === String(t.id) && String(a.staffId || a.employeeId) === String(empId)
+    );
+    const flagged = (t.completedBy || []).map(String).includes(String(empId)) || t.status === 'completed';
+    if (audit || flagged) done++;
+  });
+  return { done, assigned };
+}
+
+function sperfBand(pct) {
+  if (pct == null) return { key: 'none', label: 'No rating', color: 'var(--muted)' };
+  if (pct >= 80) return { key: 'excellent', label: 'Excellent', color: 'var(--green)' };
+  if (pct >= 60) return { key: 'good', label: 'Good', color: '#1a56b0' };
+  if (pct >= 40) return { key: 'fair', label: 'Fair', color: 'var(--amber)' };
+  return { key: 'low', label: 'Needs support', color: 'var(--red)' };
+}
+
+function sperfBuildRows(termFilter, deptFilter) {
+  const employees = (db.employees || []).filter(e => e && (e.status === 'Active' || !e.status));
+  const appraisals = db.appraisals || [];
+  return employees.map(emp => {
+    let apps = appraisals.filter(a => String(a.employeeId) === String(emp.id));
+    if (termFilter) apps = apps.filter(a => a.term === termFilter);
+    apps = apps.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const latest = apps[0] || null;
+    const pcts = apps.map(a => aprOverallPercent(a.criteria || {})).filter(p => p > 0);
+    const avgPct = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
+    const latestPct = latest ? aprOverallPercent(latest.criteria || {}) : null;
+    const att = sperfStaffAttRate(emp.id);
+    const train = sperfTrainingCount(emp.id);
+    const band = sperfBand(avgPct != null ? avgPct : latestPct);
+    // criteria averages across appraisals
+    const critSum = {}, critN = {};
+    apps.forEach(a => {
+      Object.keys(a.criteria || {}).forEach(k => {
+        const v = a.criteria[k];
+        if (typeof v !== 'number' || v <= 0) return;
+        critSum[k] = (critSum[k] || 0) + v;
+        critN[k] = (critN[k] || 0) + 1;
+      });
+    });
+    const criteriaAvg = {};
+    Object.keys(critSum).forEach(k => { criteriaAvg[k] = Math.round((critSum[k] / critN[k]) * 10) / 10; });
+    return {
+      emp, apps, latest, avgPct, latestPct, att, train, band, criteriaAvg,
+      reviewCount: apps.length,
+      dept: emp.dept || '—',
+      role: emp.role || '—'
+    };
+  }).filter(r => !deptFilter || r.dept === deptFilter)
+    .sort((a, b) => {
+      if (a.avgPct == null && b.avgPct == null) return a.emp.name.localeCompare(b.emp.name);
+      if (a.avgPct == null) return 1;
+      if (b.avgPct == null) return -1;
+      return b.avgPct - a.avgPct;
+    });
+}
+
+function sperfExportCsv(rows, term) {
+  const headers = ['Name', 'Role', 'Department', 'Reviews', 'Avg %', 'Latest %', 'Band', 'Attendance %', 'Trainings done', 'Trainings assigned', 'Last review date', 'Reviewer'];
+  const lines = [headers.join(',')];
+  rows.forEach(r => {
+    lines.push([
+      '"' + String(r.emp.name || '').replace(/"/g, '""') + '"',
+      '"' + String(r.role || '').replace(/"/g, '""') + '"',
+      '"' + String(r.dept || '').replace(/"/g, '""') + '"',
+      r.reviewCount,
+      r.avgPct != null ? r.avgPct : '',
+      r.latestPct != null ? r.latestPct : '',
+      r.band.label,
+      r.att != null ? r.att : '',
+      r.train.done,
+      r.train.assigned,
+      r.latest ? (r.latest.date || '') : '',
+      r.latest ? ('"' + String(r.latest.reviewer || '').replace(/"/g, '""') + '"') : ''
+    ].join(','));
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'staff-performance-' + (term || 'all') + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  try { URL.revokeObjectURL(a.href); } catch (e) {}
+  if (typeof toast === 'function') toast('✅ Staff performance CSV exported');
+}
+
+
+// ══════════════ TEACHERS EXTERNAL ASSESSMENTS ══════════════
+// School-wide parameter templates + optional per-teacher parameter sets,
+// then assessment records with scores against those parameters.
+
+function teaDefaultParams() {
+  try {
+    const list = Array.isArray(db.externalAssessmentParams) ? db.externalAssessmentParams : [];
+    if (list.length) return list.map(p => Object.assign({}, p));
+    const seed = (typeof DB_SEED !== 'undefined' && DB_SEED.externalAssessmentParams)
+      ? DB_SEED.externalAssessmentParams : [];
+    return JSON.parse(JSON.stringify(seed || []));
+  } catch (e) {
+    console.warn('teaDefaultParams', e);
+    return [];
+  }
+}
+
+/** Parameters used for a teacher: override if set, else school defaults. */
+function teaParamsForTeacher(empId) {
+  const o = (db.teacherExternalParamOverrides || {})[String(empId)];
+  if (Array.isArray(o) && o.length) return o.map(p => Object.assign({}, p));
+  return teaDefaultParams();
+}
+
+function teaHasOverride(empId) {
+  const o = (db.teacherExternalParamOverrides || {})[String(empId)];
+  return Array.isArray(o) && o.length > 0;
+}
+
+function teaScorePercent(assessment, params) {
+  if (!assessment || !assessment.scores) return null;
+  const plist = params || teaParamsForTeacher(assessment.employeeId);
+  let got = 0, max = 0;
+  plist.forEach(p => {
+    const m = parseFloat(p.maxScore);
+    const maxS = Number.isFinite(m) && m > 0 ? m : 10;
+    max += maxS;
+    const s = parseFloat(assessment.scores[p.id]);
+    if (Number.isFinite(s)) got += Math.max(0, Math.min(maxS, s));
+  });
+  return max > 0 ? Math.round((got / max) * 1000) / 10 : null;
+}
+
+function teaOpenParamSetup(empId) {
+  // empId null/empty => school defaults
+  try { ensureTeacherExternalModals(); } catch (e) { console.warn(e); }
+  window._teaParamEditEmpId = empId ? String(empId) : null;
+  const params = empId ? teaParamsForTeacher(empId) : teaDefaultParams();
+  window._teaParamDraft = (params || []).map(p => Object.assign({}, p));
+  teaRenderParamModal();
+  openModal('tea-param-modal');
+}
+
+function teaRenderParamModal() {
+  const host = document.getElementById('tea-param-modal-body');
+  if (!host) return;
+  const empId = window._teaParamEditEmpId;
+  const emp = empId ? (db.employees || []).find(e => String(e.id) === String(empId)) : null;
+  const title = document.getElementById('tea-param-modal-title');
+  if (title) {
+    title.textContent = emp
+      ? 'Parameters for ' + (emp.name || 'Teacher')
+      : 'School default assessment parameters';
+  }
+  const draft = window._teaParamDraft || [];
+  host.innerHTML = `
+    <p style="font-size:12.5px;color:var(--muted);margin:0 0 12px;line-height:1.45">
+      ${emp
+        ? 'These parameters apply only to this teacher’s external assessments. Leave blank names will be skipped on save.'
+        : 'Default parameters used for every teacher who does not have a personal set.'}
+    </p>
+    <div style="display:flex;flex-direction:column;gap:8px" id="tea-param-rows">
+      ${draft.map((p, i) => `
+        <div style="display:grid;grid-template-columns:1.4fr 90px 1.2fr 36px;gap:8px;align-items:center">
+          <input type="text" value="${esc(p.name || '')}" placeholder="Parameter name"
+            oninput="window._teaParamDraft[${i}].name=this.value" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border)">
+          <input type="number" min="1" max="100" value="${p.maxScore != null ? p.maxScore : 10}"
+            oninput="window._teaParamDraft[${i}].maxScore=parseFloat(this.value)||10" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border)" title="Max score">
+          <input type="text" value="${esc(p.description || '')}" placeholder="Description (optional)"
+            oninput="window._teaParamDraft[${i}].description=this.value" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border)">
+          <button type="button" class="btn btn-sm btn-outline" style="padding:6px" title="Remove"
+            onclick="window._teaParamDraft.splice(${i},1);teaRenderParamModal()">✕</button>
+        </div>`).join('') || '<div class="empty-state" style="padding:16px">No parameters — add one below</div>'}
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn btn-outline btn-sm" onclick="teaAddParamRow()">+ Add parameter</button>
+      ${emp ? `<button type="button" class="btn btn-outline btn-sm" onclick="teaResetTeacherParams()">Use school defaults</button>` : ''}
+    </div>
+  `;
+}
+
+function teaAddParamRow() {
+  if (!Array.isArray(window._teaParamDraft)) window._teaParamDraft = [];
+  const id = 'p' + (db.nextExternalParamId || 1);
+  db.nextExternalParamId = (db.nextExternalParamId || 1) + 1;
+  window._teaParamDraft.push({ id: id, name: '', maxScore: 10, description: '' });
+  teaRenderParamModal();
+}
+
+function teaResetTeacherParams() {
+  const empId = window._teaParamEditEmpId;
+  if (!empId) return;
+  if (!confirm('Remove personal parameters for this teacher and use school defaults?')) return;
+  if (!db.teacherExternalParamOverrides) db.teacherExternalParamOverrides = {};
+  delete db.teacherExternalParamOverrides[String(empId)];
+  saveDb();
+  closeModal('tea-param-modal');
+  if (typeof window._teaRedraw === 'function') window._teaRedraw();
+  toast('✅ Teacher will use school default parameters');
+}
+
+function teaSaveParamSetup() {
+  const draft = (window._teaParamDraft || [])
+    .map(p => ({
+      id: p.id || ('p' + Math.random().toString(36).slice(2, 8)),
+      name: String(p.name || '').trim(),
+      maxScore: Math.max(1, parseFloat(p.maxScore) || 10),
+      description: String(p.description || '').trim()
+    }))
+    .filter(p => p.name);
+  if (!draft.length) {
+    toast('⚠ Add at least one named parameter');
+    return;
+  }
+  const empId = window._teaParamEditEmpId;
+  if (empId) {
+    if (!db.teacherExternalParamOverrides) db.teacherExternalParamOverrides = {};
+    db.teacherExternalParamOverrides[String(empId)] = draft;
+  } else {
+    db.externalAssessmentParams = draft;
+  }
+  saveDb();
+  closeModal('tea-param-modal');
+  if (typeof window._teaRedraw === 'function') window._teaRedraw();
+  toast('✅ Parameters saved');
+}
+
+function teaOpenAssessmentModal(editId) {
+  try { ensureTeacherExternalModals(); } catch (e) { console.warn(e); }
+  window._teaEditId = editId || null;
+  const teachers = (db.employees || []).filter(e => e && (e.status === 'Active' || !e.status));
+  const existing = editId ? (db.teacherExternalAssessments || []).find(a => String(a.id) === String(editId)) : null;
+  let empId = existing ? existing.employeeId : '';
+  if (!empId && window._teaSel && window._teaSel.emp && window._teaSel.emp !== '__ALL__') empId = window._teaSel.emp;
+  if (!empId && teachers[0]) empId = teachers[0].id;
+  const params = teaParamsForTeacher(empId);
+  const title = document.getElementById('tea-assess-modal-title');
+  if (title) title.textContent = existing ? 'Edit external assessment' : 'New external assessment';
+  const body = document.getElementById('tea-assess-modal-body');
+  if (!body) return;
+
+  const termOpts = (typeof TERMS !== 'undefined' ? TERMS : []).map(t =>
+    `<option value="${esc(t)}" ${existing && existing.term === t ? 'selected' : ''}>${esc(t)}</option>`
+  ).join('');
+  const teacherOpts = teachers.map(e =>
+    `<option value="${esc(String(e.id))}" ${String(e.id) === String(empId) ? 'selected' : ''}>${esc(e.name)}${e.role ? ' · ' + esc(e.role) : ''}</option>`
+  ).join('');
+
+  body.innerHTML = `
+    <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Teacher</label>
+        <select id="tea-emp" onchange="teaRefreshScoreFields()">${teacherOpts || '<option value="">No staff</option>'}</select>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">
+          Parameters: <span id="tea-param-source">${teaHasOverride(empId) ? 'Personal set for this teacher' : 'School defaults'}</span>
+          · <a href="#" onclick="event.preventDefault();teaOpenParamSetup(document.getElementById('tea-emp').value)">Edit parameters for this teacher</a>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="tea-date" value="${esc((existing && existing.date) || (typeof today === 'function' ? today() : ''))}">
+      </div>
+      <div class="form-group">
+        <label>Term</label>
+        <select id="tea-term">${termOpts}</select>
+      </div>
+      <div class="form-group">
+        <label>External assessor</label>
+        <input type="text" id="tea-assessor" value="${esc((existing && existing.assessor) || '')}" placeholder="Name of assessor">
+      </div>
+      <div class="form-group">
+        <label>Assessing body / agency</label>
+        <input type="text" id="tea-body" value="${esc((existing && existing.body) || '')}" placeholder="e.g. GES, District, Consultant">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Scores by parameter</label>
+        <div id="tea-score-fields"></div>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Notes / recommendations</label>
+        <textarea id="tea-notes" rows="3" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border)">${esc((existing && existing.notes) || '')}</textarea>
+      </div>
+    </div>
+  `;
+  window._teaScoreSeed = (existing && existing.scores) ? Object.assign({}, existing.scores) : {};
+  teaRefreshScoreFields();
+  openModal('tea-assess-modal');
+}
+
+function teaRefreshScoreFields() {
+  const empId = (document.getElementById('tea-emp') || {}).value;
+  const host = document.getElementById('tea-score-fields');
+  const src = document.getElementById('tea-param-source');
+  if (src) src.textContent = teaHasOverride(empId) ? 'Personal set for this teacher' : 'School defaults';
+  if (!host) return;
+  const params = teaParamsForTeacher(empId);
+  const seed = window._teaScoreSeed || {};
+  host.innerHTML = params.map(p => {
+    const max = p.maxScore != null ? p.maxScore : 10;
+    const val = seed[p.id] != null ? seed[p.id] : '';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;color:var(--navy)">${esc(p.name)}</div>
+        ${p.description ? `<div style="font-size:11px;color:var(--muted)">${esc(p.description)}</div>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="number" min="0" max="${max}" step="0.5" data-tea-param="${esc(p.id)}" value="${val}"
+          style="width:72px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);text-align:right"
+          oninput="window._teaScoreSeed=window._teaScoreSeed||{};window._teaScoreSeed['${esc(p.id)}']=this.value">
+        <span style="font-size:12px;color:var(--muted)">/ ${max}</span>
+      </div>
+    </div>`;
+  }).join('') || '<div class="empty-state" style="padding:12px">No parameters defined — set school defaults first</div>';
+}
+
+function teaSaveAssessment() {
+  const empId = (document.getElementById('tea-emp') || {}).value;
+  if (!empId) { toast('⚠ Select a teacher'); return; }
+  const params = teaParamsForTeacher(empId);
+  const scores = {};
+  params.forEach(p => {
+    const input = document.querySelector('input[data-tea-param="' + p.id + '"]');
+    const v = input ? parseFloat(input.value) : NaN;
+    if (Number.isFinite(v)) {
+      const max = p.maxScore != null ? p.maxScore : 10;
+      scores[p.id] = Math.max(0, Math.min(max, v));
+    }
+  });
+  if (!Object.keys(scores).length) { toast('⚠ Enter at least one score'); return; }
+  if (!Array.isArray(db.teacherExternalAssessments)) db.teacherExternalAssessments = [];
+  const payload = {
+    employeeId: empId,
+    date: (document.getElementById('tea-date') || {}).value || (typeof today === 'function' ? today() : ''),
+    term: (document.getElementById('tea-term') || {}).value || '',
+    year: typeof ACTIVE_YEAR !== 'undefined' ? ACTIVE_YEAR : '',
+    assessor: ((document.getElementById('tea-assessor') || {}).value || '').trim(),
+    body: ((document.getElementById('tea-body') || {}).value || '').trim(),
+    scores: scores,
+    notes: ((document.getElementById('tea-notes') || {}).value || '').trim(),
+    paramSnapshot: params.map(p => Object.assign({}, p))
+  };
+  const editId = window._teaEditId;
+  if (editId) {
+    const idx = db.teacherExternalAssessments.findIndex(a => String(a.id) === String(editId));
+    if (idx >= 0) {
+      db.teacherExternalAssessments[idx] = Object.assign({}, db.teacherExternalAssessments[idx], payload, { id: editId, updatedAt: new Date().toISOString() });
+    }
+  } else {
+    const id = 'tea' + (db.nextExternalAssessmentId || 1);
+    db.nextExternalAssessmentId = (db.nextExternalAssessmentId || 1) + 1;
+    db.teacherExternalAssessments.push(Object.assign({ id: id, createdAt: new Date().toISOString(), createdBy: (currentUser && currentUser.username) || '' }, payload));
+  }
+  saveDb();
+  closeModal('tea-assess-modal');
+  if (typeof window._teaRedraw === 'function') window._teaRedraw();
+  toast('✅ External assessment saved');
+}
+
+function teaDeleteAssessment(id) {
+  if (!confirm('Delete this external assessment?')) return;
+  db.teacherExternalAssessments = (db.teacherExternalAssessments || []).filter(a => String(a.id) !== String(id));
+  saveDb();
+  if (typeof window._teaRedraw === 'function') window._teaRedraw();
+  toast('🗑 Assessment deleted');
+}
+
+function ensureTeacherExternalModals() {
+  if (document.getElementById('tea-param-modal')) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+<div class="modal-overlay" id="tea-param-modal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header">
+      <div class="modal-title" id="tea-param-modal-title">Assessment parameters</div>
+      <button class="modal-close" onclick="closeModal('tea-param-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="tea-param-modal-body"></div>
+    <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="closeModal('tea-param-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="teaSaveParamSetup()">Save parameters</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="tea-assess-modal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header">
+      <div class="modal-title" id="tea-assess-modal-title">External assessment</div>
+      <button class="modal-close" onclick="closeModal('tea-assess-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="tea-assess-modal-body"></div>
+    <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="closeModal('tea-assess-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="teaSaveAssessment()">Save assessment</button>
+    </div>
+  </div>
+</div>`;
+  document.body.appendChild(wrap);
+}
+
+function renderTeacherExternalAssessments() {
+  try {
+  ensurePage('teacherexternal', 'tea-inner');
+  ensureTeacherExternalModals();
+  const el = document.getElementById('tea-inner');
+  if (!el) return;
+
+  if (!window._teaSel) window._teaSel = { emp: '__ALL__', term: '' };
+  const sel = window._teaSel;
+
+  const teachers = (db.employees || []).filter(e => e && (e.status === 'Active' || !e.status))
+    .slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  let assessments = (db.teacherExternalAssessments || []).slice()
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  if (sel.emp && sel.emp !== '__ALL__') assessments = assessments.filter(a => String(a.employeeId) === String(sel.emp));
+  if (sel.term) assessments = assessments.filter(a => a.term === sel.term);
+
+  const pcts = assessments.map(a => teaScorePercent(a)).filter(v => v != null);
+  const avgPct = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length * 10) / 10 : null;
+  const withOverride = teachers.filter(t => teaHasOverride(t.id)).length;
+
+  const teacherOpts = `<option value="__ALL__" ${sel.emp === '__ALL__' ? 'selected' : ''}>All teachers</option>` +
+    teachers.map(t => `<option value="${esc(String(t.id))}" ${String(sel.emp) === String(t.id) ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
+  const termOpts = `<option value="" ${!sel.term ? 'selected' : ''}>All terms</option>` +
+    (typeof TERMS !== 'undefined' ? TERMS : []).map(t =>
+      `<option value="${esc(t)}" ${sel.term === t ? 'selected' : ''}>${esc(t)}</option>`
+    ).join('');
+
+  const rows = assessments.map(a => {
+    const emp = teachers.find(e => String(e.id) === String(a.employeeId)) || (db.employees || []).find(e => String(e.id) === String(a.employeeId));
+    const params = a.paramSnapshot && a.paramSnapshot.length ? a.paramSnapshot : teaParamsForTeacher(a.employeeId);
+    const pct = teaScorePercent(a, params);
+    const color = pct == null ? 'var(--muted)' : pct >= 80 ? 'var(--green)' : pct >= 60 ? '#1a56b0' : pct >= 40 ? 'var(--amber)' : 'var(--red)';
+    return `<tr>
+      <td>${esc(a.date || '—')}</td>
+      <td><b>${esc(emp ? emp.name : 'Unknown')}</b>
+        <div style="font-size:11px;color:var(--muted)">${esc(emp ? (emp.role || '') : '')}${teaHasOverride(a.employeeId) ? ' · custom params' : ''}</div>
+      </td>
+      <td>${esc(a.term || '—')}</td>
+      <td>${esc(a.assessor || '—')}</td>
+      <td>${esc(a.body || '—')}</td>
+      <td style="text-align:right;font-weight:700;color:${color}">${pct != null ? pct + '%' : '—'}</td>
+      <td style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-outline" onclick="teaOpenAssessmentModal('${esc(String(a.id))}')">Edit</button>
+        <button class="btn btn-sm btn-outline" onclick="teaDeleteAssessment('${esc(String(a.id))}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const teacherCards = teachers.map(t => {
+    const mine = (db.teacherExternalAssessments || []).filter(a => String(a.employeeId) === String(t.id));
+    const latest = mine.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
+    const pct = latest ? teaScorePercent(latest) : null;
+    const custom = teaHasOverride(t.id);
+    return `<div class="card" style="padding:12px 14px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+        <div>
+          <div style="font-weight:700;color:var(--navy)">${esc(t.name)}</div>
+          <div style="font-size:11px;color:var(--muted)">${esc(t.role || '')}${t.dept ? ' · ' + esc(t.dept) : ''}</div>
+          <div style="font-size:11px;margin-top:4px;color:var(--muted)">${mine.length} assessment${mine.length === 1 ? '' : 's'} · ${custom ? 'Personal parameters' : 'School defaults'}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:20px;font-weight:800;color:${pct == null ? 'var(--muted)' : pct >= 80 ? 'var(--green)' : 'var(--navy)'}">${pct != null ? pct + '%' : '—'}</div>
+          <div style="font-size:10px;color:var(--muted)">Latest</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn-sm btn-outline" onclick="teaOpenParamSetup('${esc(String(t.id))}')">Set parameters</button>
+        <button class="btn btn-sm btn-primary" onclick="window._teaSel.emp='${esc(String(t.id))}';teaOpenAssessmentModal()">New assessment</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  const defaultParams = teaDefaultParams();
+  const paramPreview = defaultParams.slice(0, 6).map(p =>
+    `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--cream);border:1px solid var(--border);border-radius:999px;padding:4px 10px;font-size:11.5px;font-weight:600;color:var(--navy)">${esc(p.name)} <span style="color:var(--muted);font-weight:500">/${p.maxScore != null ? p.maxScore : 10}</span></span>`
+  ).join(' ');
+
+  el.innerHTML = `
+    <div class="section-header" style="margin-bottom:14px">
+      <div>
+        <div class="section-title">📋 External Assessments</div>
+        <div class="section-sub">Teachers · parameters · external evaluators — ${esc(String(ACTIVE_YEAR).replace('_', '/'))}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="teaOpenParamSetup(null)">⚙ School parameters</button>
+        <button class="btn btn-primary btn-sm" onclick="teaOpenAssessmentModal()">+ New assessment</button>
+      </div>
+    </div>
+
+    <!-- Section: Overview -->
+    <div class="sr-stat-row" style="margin-bottom:14px">
+      <div class="sr-stat-card"><div class="sr-stat-value">${assessments.length}</div><div class="sr-stat-label">Assessments shown</div></div>
+      <div class="sr-stat-card"><div class="sr-stat-value">${avgPct != null ? avgPct + '%' : '—'}</div><div class="sr-stat-label">Average score</div></div>
+      <div class="sr-stat-card"><div class="sr-stat-value">${teachers.length}</div><div class="sr-stat-label">Active staff</div></div>
+      <div class="sr-stat-card"><div class="sr-stat-value">${withOverride}</div><div class="sr-stat-label">Custom parameter sets</div></div>
+    </div>
+
+    <!-- Section: Parameters -->
+    <div class="card" style="margin-bottom:16px;overflow:hidden">
+      <div class="card-header" style="background:linear-gradient(135deg,#0f1f3d,#1a3560);color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div>
+          <div class="card-title" style="color:#e8c97a">1 · Assessment parameters</div>
+          <div style="font-size:12px;opacity:0.85;margin-top:2px">School defaults apply unless a teacher has a personal set</div>
+        </div>
+        <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3)" onclick="teaOpenParamSetup(null)">Edit school defaults</button>
+      </div>
+      <div style="padding:14px 16px">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">${paramPreview || '<span style="color:var(--muted)">No default parameters yet</span>'}</div>
+        <div style="font-size:12px;color:var(--muted)">${defaultParams.length} default parameter${defaultParams.length === 1 ? '' : 's'} · ${withOverride} teacher${withOverride === 1 ? '' : 's'} with personal parameters</div>
+      </div>
+    </div>
+
+    <!-- Section: Filters -->
+    <div class="card" style="padding:12px 14px;margin-bottom:14px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0;min-width:160px">
+          <label>Teacher</label>
+          <select onchange="window._teaSel.emp=this.value;window._teaRedraw&&window._teaRedraw()">${teacherOpts}</select>
+        </div>
+        <div class="form-group" style="margin:0;min-width:130px">
+          <label>Term</label>
+          <select onchange="window._teaSel.term=this.value;window._teaRedraw&&window._teaRedraw()">${termOpts}</select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: By teacher -->
+    <div class="card" style="margin-bottom:16px;overflow:hidden">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div class="card-title">2 · Teachers — set parameters &amp; record assessments</div>
+        <span style="font-size:12px;color:var(--muted)">${teachers.length} active</span>
+      </div>
+      <div style="padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
+        ${teacherCards || '<div class="empty-state">No active staff in the database</div>'}
+      </div>
+    </div>
+
+    <!-- Section: Records -->
+    <div class="card" style="overflow:hidden">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div class="card-title">3 · External assessment records</div>
+        <button class="btn btn-primary btn-sm" onclick="teaOpenAssessmentModal()">+ New assessment</button>
+      </div>
+      <div style="overflow:auto">
+        <table class="sr-table">
+          <thead><tr>
+            <th>Date</th><th>Teacher</th><th>Term</th><th>Assessor</th><th>Body</th>
+            <th style="text-align:right">Score</th><th>Actions</th>
+          </tr></thead>
+          <tbody>${rows || '<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--muted)">No external assessments yet — use <b>New assessment</b> to add one</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  window._teaRedraw = function() { renderTeacherExternalAssessments(); };
+  } catch (err) {
+    console.error('renderTeacherExternalAssessments', err);
+    try {
+      const el = document.getElementById('tea-inner');
+      if (el) el.innerHTML = '<div class="card" style="padding:20px"><b>Could not load External Assessments.</b><div style="margin-top:8px;color:var(--muted);font-size:13px">' + esc(String(err && err.message || err)) + '</div><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="renderTeacherExternalAssessments()">Retry</button></div>';
+    } catch (e2) {}
+    if (typeof toast === 'function') toast('⚠ External Assessments screen error — see console', 'error');
+  }
+}
+
+function renderStaffPerformanceReport() {
+  ensurePage('staffperformance', 'sperf-inner');
+  const el = document.getElementById('sperf-inner');
+  if (!el) return;
+
+  if (!window._sperfSel) {
+    const cts = typeof getCurrentTermStatus === 'function' ? getCurrentTermStatus() : {};
+    window._sperfSel = {
+      term: '',
+      dept: '__ALL__',
+      tab: 'overview', // overview | rankings | criteria | overdue
+      focusId: null
+    };
+  }
+  const sel = window._sperfSel;
+  const chartStore = window._sperfCharts || (window._sperfCharts = {});
+  function destroyCharts() {
+    Object.keys(chartStore).forEach(k => {
+      try { chartStore[k].destroy(); } catch (e) {}
+      delete chartStore[k];
+    });
+  }
+
+  const termFilter = sel.term || '';
+  const deptFilter = sel.dept === '__ALL__' ? null : sel.dept;
+  const rows = sperfBuildRows(termFilter, deptFilter);
+
+  const rated = rows.filter(r => r.avgPct != null || r.latestPct != null);
+  const avgSchool = rated.length
+    ? Math.round(rated.reduce((s, r) => s + (r.avgPct != null ? r.avgPct : r.latestPct), 0) / rated.length)
+    : null;
+  const excellent = rows.filter(r => r.band.key === 'excellent');
+  const low = rows.filter(r => r.band.key === 'low');
+  const noReview = rows.filter(r => r.reviewCount === 0);
+  const attVals = rows.map(r => r.att).filter(v => v != null);
+  const avgAtt = attVals.length ? Math.round(attVals.reduce((a, b) => a + b, 0) / attVals.length * 10) / 10 : null;
+
+  const cts = typeof getCurrentTermStatus === 'function' ? getCurrentTermStatus() : {};
+  const currentTerm = cts.term || (typeof TERMS !== 'undefined' ? TERMS[0] : '');
+  const overdue = (db.employees || []).filter(e => {
+    if (!e || (e.status && e.status !== 'Active')) return false;
+    return !(db.appraisals || []).some(a =>
+      String(a.employeeId) === String(e.id) && a.term === currentTerm && a.year === ACTIVE_YEAR
+    );
+  });
+
+  // Department rollup
+  const byDept = {};
+  rows.forEach(r => {
+    const d = r.dept || '—';
+    if (!byDept[d]) byDept[d] = { dept: d, n: 0, sum: 0, rated: 0 };
+    byDept[d].n++;
+    if (r.avgPct != null) { byDept[d].sum += r.avgPct; byDept[d].rated++; }
+  });
+  const deptRows = Object.values(byDept).map(d => ({
+    ...d,
+    avg: d.rated ? Math.round(d.sum / d.rated) : null
+  })).sort((a, b) => (b.avg || 0) - (a.avg || 0));
+
+  // Criteria aggregate
+  const critAll = {};
+  rows.forEach(r => {
+    Object.keys(r.criteriaAvg).forEach(k => {
+      if (!critAll[k]) critAll[k] = [];
+      critAll[k].push(r.criteriaAvg[k]);
+    });
+  });
+  const critRows = Object.keys(critAll).map(k => {
+    const arr = critAll[k];
+    const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+    return { key: k, avg: Math.round(avg * 10) / 10, n: arr.length };
+  }).sort((a, b) => a.avg - b.avg);
+
+  const depts = [...new Set((db.employees || []).map(e => e.dept).filter(Boolean))].sort();
+  const termOpts = `<option value="" ${!sel.term ? 'selected' : ''}>All terms</option>` +
+    (typeof TERMS !== 'undefined' ? TERMS : []).map(t =>
+      `<option value="${esc(t)}" ${sel.term === t ? 'selected' : ''}>${esc(t)}</option>`
+    ).join('');
+  const deptOpts = `<option value="__ALL__" ${sel.dept === '__ALL__' ? 'selected' : ''}>All departments</option>` +
+    depts.map(d => `<option value="${esc(d)}" ${sel.dept === d ? 'selected' : ''}>${esc(d)}</option>`).join('');
+
+  const tabBtn = (id, label) =>
+    `<button type="button" class="btn btn-sm ${sel.tab === id ? 'btn-primary' : 'btn-outline'}" onclick="window._sperfSel.tab='${id}';window._sperfRedraw&&window._sperfRedraw()">${label}</button>`;
+
+  const rankRows = rows.map((r, i) => `<tr style="cursor:pointer" onclick="window._sperfSel.focusId='${esc(String(r.emp.id))}';window._sperfSel.tab='rankings';window._sperfRedraw&&window._sperfRedraw()">
+    <td style="font-weight:700;color:var(--navy)">${i + 1}</td>
+    <td><b>${esc(r.emp.name)}</b><div style="font-size:11px;color:var(--muted)">${esc(r.role)}</div></td>
+    <td>${esc(r.dept)}</td>
+    <td style="text-align:right">${r.reviewCount}</td>
+    <td style="text-align:right;font-weight:700;color:${r.band.color}">${r.avgPct != null ? r.avgPct + '%' : '—'}</td>
+    <td style="text-align:right">${r.latestPct != null ? r.latestPct + '%' : '—'}</td>
+    <td><span class="badge" style="background:${r.band.color}22;color:${r.band.color}">${esc(r.band.label)}</span></td>
+    <td style="text-align:right">${r.att != null ? r.att + '%' : '—'}</td>
+    <td style="text-align:right">${r.train.assigned ? r.train.done + '/' + r.train.assigned : '—'}</td>
+  </tr>`).join('');
+
+  const overdueRows = overdue.map(e => `<tr>
+    <td><b>${esc(e.name)}</b></td>
+    <td>${esc(e.role || '—')}</td>
+    <td>${esc(e.dept || '—')}</td>
+    <td>${esc(currentTerm)}</td>
+    <td><button class="btn btn-sm btn-outline" onclick="navigate('appraisals')">Open Appraisals</button></td>
+  </tr>`).join('');
+
+  // Focus detail
+  let focusHtml = '';
+  const focus = sel.focusId ? rows.find(r => String(r.emp.id) === String(sel.focusId)) : null;
+  if (focus) {
+    const hist = focus.apps.slice(0, 8).map(a => {
+      const pct = aprOverallPercent(a.criteria || {});
+      return `<tr>
+        <td>${esc(a.date || '—')}</td>
+        <td>${esc(a.term || a.period || '—')}</td>
+        <td style="text-align:right;font-weight:700;color:${aprPercentColor(pct)}">${pct}%</td>
+        <td>${renderStars(aprOverallRating(a.criteria || {}))}</td>
+        <td>${esc(a.reviewer || '—')}</td>
+        <td>${a.published ? 'Sent' : 'Draft'}</td>
+      </tr>`;
+    }).join('');
+    const critBits = Object.keys(focus.criteriaAvg).map(k =>
+      `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <span>${esc(k)}</span><b>${focus.criteriaAvg[k]}/5</b>
+      </div>`
+    ).join('') || '<div class="empty-state" style="padding:12px">No criterion scores yet</div>';
+    focusHtml = `
+      <div class="card" style="margin-bottom:14px;border:1px solid var(--border)">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <strong style="font-size:16px">${esc(focus.emp.name)}</strong>
+            <div style="font-size:12px;color:var(--muted)">${esc(focus.role)} · ${esc(focus.dept)}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:28px;font-weight:800;color:${focus.band.color}">${focus.avgPct != null ? focus.avgPct + '%' : '—'}</div>
+            <div style="font-size:12px;color:${focus.band.color}">${esc(focus.band.label)}</div>
+          </div>
+        </div>
+        <div style="padding:14px 16px">
+          <div class="sr-stat-row" style="margin-bottom:12px">
+            <div class="sr-stat-card"><div class="sr-stat-value">${focus.reviewCount}</div><div class="sr-stat-label">Reviews</div></div>
+            <div class="sr-stat-card"><div class="sr-stat-value">${focus.latestPct != null ? focus.latestPct + '%' : '—'}</div><div class="sr-stat-label">Latest</div></div>
+            <div class="sr-stat-card"><div class="sr-stat-value">${focus.att != null ? focus.att + '%' : '—'}</div><div class="sr-stat-label">Attendance</div></div>
+            <div class="sr-stat-card"><div class="sr-stat-value">${focus.train.assigned ? focus.train.done + '/' + focus.train.assigned : '—'}</div><div class="sr-stat-label">Training</div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" class="dash-2col">
+            <div>
+              <div class="sr-chart-title">Criteria averages</div>
+              ${critBits}
+            </div>
+            <div>
+              <div class="sr-chart-title">Review history</div>
+              <table class="sr-table"><thead><tr><th>Date</th><th>Term</th><th style="text-align:right">%</th><th>Stars</th><th>Reviewer</th><th>Status</th></tr></thead>
+              <tbody>${hist || '<tr><td colspan="6" style="text-align:center;color:var(--muted)">No appraisals</td></tr>'}</tbody></table>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  const insights = [];
+  if (avgSchool != null) insights.push(`School average appraisal score is <b>${avgSchool}%</b> across ${rated.length} rated staff.`);
+  if (noReview.length) insights.push(`<b>${noReview.length}</b> active staff have no appraisal${termFilter ? ' for the selected term' : ' on record'}.`);
+  if (overdue.length) insights.push(`<b>${overdue.length}</b> staff still need a <b>${esc(currentTerm)}</b> review for ${esc(String(ACTIVE_YEAR).replace('_', '/'))}.`);
+  if (low.length) insights.push(`<b>${low.length}</b> staff are in the Needs support band (&lt;40%).`);
+  if (excellent.length) insights.push(`<b>${excellent.length}</b> staff are Excellent (80%+).`);
+  if (critRows.length) insights.push(`Lowest criterion area: <b>${esc(critRows[0].key)}</b> (${critRows[0].avg}/5).`);
+
+  destroyCharts();
+
+  el.innerHTML = `
+    <div class="section-header spr-no-print" style="margin-bottom:14px">
+      <div>
+        <div class="section-title">⭐ Staff Performance Report</div>
+        <div class="section-sub">Appraisals · attendance · training · overdue reviews — ${esc(String(ACTIVE_YEAR).replace('_', '/'))}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="navigate('appraisals')">Open Appraisals</button>
+        <button class="btn btn-outline btn-sm" onclick="navigate('teacherexternal')">External Assessments</button>
+        <button class="btn btn-outline btn-sm" onclick="sperfExportCsv(window._sperfLastRows||[], window._sperfSel.term||'all')">⬇ CSV</button>
+        <button class="btn btn-primary btn-sm" onclick="printReportSmart('sperf-inner')">🖨 Print</button>
+      </div>
+    </div>
+
+    <div class="card spr-no-print" style="padding:12px 14px;margin-bottom:14px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0;min-width:130px">
+          <label>Term</label>
+          <select onchange="window._sperfSel.term=this.value;window._sperfRedraw&&window._sperfRedraw()">${termOpts}</select>
+        </div>
+        <div class="form-group" style="margin:0;min-width:150px">
+          <label>Department</label>
+          <select onchange="window._sperfSel.dept=this.value;window._sperfRedraw&&window._sperfRedraw()">${deptOpts}</select>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto">
+          ${tabBtn('overview', 'Overview')}
+          ${tabBtn('rankings', 'Rankings')}
+          ${tabBtn('criteria', 'Criteria')}
+          ${tabBtn('overdue', 'Overdue (' + overdue.length + ')')}
+        </div>
+      </div>
+    </div>
+
+    <div class="sr-stat-row" style="margin-bottom:14px">
+      <div class="sr-stat-card"><div class="sr-stat-value">${rows.length}</div><div class="sr-stat-label">Staff in filter</div></div>
+      <div class="sr-stat-card"><div class="sr-stat-value">${avgSchool != null ? avgSchool + '%' : '—'}</div><div class="sr-stat-label">Avg appraisal</div></div>
+      <div class="sr-stat-card"><div class="sr-stat-value" style="color:var(--green)">${excellent.length}</div><div class="sr-stat-label">Excellent</div></div>
+      <div class="sr-stat-card"><div class="sr-stat-value" style="color:var(--red)">${low.length}</div><div class="sr-stat-label">Needs support</div></div>
+      <div class="sr-stat-card"><div class="sr-stat-value">${noReview.length}</div><div class="sr-stat-label">No review yet</div></div>
+      <div class="sr-stat-card"><div class="sr-stat-value">${avgAtt != null ? avgAtt + '%' : '—'}</div><div class="sr-stat-label">Avg attendance</div></div>
+    </div>
+
+    ${insights.length ? `<div class="card" style="padding:12px 16px;margin-bottom:14px"><div class="sr-chart-title" style="margin:0 0 8px">Insights</div><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.55">${insights.map(t => `<li style="margin-bottom:4px">${t}</li>`).join('')}</ul></div>` : ''}
+
+    ${sel.tab === 'overview' ? `
+      <div class="aid-chart-row" style="margin-bottom:14px">
+        <div class="card" style="flex:1;min-width:240px;padding:12px">
+          <div class="sr-chart-title">Performance distribution</div>
+          <div class="aid-chart-canvas-wrap"><canvas id="sperf-chart-dist"></canvas></div>
+        </div>
+        <div class="card" style="flex:1;min-width:240px;padding:12px">
+          <div class="sr-chart-title">Department averages</div>
+          <div class="aid-chart-canvas-wrap"><canvas id="sperf-chart-dept"></canvas></div>
+        </div>
+      </div>
+      <div class="card" style="padding:12px;margin-bottom:14px">
+        <div class="sr-chart-title">Top performers &amp; needs support</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px" class="dash-2col">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:6px">🏆 Top</div>
+            ${excellent.slice(0, 8).map((r, i) => `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer" onclick="window._sperfSel.focusId='${esc(String(r.emp.id))}';window._sperfSel.tab='rankings';window._sperfRedraw&&window._sperfRedraw()"><span>${i + 1}. ${esc(r.emp.name)}</span><b>${r.avgPct}%</b></div>`).join('') || '<div class="empty-state" style="padding:12px">None at 80%+</div>'}
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:6px">⚠ Needs support</div>
+            ${low.slice(0, 8).map((r, i) => `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer" onclick="window._sperfSel.focusId='${esc(String(r.emp.id))}';window._sperfSel.tab='rankings';window._sperfRedraw&&window._sperfRedraw()"><span>${i + 1}. ${esc(r.emp.name)}</span><b style="color:var(--red)">${r.avgPct != null ? r.avgPct + '%' : '—'}</b></div>`).join('') || '<div class="empty-state" style="padding:12px">No staff below 40%</div>'}
+          </div>
+        </div>
+      </div>
+    ` : ''}
+
+    ${sel.tab === 'rankings' ? `
+      ${focusHtml}
+      <div class="card" style="overflow:auto">
+        <table class="sr-table">
+          <thead><tr>
+            <th>#</th><th>Staff</th><th>Dept</th>
+            <th style="text-align:right">Reviews</th>
+            <th style="text-align:right">Avg %</th>
+            <th style="text-align:right">Latest</th>
+            <th>Band</th>
+            <th style="text-align:right">Att.</th>
+            <th style="text-align:right">Training</th>
+          </tr></thead>
+          <tbody>${rankRows || '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted)">No staff match this filter</td></tr>'}</tbody>
+        </table>
+      </div>
+    ` : ''}
+
+    ${sel.tab === 'criteria' ? `
+      <div class="card" style="overflow:auto;margin-bottom:14px">
+        <table class="sr-table">
+          <thead><tr>
+            <th>Criterion</th>
+            <th style="text-align:right">Average ( /5 )</th>
+            <th style="text-align:right">n</th>
+            <th style="width:160px">Level</th>
+          </tr></thead>
+          <tbody>
+            ${critRows.map(c => {
+              const pct = Math.round(c.avg / 5 * 100);
+              return `<tr>
+                <td>${esc(c.key)}</td>
+                <td style="text-align:right;font-weight:700">${c.avg}</td>
+                <td style="text-align:right">${c.n}</td>
+                <td><div style="background:var(--cream);border-radius:4px;height:8px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${aprPercentColor(pct)}"></div></div></td>
+              </tr>`;
+            }).join('') || '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--muted)">No criterion data yet — complete appraisals first</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+      <div class="card" style="padding:12px">
+        <div class="sr-chart-title">Criteria chart</div>
+        <div class="aid-chart-canvas-wrap"><canvas id="sperf-chart-crit"></canvas></div>
+      </div>
+    ` : ''}
+
+    ${sel.tab === 'overdue' ? `
+      <div class="card" style="overflow:auto">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted)">
+          Staff without a <b>${esc(currentTerm)}</b> appraisal for <b>${esc(String(ACTIVE_YEAR).replace('_','/'))}</b>
+        </div>
+        <table class="sr-table">
+          <thead><tr><th>Name</th><th>Role</th><th>Department</th><th>Term due</th><th></th></tr></thead>
+          <tbody>${overdueRows || '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--green)">✅ Everyone has a review for this term</td></tr>'}</tbody>
+        </table>
+      </div>
+    ` : ''}
+  `;
+
+  window._sperfLastRows = rows;
+  window._sperfRedraw = function() { renderStaffPerformanceReport(); };
+
+  requestAnimationFrame(() => {
+    if (typeof Chart === 'undefined') return;
+    if (sel.tab === 'overview') {
+      const dist = { excellent: 0, good: 0, fair: 0, low: 0, none: 0 };
+      rows.forEach(r => { dist[r.band.key] = (dist[r.band.key] || 0) + 1; });
+      const cv = document.getElementById('sperf-chart-dist');
+      if (cv) {
+        chartStore.dist = new Chart(cv, {
+          type: 'doughnut',
+          data: {
+            labels: ['Excellent', 'Good', 'Fair', 'Needs support', 'No rating'],
+            datasets: [{ data: [dist.excellent, dist.good, dist.fair, dist.low, dist.none],
+              backgroundColor: ['#1a7a4c', '#1a56b0', '#c9a84c', '#b84040', '#94a3b8'] }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
+        });
+      }
+      const dv = document.getElementById('sperf-chart-dept');
+      if (dv && deptRows.length) {
+        chartStore.dept = new Chart(dv, {
+          type: 'bar',
+          data: {
+            labels: deptRows.map(d => d.dept),
+            datasets: [{ data: deptRows.map(d => d.avg != null ? d.avg : 0),
+              backgroundColor: deptRows.map(d => (d.avg || 0) >= 80 ? '#1a7a4c' : (d.avg || 0) >= 60 ? '#1a56b0' : '#c9a84c') }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' } } } }
+        });
+      }
+    }
+    if (sel.tab === 'criteria') {
+      const cv = document.getElementById('sperf-chart-crit');
+      if (cv && critRows.length) {
+        chartStore.crit = new Chart(cv, {
+          type: 'bar',
+          data: {
+            labels: critRows.map(c => c.key),
+            datasets: [{ data: critRows.map(c => c.avg), backgroundColor: '#7c3aed' }]
+          },
+          options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { min: 0, max: 5 } } }
+        });
+      }
+    }
+  });
+}
+
 function renderAppraisals() {
   const el = document.getElementById('ap-inner');
   if (!el) return;
@@ -37174,11 +40275,35 @@ function renderTeacherDashboard() {
   const skLabel = !skSub ? 'Not submitted' : skSub.status === 'pending' ? 'Awaiting decision' : skSub.status === 'approved' ? 'Approved' : 'Returned — needs revision';
   const skCardClass = !skSub ? 'red' : skSub.status === 'approved' ? 'green' : skSub.status === 'returned' ? 'red' : 'gold';
 
+  // Personal + team birthdays on teacher home
+  let bdayBlock = '';
+  try {
+    const empSelf = typeof getMyStaffProfile === 'function' ? getMyStaffProfile() : null;
+    const upcoming = typeof getStaffBirthdaysUpcoming === 'function' ? getStaffBirthdaysUpcoming(7) : [];
+    const myBday = empSelf ? upcoming.find(b => String(b.id) === String(empSelf.id) && b.isToday) : null;
+    if (myBday) {
+      bdayBlock += `<div style="background:linear-gradient(135deg,#7c3aed,#a855f7);border-radius:10px;padding:12px 16px;margin-bottom:12px;color:#fff">
+        <div style="font-size:16px;font-weight:700">🎂 Happy Birthday${myBday.turningAge ? ' — turning ' + myBday.turningAge : ''}!</div>
+        <div style="font-size:12.5px;opacity:0.9;margin-top:2px">Wishing you a wonderful day from the whole school community.</div>
+      </div>`;
+    }
+    if (typeof renderStaffBirthdayBannerHtml === 'function') {
+      const team = renderStaffBirthdayBannerHtml();
+      if (team && !myBday) bdayBlock += team;
+      else if (team && myBday) {
+        // Still show colleagues if any other birthdays this week
+        const others = upcoming.filter(b => String(b.id) !== String(empSelf.id));
+        if (others.length) bdayBlock += team;
+      }
+    }
+  } catch (e) {}
+
   el.innerHTML = `
     <div style="margin-bottom:16px">
       <div class="section-title" style="font-size:22px">${greeting}${(() => { const n = typeof welcomeDisplayName === 'function' ? welcomeDisplayName() : (currentUser ? currentUser.username : ''); return n ? ', ' + esc(n) : ''; })()}.</div>
       <div class="section-sub" style="font-size:13px">${dateStr} · ${esc(termBit)}</div>
     </div>
+    ${bdayBlock}
 
     ${classPicker}
 
