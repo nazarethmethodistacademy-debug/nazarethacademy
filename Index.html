@@ -51,6 +51,15 @@
     --white: #ffffff;
     --shadow: 0 2px 12px rgba(15,31,61,0.08);
     --shadow-lg: 0 8px 32px rgba(15,31,61,0.14);
+    --radius: 10px;
+    --radius-lg: 14px;
+    --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --focus-ring: 0 0 0 3px rgba(201,168,76,0.35);
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -311,23 +320,38 @@
     gap: 10px;
   }
   .badge-year {
-    background: var(--navy);
+    background: linear-gradient(180deg, #1a3058 0%, var(--navy) 100%);
     color: var(--gold2);
     font-size: 11px;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-weight: 500;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-weight: 600;
     letter-spacing: 0.5px;
+    box-shadow: 0 1px 3px rgba(15,31,61,0.2);
   }
 
   /* ── CONTENT ── */
   .content {
-    padding: 18px 20px;
+    padding: 22px 24px 32px;
     flex: 1;
     min-width: 0;
   }
   .page { display: none; }
-  .page.active { display: block; }
+  .page.active {
+    display: block;
+    animation: pageIn 0.22s var(--ease) both;
+  }
+  @keyframes pageIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .page.active { animation: none; }
+    *, *::before, *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
 
   /* ── CARDS ── */
   .kpi-grid {
@@ -347,20 +371,29 @@
   .kpi-grid-4 { grid-template-columns: repeat(4, 1fr); }
   .kpi-grid-5 { grid-template-columns: repeat(5, 1fr); }
   .kpi-card {
-    background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px 16px;
+    background: linear-gradient(180deg, #ffffff 0%, #fcfaf6 100%);
+    border: 1px solid rgba(224,216,200,0.95);
+    border-radius: var(--radius);
+    padding: 16px 18px;
     box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(120px 80px at 100% 0%, rgba(201,168,76,0.07), transparent 70%);
+    pointer-events: none;
   }
   .kpi-card.kpi-clickable {
     cursor: pointer;
-    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease), border-color 0.18s;
   }
   .kpi-card.kpi-clickable:hover {
     transform: translateY(-3px);
     box-shadow: var(--shadow-lg);
-    border-color: var(--gold);
+    border-color: rgba(201,168,76,0.65);
   }
   .kpi-card .kpi-label {
     font-size: 10px;
@@ -388,37 +421,40 @@
   /* ── SECTION CARD ── */
   .card {
     background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: 10px;
+    border: 1px solid rgba(224,216,200,0.95);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow);
-    margin-bottom: 14px;
+    margin-bottom: 16px;
     overflow: hidden;
   }
   .card-header {
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(224,216,200,0.9);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: var(--cream);
+    background: linear-gradient(180deg, #fbf8f2 0%, #f6f0e4 100%);
   }
   .card-title {
     font-family: 'Playfair Display', serif;
-    font-size: 14px;
+    font-size: 15px;
     color: var(--navy);
+    letter-spacing: -0.015em;
   }
   .card-body { padding: 0; }
 
   /* ── TABLE ── */
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  thead tr { background: var(--navy); }
+  thead tr {
+    background: linear-gradient(180deg, #1a3058 0%, var(--navy) 100%);
+  }
   thead th {
-    padding: 8px 10px;
+    padding: 10px 12px;
     text-align: left;
     font-size: 10px;
-    font-weight: 500;
-    color: rgba(255,255,255,0.75);
-    letter-spacing: 0.6px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.82);
+    letter-spacing: 0.7px;
     text-transform: uppercase;
   }
   thead th:first-child { padding-left: 14px; }
@@ -636,26 +672,43 @@
     align-items: center;
     gap: 6px;
     padding: 9px 18px;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 13px;
     font-family: inherit;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
     border: none;
-    transition: all 0.15s;
+    letter-spacing: 0.01em;
+    transition: transform 0.12s var(--ease), box-shadow 0.15s var(--ease), background 0.15s, border-color 0.15s;
   }
-  .btn-primary { background: var(--navy); color: var(--gold2); }
-  .btn-primary:hover { background: var(--navy2); }
-  .btn-gold { background: var(--gold); color: var(--navy); }
-  .btn-gold:hover { background: var(--gold2); }
-  .btn-outline {
-    background: transparent;
+  .btn-primary {
+    background: linear-gradient(180deg, #1a3058 0%, var(--navy) 100%);
+    color: var(--gold2);
+    box-shadow: 0 1px 2px rgba(15,31,61,0.2), inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+  .btn-primary:hover { background: linear-gradient(180deg, #203a66 0%, var(--navy2) 100%); }
+  .btn-gold {
+    background: linear-gradient(180deg, #e0bc5e 0%, var(--gold) 100%);
     color: var(--navy);
-    border: 1px solid var(--border);
+    box-shadow: 0 1px 2px rgba(150,120,40,0.25), inset 0 1px 0 rgba(255,255,255,0.35);
   }
-  .btn-outline:hover { background: var(--cream); }
-  .btn-sm { padding: 5px 12px; font-size: 12px; }
-  .btn-danger { background: var(--red-light); color: var(--red); border: 1px solid #f5c6c6; }
+  .btn-gold:hover { background: linear-gradient(180deg, #edd07a 0%, var(--gold2) 100%); }
+  .btn-outline {
+    background: rgba(255,255,255,0.7);
+    color: var(--navy);
+    border: 1px solid rgba(224,216,200,0.95);
+    box-shadow: var(--shadow-soft);
+  }
+  .btn-outline:hover {
+    background: var(--cream);
+    border-color: rgba(201,168,76,0.45);
+  }
+  .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 8px; }
+  .btn-danger {
+    background: linear-gradient(180deg, #fdf0f0 0%, var(--red-light) 100%);
+    color: var(--red);
+    border: 1px solid #f0c4c4;
+  }
 
   /* ── TOOLBAR ── */
   .toolbar {
@@ -690,10 +743,17 @@
   }
   .section-title {
     font-family: 'Playfair Display', serif;
-    font-size: 17px;
+    font-size: 20px;
     color: var(--navy);
+    letter-spacing: -0.025em;
+    line-height: 1.2;
   }
-  .section-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .section-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+    line-height: 1.45;
+  }
 
   /* ── IS CHARTS ── */
   .is-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 20px; }
@@ -769,26 +829,28 @@
   .modal-overlay.open { display: flex; }
   .modal {
     background: var(--white);
-    border-radius: 14px;
+    border-radius: var(--radius-xl);
     width: 700px;
     max-width: 95vw;
     max-height: 90vh;
+    overflow: hidden;
     overflow-y: auto;
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-lg), 0 0 0 1px rgba(15,31,61,0.06);
+    border: 1px solid rgba(224,216,200,0.5);
   }
   .modal-header {
-    padding: 20px 24px;
-    border-bottom: 1px solid var(--border);
+    padding: 18px 22px;
+    border-bottom: 1px solid rgba(201,168,76,0.2);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: var(--navy);
-    border-radius: 14px 14px 0 0;
+    background: linear-gradient(180deg, #1a3058 0%, var(--navy) 100%);
   }
   .modal-title {
     font-family: 'Playfair Display', serif;
     font-size: 17px;
     color: var(--gold2);
+    letter-spacing: -0.02em;
   }
   .modal-close {
     background: none;
@@ -841,13 +903,13 @@
     background: var(--navy);
     color: var(--gold2);
     padding: 12px 18px 12px 14px;
-    border-radius: 10px;
+    border-radius: var(--radius);
     font-size: 13px;
     font-weight: 500;
     box-shadow: var(--shadow-lg);
     transform: translateY(80px);
     opacity: 0;
-    transition: transform 0.28s cubic-bezier(.2,.8,.2,1), opacity 0.28s;
+    transition: transform 0.28s var(--ease), opacity 0.28s;
     z-index: 9999;
     display: flex;
     align-items: flex-start;
@@ -855,13 +917,156 @@
     max-width: min(420px, calc(100vw - 32px));
     border-left: 4px solid var(--gold);
     line-height: 1.4;
+    pointer-events: auto;
   }
   #toast.show { transform: translateY(0); opacity: 1; }
   #toast .toast-icon { flex-shrink: 0; font-size: 16px; line-height: 1.2; }
   #toast .toast-msg { flex: 1; min-width: 0; }
+  #toast .toast-close {
+    flex-shrink: 0; border: none; background: transparent; color: inherit;
+    opacity: 0.65; cursor: pointer; font-size: 16px; line-height: 1; padding: 0 0 0 6px;
+  }
+  #toast .toast-close:hover { opacity: 1; }
   #toast.error { background: #7a1a1a; color: #fff; border-left-color: #ff6b6b; }
   #toast.success { background: #0f3d2e; color: #b8f0d4; border-left-color: var(--green); }
   #toast.warning { background: #5c4a12; color: #ffe9a8; border-left-color: var(--amber); }
+
+  /* ── UX polish (path to 9/10) ── */
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+    border-radius: 6px;
+  }
+  button:focus-visible, .btn:focus-visible, a:focus-visible,
+  input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+  .btn, button.btn {
+    transition: background 0.15s var(--ease), transform 0.12s var(--ease), box-shadow 0.15s var(--ease), opacity 0.15s;
+  }
+  .btn:active:not(:disabled) { transform: scale(0.97); }
+  .btn:disabled, button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .card {
+    transition: box-shadow 0.2s var(--ease), border-color 0.2s var(--ease);
+  }
+  .kpi-clickable, .module-launcher-tile, .ge-class-pill, .nav-item {
+    transition: background 0.15s var(--ease), border-color 0.15s var(--ease), transform 0.15s var(--ease), color 0.15s;
+  }
+  .kpi-clickable:hover { transform: translateY(-1px); }
+  .kpi-clickable:active { transform: translateY(0); }
+
+  /* Sticky action strip on data-entry pages */
+  .ux-sticky-bar {
+    position: sticky;
+    top: 52px;
+    z-index: 40;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    margin: 0 0 14px;
+    background: rgba(249, 245, 238, 0.92);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 12px rgba(15,31,61,0.04);
+  }
+  .ux-sticky-bar .ux-sticky-meta {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Cleaner empty states */
+  .empty-state {
+    padding: 36px 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+  .empty-state .icon { font-size: 36px; margin-bottom: 10px; opacity: 0.85; }
+  .empty-state .empty-title {
+    font-weight: 600;
+    color: var(--navy);
+    font-size: 15px;
+    margin-bottom: 6px;
+  }
+  .empty-state .empty-hint { font-size: 12.5px; max-width: 320px; margin: 0 auto; }
+
+  /* Table row hover for dense grids */
+  .att-grid-table tbody tr:hover td {
+    background: rgba(201,168,76,0.06);
+  }
+  .att-grid-table tbody tr:hover td.att-name-col {
+    background: rgba(201,168,76,0.1);
+  }
+
+  /* Section headers breathe */
+  .section-header {
+    margin-bottom: 16px;
+    gap: 12px;
+  }
+  .section-title { letter-spacing: -0.01em; }
+  .section-sub { line-height: 1.45; max-width: 62ch; }
+
+  /* Skeleton shimmer for live loading moments */
+  .ux-skeleton {
+    background: linear-gradient(90deg, var(--cream2) 25%, var(--cream) 50%, var(--cream2) 75%);
+    background-size: 200% 100%;
+    animation: uxShimmer 1.2s ease-in-out infinite;
+    border-radius: 8px;
+    min-height: 14px;
+  }
+  @keyframes uxShimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Quieter form controls */
+  input[type="text"], input[type="number"], input[type="date"], input[type="email"],
+  input[type="password"], input[type="search"], select, textarea {
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--gold);
+    box-shadow: var(--focus-ring);
+    outline: none;
+  }
+
+  /* Topbar subtle depth */
+  .topbar {
+    box-shadow: 0 1px 0 rgba(15,31,61,0.04);
+  }
+  #back-to-dash-btn {
+    transition: background 0.15s, transform 0.12s;
+  }
+  #back-to-dash-btn:hover {
+    background: var(--cream2);
+  }
+
+  /* Mobile: toast above bottom nav, safer tap targets */
+  @media (max-width: 768px) {
+    #toast {
+      bottom: 76px;
+      left: 12px;
+      right: 12px;
+      max-width: none;
+    }
+    .btn, button.btn {
+      min-height: 40px;
+    }
+    .att-cell {
+      min-width: 36px;
+      min-height: 36px;
+    }
+    .ux-sticky-bar { top: 54px; }
+  }
 
   /* ── FEE INPUTS ── */
   .fee-input {
@@ -1610,11 +1815,24 @@
   /* Grade Entry */
   .ge-class-pill {
     display:inline-flex;align-items:center;gap:6px;
-    padding:5px 14px;border-radius:20px;font-size:12px;font-weight:500;
-    cursor:pointer;border:1.5px solid var(--border);background:var(--white);
-    color:var(--muted);transition:all 0.15s;
+    padding:6px 14px;border-radius:999px;font-size:12px;font-weight:600;
+    cursor:pointer;border:1.5px solid rgba(224,216,200,0.95);
+    background:rgba(255,255,255,0.9);
+    color:var(--muted);
+    transition:all 0.15s var(--ease);
+    box-shadow: var(--shadow-soft);
   }
-  .ge-class-pill.active { background:var(--navy);color:var(--gold2);border-color:var(--navy); }
+  .ge-class-pill:hover {
+    border-color: rgba(201,168,76,0.55);
+    color: var(--navy);
+    background: #fff;
+  }
+  .ge-class-pill.active {
+    background: linear-gradient(180deg, #1a3058 0%, var(--navy) 100%);
+    color:var(--gold2);
+    border-color:var(--navy);
+    box-shadow: 0 2px 8px rgba(15,31,61,0.22);
+  }
   .ge-score-input {
     width:64px;border:1.5px solid var(--border);border-radius:6px;
     padding:5px 6px;font-size:13px;text-align:center;
@@ -1713,15 +1931,17 @@
     padding:9px 14px;
   }
   .att-cell {
-    width:32px;height:32px;border-radius:6px;border:none;
-    font-size:13px;cursor:pointer;transition:all 0.15s;
+    width:34px;height:34px;border-radius:10px;border:1px solid transparent;
+    font-size:13px;cursor:pointer;transition:all 0.15s var(--ease);
     display:flex;align-items:center;justify-content:center;
-    font-weight:600;
+    font-weight:700;
+    box-shadow: var(--shadow-soft);
   }
-  .att-P { background:var(--green-light);color:var(--green); }
-  .att-A { background:var(--red-light);color:var(--red); }
-  .att-L { background:var(--amber-light);color:var(--amber); }
-  .att-none { background:var(--border);color:var(--muted); }
+  .att-cell:hover { transform: scale(1.06); }
+  .att-P { background:linear-gradient(180deg,#f0faf4,var(--green-light));color:var(--green); border-color:rgba(45,123,81,0.15); }
+  .att-A { background:linear-gradient(180deg,#fff5f5,var(--red-light));color:var(--red); border-color:rgba(184,64,64,0.15); }
+  .att-L { background:linear-gradient(180deg,#fffaf0,var(--amber-light));color:var(--amber); border-color:rgba(151,100,13,0.15); }
+  .att-none { background:linear-gradient(180deg,#faf8f4,var(--cream2));color:var(--muted); border-color:rgba(224,216,200,0.8); }
   .att-summary-dot {
     display:inline-block;width:8px;height:8px;border-radius:50%;
   }
@@ -3254,17 +3474,20 @@
     position: fixed;
     top: 12px; left: 12px;
     z-index: 300;
-    background: var(--navy);
+    background: linear-gradient(180deg, #1a3058 0%, var(--navy) 100%);
     color: var(--gold2);
     border: none;
-    border-radius: 8px;
-    width: 40px; height: 40px;
-    font-size: 18px;
+    border-radius: 12px;
+    width: 44px; height: 44px;
+    font-size: 20px;
     cursor: pointer;
     align-items: center;
     justify-content: center;
-    box-shadow: var(--shadow-lg);
+    box-shadow: 0 4px 16px rgba(15,31,61,0.28);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
+  .hamburger:active { transform: scale(0.96); }
 
   /* Sidebar overlay backdrop */
   .sidebar-backdrop {
@@ -3312,7 +3535,10 @@
     /* Sync badge compact */
     #sync-status { padding: 2px 7px !important; font-size: 10px !important; }
 
-    .content { padding: 14px 12px 80px; /* bottom padding for bottom nav */ }
+    .content {
+      padding: 14px 14px calc(88px + env(safe-area-inset-bottom, 0px));
+      -webkit-overflow-scrolling: touch;
+    }
 
     /* ── KPI grids ── */
     .kpi-grid, .kpi-grid-2, .kpi-grid-3, .kpi-grid-4, .kpi-grid-5 { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
@@ -3521,12 +3747,15 @@
       display: flex;
       position: fixed;
       bottom: 0; left: 0; right: 0;
-      background: var(--white);
-      border-top: 1px solid var(--border);
-      box-shadow: 0 -4px 20px rgba(15,31,61,0.12);
+      background: rgba(255,255,255,0.94);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-top: 1px solid rgba(224,216,200,0.9);
+      box-shadow: 0 -8px 28px rgba(15,31,61,0.1);
       z-index: 90;
-      height: 60px;
-      padding: 0 4px;
+      height: 64px;
+      padding: 4px 6px 0;
+      gap: 2px;
     }
     .bottom-nav-item {
       flex: 1;
@@ -3534,38 +3763,46 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 2px;
+      gap: 3px;
       cursor: pointer;
       color: var(--muted);
-      font-size: 9px;
-      font-weight: 500;
-      letter-spacing: 0.2px;
-      padding: 6px 2px;
-      border-radius: 10px;
-      transition: all 0.15s;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.15px;
+      padding: 8px 2px;
+      border-radius: 12px;
+      transition: all 0.15s var(--ease);
       -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
       min-width: 0;
+      min-height: 52px;
     }
-    .bottom-nav-item .bn-icon { font-size: 20px; line-height: 1; }
-    .bottom-nav-item.active { color: var(--navy); }
-    .bottom-nav-item.active .bn-icon { transform: scale(1.1); }
-    .bottom-nav-item:active { background: var(--cream); }
+    .bottom-nav-item .bn-icon { font-size: 22px; line-height: 1; transition: transform 0.15s; }
+    .bottom-nav-item.active {
+      color: var(--navy);
+      background: linear-gradient(180deg, rgba(201,168,76,0.14), rgba(201,168,76,0.05));
+    }
+    .bottom-nav-item.active .bn-icon { transform: scale(1.08); }
+    .bottom-nav-item:active { background: var(--cream2); transform: scale(0.97); }
     .bottom-nav-more {
       flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 2px;
+      gap: 3px;
       cursor: pointer;
       color: var(--muted);
-      font-size: 9px;
-      font-weight: 500;
-      padding: 6px 2px;
-      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 8px 2px;
+      border-radius: 12px;
       -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      min-height: 52px;
     }
-    .bottom-nav-more .bn-icon { font-size: 20px; line-height: 1; }
+    .bottom-nav-more .bn-icon { font-size: 22px; line-height: 1; }
+    .bottom-nav-more:active { background: var(--cream2); }
 
     /* ── Sidebar nav items larger on mobile ── */
     .nav-item { padding: 13px 20px; font-size: 14px; }
@@ -3727,13 +3964,186 @@
     @media (max-width: 768px) {
       .bottom-nav {
         padding-bottom: env(safe-area-inset-bottom);
-        height: calc(60px + env(safe-area-inset-bottom));
+        height: calc(64px + env(safe-area-inset-bottom));
       }
-      .content { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+      .content { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
       .login-body { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
       .login-footer { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
       .hamburger { top: max(12px, env(safe-area-inset-top)); }
     }
+  }
+
+  /* ── Mobile UX polish (touch, density, safe areas) ── */
+  @media (max-width: 768px) {
+    /* Prevent iOS zoom on focus — 16px minimum on form controls */
+    input, select, textarea {
+      font-size: 16px !important;
+    }
+    input.ge-score-input, .ge-score-input {
+      font-size: 16px !important;
+      min-height: 44px;
+      min-width: 52px;
+      border-radius: 10px;
+    }
+    select.skill-select, .skill-select {
+      font-size: 15px !important;
+      min-height: 40px;
+      border-radius: 10px;
+    }
+
+    /* Comfortable tap targets */
+    .btn, button.btn {
+      min-height: 44px;
+      padding-left: 16px;
+      padding-right: 16px;
+    }
+    .btn-sm {
+      min-height: 40px;
+      padding: 8px 14px;
+    }
+    .att-cell {
+      width: 40px !important;
+      height: 40px !important;
+      min-width: 40px;
+      min-height: 40px;
+      border-radius: 12px;
+      font-size: 14px;
+    }
+    .ge-class-pill {
+      min-height: 40px;
+      padding: 8px 16px;
+      font-size: 13px;
+    }
+    .att-week-btn {
+      width: 40px !important;
+      height: 40px !important;
+    }
+
+    /* Sticky filters stay usable under topbar */
+    .ux-sticky-bar {
+      top: 54px;
+      margin-left: -2px;
+      margin-right: -2px;
+      border-radius: 12px;
+      padding: 10px;
+      gap: 8px;
+    }
+    .ux-sticky-meta { display: none; }
+
+    /* Section actions full-width stack */
+    .section-header {
+      flex-direction: column;
+      align-items: stretch !important;
+      gap: 12px;
+    }
+    .section-header > div:last-child {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .section-header .btn {
+      flex: 1 1 auto;
+      justify-content: center;
+    }
+
+    /* Horizontal tables: clearer scroll + edge fades */
+    .card:has(table),
+    .card > div[style*="overflow"] {
+      -webkit-overflow-scrolling: touch;
+    }
+    .att-grid-table {
+      min-width: 520px;
+    }
+    .att-grid-table th,
+    .att-grid-table td {
+      padding: 10px 8px;
+    }
+    .att-name-col {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      background: var(--white) !important;
+      box-shadow: 4px 0 8px rgba(15,31,61,0.06);
+    }
+    thead .att-name-col {
+      background: #1a3058 !important;
+      z-index: 3;
+    }
+
+    /* Cards less cramped */
+    .card { margin-bottom: 14px; border-radius: 14px; }
+    .card-header { padding: 12px 14px; flex-wrap: wrap; gap: 8px; }
+    .kpi-card { border-radius: 14px; }
+
+    /* Module launcher full sheet */
+    #module-launcher-modal .modal {
+      border-radius: 18px 18px 0 0 !important;
+      max-height: 88vh;
+    }
+    .module-launcher-grid {
+      grid-template-columns: repeat(2, 1fr) !important;
+      gap: 10px;
+      padding: 14px;
+      padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    }
+    .module-launcher-tile {
+      min-height: 100px;
+      padding: 16px 10px;
+      border-radius: 14px;
+    }
+    .module-launcher-tile .ml-icon {
+      width: 48px; height: 48px;
+      font-size: 26px;
+    }
+
+    /* Sidebar drawer feel */
+    .sidebar {
+      width: min(86vw, 300px) !important;
+      box-shadow: 8px 0 32px rgba(15,31,61,0.28);
+    }
+    .sidebar > * { width: 100% !important; max-width: 300px; }
+    .sidebar-logo { padding: 20px 18px 16px; }
+    .sidebar-logo .school-name { font-size: 15px; }
+    .nav-item {
+      padding: 14px 18px;
+      font-size: 14.5px;
+      min-height: 48px;
+    }
+    .nav-label-toggle { padding: 10px 18px; font-size: 11px; }
+
+    /* Backdrop stronger */
+    .sidebar-backdrop {
+      background: rgba(15,31,61,0.48);
+      backdrop-filter: blur(2px);
+    }
+
+    /* Login comfort */
+    #login-overlay .login-box {
+      width: 100%;
+      max-width: 100%;
+      min-height: 100%;
+      border-radius: 0;
+      margin: 0;
+    }
+
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      .sidebar { transition: none; }
+      .bottom-nav-item, .btn, .att-cell { transition: none; }
+    }
+  }
+
+  @media (max-width: 480px) {
+    .topbar-title {
+      max-width: 42vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .kpi-card .kpi-value { font-size: 19px; letter-spacing: -0.03em; }
+    .bottom-nav-item { font-size: 9px; }
+    /* One primary action preferred */
+    .section-header .btn-outline { order: 2; }
   }
 
   /* ── YEAR SWITCHER MODAL ── */
@@ -3995,26 +4405,26 @@
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
 
 <!-- ── MOBILE BOTTOM NAV ── -->
-<nav class="bottom-nav" id="bottom-nav">
-  <div class="bottom-nav-item active" id="bn-dashboard" onclick="goHome();updateBottomNav('bn-dashboard')">
-    <span class="bn-icon">📊</span>
-    <span>Dashboard</span>
+<nav class="bottom-nav" id="bottom-nav" aria-label="Primary">
+  <div class="bottom-nav-item active" id="bn-dashboard" onclick="goHome();updateBottomNav('bn-dashboard')" role="button" tabindex="0">
+    <span class="bn-icon" aria-hidden="true">🏠</span>
+    <span>Home</span>
   </div>
-  <div class="bottom-nav-item" id="bn-payment" onclick="navigate('payment');updateBottomNav('bn-payment')">
-    <span class="bn-icon">💳</span>
-    <span>Payments</span>
+  <div class="bottom-nav-item" id="bn-attendance" onclick="navigate('attendance');updateBottomNav('bn-attendance')" role="button" tabindex="0">
+    <span class="bn-icon" aria-hidden="true">📅</span>
+    <span>Attend</span>
   </div>
-  <div class="bottom-nav-item" id="bn-admission" onclick="navigate('admission');updateBottomNav('bn-admission')">
-    <span class="bn-icon">📋</span>
+  <div class="bottom-nav-item" id="bn-grades" onclick="navigate('grades');updateBottomNav('bn-grades')" role="button" tabindex="0">
+    <span class="bn-icon" aria-hidden="true">📝</span>
+    <span>Grades</span>
+  </div>
+  <div class="bottom-nav-item" id="bn-admission" onclick="navigate('admission');updateBottomNav('bn-admission')" role="button" tabindex="0">
+    <span class="bn-icon" aria-hidden="true">🎓</span>
     <span>Students</span>
   </div>
-  <div class="bottom-nav-item" id="bn-income" onclick="navigate('income');updateBottomNav('bn-income')">
-    <span class="bn-icon">📄</span>
-    <span>Statement</span>
-  </div>
-  <div class="bottom-nav-more" onclick="toggleSidebar()">
-    <span class="bn-icon">⋯</span>
-    <span style="font-size:9px;font-weight:500;color:var(--muted)">More</span>
+  <div class="bottom-nav-more" onclick="toggleSidebar()" role="button" tabindex="0" aria-label="Open menu">
+    <span class="bn-icon" aria-hidden="true">⋯</span>
+    <span>More</span>
   </div>
 </nav>
 
@@ -4728,6 +5138,8 @@
           </select>
           <div class="spacer"></div>
           <span id="adm-count" style="font-size:12px;color:var(--muted)"></span>
+          <button type="button" class="btn btn-outline btn-sm" onclick="openAdmissionsPrintSettings()" title="Print settings">🖨 Print</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="exportAdmissionsPDF()" title="Download PDF">📄 PDF</button>
         </div>
         <table class="sticky-header">
           <thead><tr>
@@ -6595,6 +7007,57 @@
   </div>
 </div>
 
+<!-- ── Admissions Register Print Settings ── -->
+<div class="modal-overlay" id="adm-print-settings-modal">
+  <div class="modal" style="width:540px;max-width:96vw">
+    <div class="modal-header">
+      <span class="modal-title">🖨️ Admissions Register — Print Settings</span>
+      <button class="modal-close" onclick="closeModal('adm-print-settings-modal')">✕</button>
+    </div>
+    <div style="padding:14px 20px 6px;font-size:12px;color:var(--muted)">
+      Same approach as Feeding Revenue: choose orientation and columns. Uses the current search and class/status filters. Settings are remembered on this device.
+    </div>
+    <div style="padding:8px 20px 16px;display:flex;flex-direction:column;gap:14px">
+      <div class="card" style="padding:14px 16px">
+        <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:10px">Page orientation</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+            <input type="radio" name="adm-print-orient" id="adm-print-orient-landscape" value="landscape" checked style="accent-color:var(--navy)"> Landscape
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+            <input type="radio" name="adm-print-orient" id="adm-print-orient-portrait" value="portrait" style="accent-color:var(--navy)"> Portrait
+          </label>
+        </div>
+      </div>
+      <div class="card" style="padding:14px 16px">
+        <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:10px">Columns &amp; sections</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:12.5px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="adm-ps-id" checked style="accent-color:var(--navy)"> Student ID</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="adm-ps-class" checked style="accent-color:var(--navy)"> Class</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="adm-ps-house" checked style="accent-color:var(--navy)"> Section / House</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="adm-ps-gender" checked style="accent-color:var(--navy)"> Gender</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="adm-ps-parent" checked style="accent-color:var(--navy)"> Parent / Guardian</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="adm-ps-phone" checked style="accent-color:var(--navy)"> Phone</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="adm-ps-status" checked style="accent-color:var(--navy)"> Status</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="adm-ps-fee" checked style="accent-color:var(--navy)"> Admission fee</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="adm-ps-dob" style="accent-color:var(--navy)"> Date of birth</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="adm-ps-year" style="accent-color:var(--navy)"> Entry year</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="adm-ps-kpis" checked style="accent-color:var(--navy)"> Summary KPIs</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="adm-ps-logo" checked style="accent-color:var(--navy)"> School logo</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="adm-ps-endorse" checked style="accent-color:var(--navy)"> Endorsement lines</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="adm-ps-footer" checked style="accent-color:var(--navy)"> Footer notes</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="flex-wrap:wrap;gap:8px">
+      <button class="btn btn-outline" onclick="closeModal('adm-print-settings-modal')">Cancel</button>
+      <button class="btn btn-outline" onclick="saveAdmissionsPrintPrefsFromModal(); toast('✅ Print settings saved','success')">💾 Save defaults</button>
+      <button class="btn btn-outline" onclick="runAdmissionsPrintFromSettings('pdf')">📄 PDF</button>
+      <button class="btn btn-primary" onclick="runAdmissionsPrintFromSettings('print')">🖨️ Print</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Generic Report Print Settings (Weekly / Board / Management / Stats) ── -->
 <div class="modal-overlay" id="report-print-settings-modal">
   <div class="modal" style="width:520px;max-width:96vw">
@@ -8121,9 +8584,14 @@ function lockAcademicYear() {
   db.yearLocked = true;
   db.yearLockedAt = new Date().toISOString();
   db.yearLockedBy = currentUser ? currentUser.username : 'admin';
+  try {
+    if (typeof createVersionSnapshot === 'function') {
+      createVersionSnapshot('Year lock — ' + yr, 'year_lock');
+    }
+  } catch (e) { console.warn('year-lock snapshot', e); }
   saveDb(true); // bypass the lock guard for this specific write
   applyYearLockUI();
-  toast(`🔒 ${yr} is now locked — read only`);
+  toast(`🔒 ${yr} is now locked — read only (version snapshot saved)`);
 }
 
 function unlockAcademicYear() {
@@ -9217,7 +9685,104 @@ function setSyncStatus(status) {
 if (fbDb) fbDb.ref('.info/connected').on('value', snap => {
   _fbConnected = snap.val() === true;
   setSyncStatus(_fbConnected ? 'live' : 'offline');
+  if (_fbConnected && typeof flushOfflineQueue === 'function') {
+    try { flushOfflineQueue(); } catch (e) { console.warn('flushOfflineQueue', e); }
+  }
 });
+
+// ══════════════ OFFLINE QUEUE + LOCAL DURABILITY ══════════════
+const OFFLINE_Q_KEY = 'nazareth_offline_queue_v1';
+const LOCAL_DB_KEY = 'nazareth_db_local_mirror';
+
+function loadOfflineQueue() {
+  try {
+    const raw = localStorage.getItem(OFFLINE_Q_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+function saveOfflineQueue(q) {
+  try { localStorage.setItem(OFFLINE_Q_KEY, JSON.stringify(q.slice(-40))); } catch (e) {}
+}
+
+/** Persist a durable local mirror so attendance/grades survive offline reloads. */
+function persistLocalDbMirror(reason) {
+  try {
+    if (typeof db === 'undefined' || !db) return;
+    const payload = {
+      at: new Date().toISOString(),
+      reason: reason || 'save',
+      year: typeof ACTIVE_YEAR !== 'undefined' ? ACTIVE_YEAR : null,
+      db: db
+    };
+    if (typeof safeLocalStorageSet === 'function') {
+      safeLocalStorageSet(LOCAL_DB_KEY, JSON.stringify(payload), { critical: true });
+    } else {
+      localStorage.setItem(LOCAL_DB_KEY, JSON.stringify(payload));
+    }
+  } catch (e) {
+    console.warn('persistLocalDbMirror', e);
+  }
+}
+
+function enqueueOfflineSync(label, keys) {
+  const q = loadOfflineQueue();
+  q.push({
+    id: 'OQ-' + Date.now().toString(36),
+    at: new Date().toISOString(),
+    label: label || 'Pending changes',
+    keys: keys || [],
+    by: currentUser ? currentUser.username : 'system'
+  });
+  saveOfflineQueue(q);
+  try { updateOfflineQueueBadge(); } catch (e) {}
+  persistLocalDbMirror(label);
+}
+
+function updateOfflineQueueBadge() {
+  const q = loadOfflineQueue();
+  let el = document.getElementById('offline-queue-badge');
+  if (!el) {
+    const meta = document.querySelector('.topbar-meta');
+    if (!meta) return;
+    el = document.createElement('span');
+    el.id = 'offline-queue-badge';
+    el.style.cssText = 'font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;cursor:pointer;display:none';
+    el.title = 'Pending offline changes — tap to retry sync';
+    el.onclick = function() { flushOfflineQueue(true); };
+    meta.insertBefore(el, meta.firstChild);
+  }
+  if (q.length) {
+    el.style.display = 'inline-flex';
+    el.style.background = 'var(--amber-light)';
+    el.style.color = 'var(--amber)';
+    el.textContent = '⏳ ' + q.length + ' queued';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function flushOfflineQueue(manual) {
+  const q = loadOfflineQueue();
+  if (!q.length) {
+    if (manual && typeof toast === 'function') toast('✅ Nothing waiting to sync', 'success');
+    return Promise.resolve();
+  }
+  if (typeof fbDb === 'undefined' || !fbDb || (typeof _fbConnected !== 'undefined' && _fbConnected === false)) {
+    if (manual && typeof toast === 'function') toast('⚠ Still offline — will sync when connection returns', 'warning');
+    return Promise.resolve();
+  }
+  if (typeof saveDb !== 'function') return Promise.resolve();
+  return Promise.resolve(saveDb(true)).then(function() {
+    saveOfflineQueue([]);
+    updateOfflineQueueBadge();
+    if (typeof toast === 'function') toast('☁ Synced ' + q.length + ' offline change' + (q.length === 1 ? '' : 's'), 'success');
+  }).catch(function() {
+    if (manual && typeof toast === 'function') toast('⚠ Sync still failing — kept in queue', 'error');
+  });
+}
+
+// Patch saveDb early-return when Firebase missing → still persist locally
 
 // ── SAVE to Firebase ──
 let _isSaving = false; // prevents re-render loop when we're the one saving
@@ -9682,7 +10247,13 @@ function saveDb(bypassLock) {
     toast(`🔒 ${ACTIVE_YEAR.replace('_','/')} is locked — no changes can be saved. Ask an admin to unlock it first.`, 'error');
     return;
   }
-  if (!fbDb) { console.warn('Firebase not available — data not saved to cloud'); return; }
+  if (!fbDb) {
+    console.warn('Firebase not available — saving locally');
+    persistLocalDbMirror('no-firebase');
+    enqueueOfflineSync('Local-only save', []);
+    setSyncStatus('offline');
+    return Promise.resolve();
+  }
   if (!_lastSavedSnapshot) _lastSavedSnapshot = {}; // no baseline yet (shouldn't normally happen) — treat everything as changed this one time
 
   // Figure out which top-level fields actually changed since the last known
@@ -9758,6 +10329,7 @@ function saveDb(bypassLock) {
       try { if (typeof aidCacheInvalidate === 'function') aidCacheInvalidate('saveDb'); } catch (e) {}
       try { if (typeof persistCriticalLocalMirrors === 'function') persistCriticalLocalMirrors(); } catch (e) {}
       setSyncStatus('saved'); setTimeout(() => { _isSaving = false; }, 500);
+      try { if (loadOfflineQueue().length) { /* keep until explicit flush */ updateOfflineQueueBadge(); } } catch (e) {}
       // If Academic Intelligence is open, soft-refresh with new numbers
       try {
         const aidPage = document.getElementById('page-academicintelligence');
@@ -9786,9 +10358,11 @@ function saveDb(bypassLock) {
       Object.keys(_rollback).forEach(key => { db[key] = _rollback[key]; });
       _isSaving = false;
       setSyncStatus('offline');
-      toast('⚠ Cloud sync failed — changes kept locally. Check Firebase rules.', 'error');
-      // fallback to localStorage
-      safeLocalStorageSet('nazareth_db_backup', JSON.stringify(db), { critical: true });
+      toast('⚠ Cloud sync failed — changes kept locally and queued.', 'error');
+      // fallback to localStorage + offline queue
+      try { safeLocalStorageSet('nazareth_db_backup', JSON.stringify(db), { critical: true }); } catch (e) {}
+      try { enqueueOfflineSync('Cloud sync failed', changedKeys || []); } catch (e) {}
+      try { persistLocalDbMirror('sync-failed'); } catch (e) {}
       throw err; // re-throw so callers awaiting this promise (e.g. saveAccessControl) see the failure too
     });
 }
@@ -10027,13 +10601,22 @@ function initDb(callback) {
           stats:       () => renderStats(null),
           backup:      renderBackupPage,
           export:      renderExportPortal,
-          grades:      renderGradeEntry,
-          skillsassessment: renderSkillsAssessment,
+          grades: function(){
+            if (isSoftLocalEditActive()) return;
+            if (typeof renderGradeEntry === 'function') preserveScroll(() => renderGradeEntry());
+          },
+          skillsassessment: function(){
+            if (isSoftLocalEditActive()) return;
+            if (typeof renderSkillsAssessment === 'function') preserveScroll(() => renderSkillsAssessment());
+          },
           skillsreport: renderSkillsReport,
           skillsdetailed: renderSkillsDetailed,
           promotion: renderPromotionManagement,
           academiccalendar: renderAcademicCalendar,
-          attendance:  renderAttendance,
+          attendance:  function(){
+            if (isSoftLocalEditActive()) return;
+            if (typeof renderAttendance === 'function') preserveScroll(() => renderAttendance());
+          },
           attendancereport: renderAttendanceReport,
           timetable:   renderTimetable,
           subjects:    renderSubjects,
@@ -11228,7 +11811,8 @@ const today = () => new Date().toISOString().slice(0,10);
 function toast(msg, type) {
   const t = document.getElementById('toast');
   if (!t) return;
-  // Support 'error' | 'success' | 'warning' | default (info)
+  // Support 'error' | 'success' | 'warning' | 'silent' | default (info)
+  if (type === 'silent') return;
   let kind = type === 'error' ? 'error'
     : (type === 'success' || type === 'ok') ? 'success'
     : (type === 'warning' || type === 'warn') ? 'warning'
@@ -11239,27 +11823,43 @@ function toast(msg, type) {
     else if (/^✅/.test(msg) || /approved|saved|exported|downloaded|marked as trained/i.test(msg)) kind = 'success';
     else if (/^⚠/.test(msg)) kind = 'warning';
   }
+  const clean = String(msg || '').replace(/^[\u2705✅⛔⚠️⚠ℹ️ℹ]\s*/u, '');
+  // Debounce identical rapid toasts (e.g. cell-by-cell saves)
+  const sig = kind + '|' + clean;
+  if (t._lastSig === sig && t._lastAt && (Date.now() - t._lastAt) < 900) {
+    // Refresh timer only
+    if (t._toastTimer) clearTimeout(t._toastTimer);
+    const duration = kind === 'error' ? 5200 : kind === 'warning' ? 4000 : 2200;
+    t._toastTimer = setTimeout(() => {
+      t.classList.remove('show', 'error', 'success', 'warning');
+    }, duration);
+    return;
+  }
+  t._lastSig = sig;
+  t._lastAt = Date.now();
+
   const icon = kind === 'error' ? '⛔'
     : kind === 'success' ? '✅'
     : kind === 'warning' ? '⚠️'
     : 'ℹ️';
   t.classList.remove('error', 'success', 'warning', 'show');
   if (kind) t.classList.add(kind);
-  t.innerHTML = '<span class="toast-icon" aria-hidden="true">' + icon + '</span><span class="toast-msg"></span>';
+  t.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+  t.innerHTML = '<span class="toast-icon" aria-hidden="true">' + icon + '</span>'
+    + '<span class="toast-msg"></span>'
+    + '<button type="button" class="toast-close" aria-label="Dismiss" onclick="document.getElementById(\'toast\').classList.remove(\'show\')">×</button>';
   const msgEl = t.querySelector('.toast-msg');
-  if (msgEl) {
-    // Avoid double icons when callers still prefix messages with emoji
-    msgEl.textContent = String(msg || '').replace(/^[\u2705✅⛔⚠️⚠ℹ️ℹ]\s*/u, '');
-  }
+  if (msgEl) msgEl.textContent = clean;
   // Restart show animation
   void t.offsetWidth;
   t.classList.add('show');
   if (t._toastTimer) clearTimeout(t._toastTimer);
-  const duration = kind === 'error' ? 5200 : kind === 'warning' ? 4000 : 2800;
+  const duration = kind === 'error' ? 5200 : kind === 'warning' ? 4000 : 2400;
   t._toastTimer = setTimeout(() => {
     t.classList.remove('show', 'error', 'success', 'warning');
   }, duration);
 }
+
 
 function getStudentFee(studentId, term) {
   const s = db.admissions.find(a => a.id === studentId);
@@ -11587,10 +12187,33 @@ function toggleSidebar() {
   document.body.classList.toggle('sidebar-open', sidebar.classList.contains('open'));
 }
 function closeSidebar() {
-  document.querySelector('.sidebar').classList.remove('open');
-  document.getElementById('sidebar-backdrop').classList.remove('open');
+  const sb = document.querySelector('.sidebar');
+  if (sb) sb.classList.remove('open');
+  const bd = document.getElementById('sidebar-backdrop');
+  if (bd) bd.classList.remove('open');
   document.body.classList.remove('sidebar-open');
 }
+
+// Mobile: swipe sidebar closed (left edge drawer)
+(function bindSidebarSwipe() {
+  if (window._sidebarSwipeBound) return;
+  window._sidebarSwipeBound = true;
+  let startX = 0, startY = 0, tracking = false;
+  document.addEventListener('touchstart', function (e) {
+    const sb = document.querySelector('.sidebar');
+    if (!sb || !sb.classList.contains('open')) return;
+    const t = e.touches[0];
+    startX = t.clientX; startY = t.clientY; tracking = true;
+  }, { passive: true });
+  document.addEventListener('touchend', function (e) {
+    if (!tracking) return;
+    tracking = false;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - startX;
+    const dy = Math.abs(t.clientY - startY);
+    if (dx < -56 && dy < 64) closeSidebar();
+  }, { passive: true });
+})();
 
 // ── DESKTOP SIDEBAR COLLAPSE (full-width content view) ──
 function toggleSidebarCollapse() {
@@ -11609,7 +12232,13 @@ function toggleSidebarCollapse() {
 })();
 
 // ── BOTTOM NAV ACTIVE STATE ──
-const _bnPageMap = { dashboard:'bn-dashboard', payment:'bn-payment', admission:'bn-admission', income:'bn-income' };
+const _bnPageMap = {
+  dashboard: 'bn-dashboard', teacherdashboard: 'bn-dashboard',
+  payment: 'bn-payment', admission: 'bn-admission',
+  income: 'bn-income',
+  attendance: 'bn-attendance', grades: 'bn-grades',
+  skillsassessment: 'bn-grades'
+};
 function updateBottomNav(activeId) {
   document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
   const el = document.getElementById(activeId);
@@ -11797,6 +12426,53 @@ function navigate(page) {
   if (page === 'aiassistant') renderAiAssistant();
   if (page === 'anomalydetection') renderAnomalyDetection();
   if (page === 'academicintelligence') renderAcademicIntelligence();
+
+  // Scroll: browser Back restores previous position; forward nav starts at top
+  // (unless restoreScroll is requested). Prevents the jarring jump to mid-page.
+  try {
+    if (fromBack || opts.restoreScroll) restorePageScroll(page);
+    else scrollPageToTop();
+  } catch (e) {}
+  try { ensureMobileSearchFab(); } catch (e) {}
+  try { updateOfflineQueueBadge(); } catch (e) {}
+  setTimeout(function() { try { ensureShareButtons(); } catch (e) {} }, 120);
+}
+
+// Browser Back / Forward — stay inside the SPA and restore scroll
+if (!window._uxEscBound) {
+  window._uxEscBound = true;
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    const toastEl = document.getElementById('toast');
+    if (toastEl && toastEl.classList.contains('show')) {
+      toastEl.classList.remove('show');
+      return;
+    }
+    // Close topmost open modal
+    const open = document.querySelector('.modal-overlay.open');
+    if (open && open.id) {
+      try { if (typeof closeModal === 'function') closeModal(open.id); else open.classList.remove('open'); } catch (err) {}
+    }
+  });
+}
+if (!window._navPopstateBound) {
+  window._navPopstateBound = true;
+  window.addEventListener('popstate', function (e) {
+    let page = (e.state && e.state.page) || '';
+    if (!page && location.hash) {
+      try { page = decodeURIComponent(location.hash.replace(/^#/, '')); } catch (err) { page = location.hash.slice(1); }
+    }
+    if (!page) page = 'dashboard';
+    // Unknown hash → home
+    if (!document.getElementById('page-' + page) && !(typeof pageTitles !== 'undefined' && pageTitles[page]) && !(typeof _dynamicPages !== 'undefined' && _dynamicPages[page])) {
+      page = (currentUser && (currentUser.role === 'Teacher' || currentUser.role === 'Class Teacher')) ? 'teacherdashboard' : 'dashboard';
+    }
+    try {
+      navigate(page, { fromBack: true });
+    } catch (err) {
+      console.warn('popstate navigate', err);
+    }
+  });
 }
 
 // ══════════════ TRANSACTION HISTORY ══════════════
@@ -13139,7 +13815,376 @@ function applyDashboardRoleView() {
   return view;
 }
 
+
+// ══════════════ 5★ MOBILE FEATURES ══════════════
+
+function isMobileViewport() {
+  return window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+}
+
+function roleHomeShortcuts() {
+  const role = (currentUser && currentUser.role) ? currentUser.role : '';
+  const locked = typeof lockedClassFor === 'function' ? lockedClassFor() : null;
+  const cls = locked || (typeof CLASSES !== 'undefined' && CLASSES[0]) || '';
+  const items = [];
+  const isTeacher = /teacher/i.test(role);
+  const isAdmin = role === 'Admin' || role === 'Headteacher' || role === 'Bursar';
+
+  if (isTeacher || locked) {
+    items.push({ icon: '📅', label: 'Mark attendance', sub: cls ? cls + ' · today' : 'Today\'s register', page: 'attendance', primary: true });
+    items.push({ icon: '📝', label: 'Enter grades', sub: cls || 'Your class', page: 'grades', primary: true });
+    items.push({ icon: '🌟', label: 'Skills assessment', sub: 'Monthly ratings', page: 'skillsassessment' });
+    items.push({ icon: '🏠', label: 'My dashboard', sub: 'Class overview', page: 'teacherdashboard' });
+  }
+  if (isAdmin || role === 'Bursar') {
+    items.push({ icon: '💳', label: 'Payments', sub: 'Fee tracker', page: 'payment', primary: !isTeacher });
+    items.push({ icon: '✅', label: 'Approvals', sub: 'Workflow queue', page: 'workflow' });
+    items.push({ icon: '🎓', label: 'Admissions', sub: 'Students', page: 'admission' });
+    items.push({ icon: '🧠', label: 'Academic Intel', sub: 'Live analytics', page: 'academicintelligence' });
+  }
+  if (!items.length) {
+    items.push({ icon: '📅', label: 'Attendance', sub: 'Register', page: 'attendance', primary: true });
+    items.push({ icon: '📝', label: 'Grades', sub: 'Score entry', page: 'grades', primary: true });
+    items.push({ icon: '🎓', label: 'Students', sub: 'Admissions', page: 'admission' });
+    items.push({ icon: '💳', label: 'Payments', sub: 'Fees', page: 'payment' });
+  }
+  // Deduplicate by page
+  const seen = {};
+  return items.filter(it => { if (seen[it.page]) return false; seen[it.page] = true; return true; }).slice(0, 6);
+}
+
+function renderHomeShortcutsHtml() {
+  const items = roleHomeShortcuts();
+  return `
+  <div class="home-shortcuts card" style="margin-bottom:16px;padding:14px 14px 10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap">
+      <div style="font-size:13px;font-weight:700;color:var(--navy)">⚡ Continue</div>
+      <button type="button" class="btn btn-outline btn-sm" onclick="openMobileStudentSearch()" style="min-height:36px">🔍 Find student</button>
+    </div>
+    <div class="home-shortcuts-grid">
+      ${items.map(it => `
+        <button type="button" class="home-shortcut-tile ${it.primary ? 'is-primary' : ''}" onclick="navigate('${it.page}')">
+          <span class="hs-icon">${it.icon}</span>
+          <span class="hs-label">${esc(it.label)}</span>
+          <span class="hs-sub">${esc(it.sub || '')}</span>
+        </button>`).join('')}
+    </div>
+  </div>`;
+}
+
+function injectHomeShortcuts(hostId) {
+  // Desktop: hide / remove — Continue shortcuts are mobile-only
+  if (typeof isMobileViewport === 'function' ? !isMobileViewport() : window.innerWidth > 768) {
+    const existing = document.getElementById(hostId);
+    if (existing) { existing.innerHTML = ''; existing.style.display = 'none'; }
+    return;
+  }
+  let host = document.getElementById(hostId);
+  if (!host) {
+    // Create under term banner / teacher root
+    const dashBanner = document.getElementById('dash-term-banner');
+    if (dashBanner) {
+      host = document.createElement('div');
+      host.id = hostId;
+      dashBanner.parentNode.insertBefore(host, dashBanner.nextSibling);
+    }
+  }
+  if (!host) return;
+  host.style.display = '';
+  host.innerHTML = renderHomeShortcutsHtml();
+}
+
+// ── Mobile student search (one tap) ──
+function openMobileStudentSearch() {
+  let ov = document.getElementById('mobile-student-search');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'mobile-student-search';
+    ov.className = 'modal-overlay';
+    ov.innerHTML = `
+      <div class="modal" style="width:min(480px,100vw);max-height:92vh;display:flex;flex-direction:column">
+        <div class="modal-header">
+          <span class="modal-title">🔍 Find student</span>
+          <button type="button" class="modal-close" onclick="closeModal('mobile-student-search')">✕</button>
+        </div>
+        <div style="padding:12px 16px 8px">
+          <input id="mss-input" type="search" autocomplete="off" placeholder="Name, ID, class, parent…"
+            style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:16px"
+            oninput="runMobileStudentSearch(this.value)">
+        </div>
+        <div id="mss-results" style="flex:1;overflow:auto;padding:4px 12px 16px;min-height:200px"></div>
+      </div>`;
+    document.body.appendChild(ov);
+  }
+  ov.classList.add('open');
+  const input = document.getElementById('mss-input');
+  const results = document.getElementById('mss-results');
+  if (results) results.innerHTML = '<div class="empty-state" style="padding:24px"><div class="empty-hint">Type a name or class to search</div></div>';
+  if (input) {
+    input.value = '';
+    setTimeout(() => input.focus(), 80);
+  }
+}
+
+function runMobileStudentSearch(q) {
+  const results = document.getElementById('mss-results');
+  if (!results) return;
+  const query = String(q || '').trim().toLowerCase();
+  if (query.length < 1) {
+    results.innerHTML = '<div class="empty-state" style="padding:24px"><div class="empty-hint">Type a name or class to search</div></div>';
+    return;
+  }
+  const list = (db.admissions || []).filter(s => {
+    const blob = [s.name, s.id, s.cls, s.status, s.parentName, s.guardianName, s.phone]
+      .filter(Boolean).join(' ').toLowerCase();
+    return blob.includes(query);
+  }).slice(0, 30);
+  if (!list.length) {
+    results.innerHTML = '<div class="empty-state" style="padding:24px"><div class="empty-title">No matches</div><div class="empty-hint">Try another spelling or class name</div></div>';
+    return;
+  }
+  results.innerHTML = list.map(s => {
+    const st = typeof calcStudentStatus === 'function' ? calcStudentStatus(s.id) : null;
+    const bal = st ? (st.bal > 0.02 ? 'Owes ' + (typeof fmt === 'function' ? fmt(st.bal) : st.bal) : 'Paid up') : '';
+    return `<button type="button" class="mss-row" onclick="openStudentFromSearch('${String(s.id).replace(/'/g, "\\'")}')">
+      <div class="mss-name">${esc(s.name || s.id)}</div>
+      <div class="mss-meta">${esc(s.cls || '—')} · ${esc(s.status || '')}${bal ? ' · ' + esc(bal) : ''}</div>
+    </button>`;
+  }).join('');
+}
+
+function openStudentFromSearch(id) {
+  closeModal('mobile-student-search');
+  window._srFocusStudentId = id;
+  if (typeof navigate === 'function') navigate('studentrecords');
+  else if (typeof navigate === 'function') navigate('admission');
+  // Highlight / open if student records supports it
+  setTimeout(function() {
+    try {
+      if (typeof focusStudentRecord === 'function') focusStudentRecord(id);
+    } catch (e) {}
+  }, 200);
+}
+
+// Floating search FAB on mobile
+function ensureMobileSearchFab() {
+  let fab = document.getElementById('mobile-search-fab');
+  if (!fab) {
+    fab = document.createElement('button');
+    fab.id = 'mobile-search-fab';
+    fab.type = 'button';
+    fab.setAttribute('aria-label', 'Find student');
+    fab.innerHTML = '🔍';
+    fab.onclick = function() { openMobileStudentSearch(); };
+    document.body.appendChild(fab);
+  }
+  const show = isMobileViewport() && currentUser;
+  fab.style.display = show ? 'flex' : 'none';
+}
+
+// ── Pull to refresh (mobile only — hidden on computer/desktop) ──
+if (!window._ptrResizeHideBound) {
+  window._ptrResizeHideBound = true;
+  window.addEventListener('resize', function() {
+    if (window.innerWidth > 768) {
+      const el = document.getElementById('ptr-indicator');
+      if (el) el.remove();
+    }
+  });
+}
+
+function ptrSetState(indicator, state) {
+  if (!indicator) return;
+  indicator.classList.remove('is-armed', 'is-loading', 'is-done', 'is-pull');
+  if (state === 'pull') indicator.classList.add('is-pull');
+  if (state === 'release') indicator.classList.add('is-armed');
+  if (state === 'loading') indicator.classList.add('is-loading');
+  if (state === 'done') indicator.classList.add('is-done');
+
+  // Exact classic iOS UIActivityIndicatorView: 12 blades, fixed DOM
+  if (indicator.dataset.ptrBuilt !== '1') {
+    let blades = '';
+    for (let i = 0; i < 12; i++) blades += '<div class="ptr-blade"></div>';
+    indicator.innerHTML = '<div class="ptr-ios-spinner" aria-hidden="true">' + blades + '</div>';
+    indicator.dataset.ptrBuilt = '1';
+  }
+}
+
+function bindPullToRefresh() {
+  // Remove any stray indicator on desktop so it never appears in computer view
+  if (typeof isMobileViewport === 'function' ? !isMobileViewport() : window.innerWidth > 768) {
+    const stray = document.getElementById('ptr-indicator');
+    if (stray) stray.remove();
+    return;
+  }
+  if (window._ptrBound) return;
+  window._ptrBound = true;
+  let startY = 0, pulling = false, armed = false;
+  let indicator = document.getElementById('ptr-indicator');
+  if (!indicator) {
+    indicator = document.createElement('div');
+    indicator.id = 'ptr-indicator';
+    indicator.setAttribute('aria-hidden', 'true');
+    ptrSetState(indicator, 'pull');
+    document.body.appendChild(indicator);
+  }
+  const scrollTop = () => {
+    const root = typeof getScrollRoot === 'function' ? getScrollRoot() : document.scrollingElement;
+    return (root && root.scrollTop) || window.scrollY || 0;
+  };
+  document.addEventListener('touchstart', function(e) {
+    if (!isMobileViewport()) return;
+    if (scrollTop() > 2) return;
+    startY = e.touches[0].clientY;
+    pulling = true; armed = false;
+  }, { passive: true });
+  document.addEventListener('touchmove', function(e) {
+    if (!pulling) return;
+    if (!isMobileViewport()) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy > 36 && scrollTop() <= 2) {
+      const ready = dy > 70;
+      armed = ready;
+      indicator.classList.add('show');
+      ptrSetState(indicator, ready ? 'release' : 'pull');
+      // iOS-like: spinner tracks pull and scales in
+      const progress = Math.min(1, Math.max(0, (dy - 20) / 70));
+      const offset = Math.min(36, dy * 0.35);
+      indicator.style.setProperty('--ptr-y', offset + 'px');
+      indicator.style.setProperty('--ptr-scale', (0.55 + progress * 0.45).toFixed(3));
+      indicator.style.setProperty('--ptr-opacity', (0.35 + progress * 0.65).toFixed(3));
+      // Rotate spokes slightly while pulling (before spin animation)
+      if (!ready) {
+        indicator.style.setProperty('--ptr-spin', (progress * 120) + 'deg');
+      } else {
+        indicator.style.setProperty('--ptr-spin', '0deg');
+      }
+    } else {
+      armed = false;
+      indicator.classList.remove('show');
+      indicator.style.removeProperty('--ptr-y');
+      indicator.style.removeProperty('--ptr-scale');
+      indicator.style.removeProperty('--ptr-opacity');
+      indicator.style.removeProperty('--ptr-spin');
+    }
+  }, { passive: true });
+  document.addEventListener('touchend', function() {
+    if (!pulling) return;
+    pulling = false;
+    indicator.style.removeProperty('--ptr-y');
+    if (armed && isMobileViewport()) {
+      ptrSetState(indicator, 'loading');
+      indicator.classList.add('show');
+      Promise.resolve()
+        .then(function() {
+          if (typeof flushOfflineQueue === 'function') return flushOfflineQueue(false);
+        })
+        .then(function() {
+          const page = window._navCurrentPage || 'dashboard';
+          if (typeof navigate === 'function') navigate(page, { replace: true, restoreScroll: true, fromBack: true });
+          else if (page === 'dashboard' && typeof renderDashboard === 'function') renderDashboard();
+          ptrSetState(indicator, 'done');
+          if (typeof toast === 'function') toast('↻ Refreshed', 'success');
+        })
+        .catch(function() {
+          ptrSetState(indicator, 'done');
+        })
+        .finally(function() {
+          setTimeout(function() {
+            indicator.classList.remove('show', 'is-armed', 'is-loading', 'is-done');
+          }, 700);
+        });
+    } else {
+      indicator.classList.remove('show', 'is-armed', 'is-loading', 'is-done');
+    }
+    armed = false;
+  }, { passive: true });
+}
+
+// ── Web Share API for reports ──
+async function shareReportSmart(containerIdOrEl, options) {
+  const opts = options || {};
+  // Prefer native share of a PDF blob when possible; fall back to print
+  try {
+    if (navigator.share && typeof html2pdf !== 'undefined') {
+      let source = null;
+      if (typeof containerIdOrEl === 'string') source = document.getElementById(containerIdOrEl);
+      else if (containerIdOrEl && containerIdOrEl.nodeType === 1) source = containerIdOrEl;
+      if (!source) {
+        const active = document.querySelector('.page.active');
+        source = active ? (active.querySelector('[id$="-inner"]') || active) : null;
+      }
+      if (source) {
+        toast('Preparing share…', 'success');
+        const clone = source.cloneNode(true);
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;background:#fff;padding:16px';
+        wrapper.appendChild(clone);
+        document.body.appendChild(wrapper);
+        try {
+          const worker = html2pdf().set({
+            margin: 8,
+            filename: (opts.filename || 'Ecole-Report') + '.pdf',
+            html2canvas: { scale: 1.5, useCORS: true },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: opts.orientation === 'landscape' ? 'landscape' : 'portrait' }
+          }).from(wrapper);
+          const blob = await worker.outputPdf('blob');
+          const file = new File([blob], (opts.filename || 'Ecole-Report') + '.pdf', { type: 'application/pdf' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: opts.title || 'School report',
+              text: opts.title || 'Shared from Ecole Systems'
+            });
+            toast('✅ Shared', 'success');
+            return;
+          }
+          // Share URL/text only
+          await navigator.share({
+            title: opts.title || 'School report',
+            text: (opts.title || 'Report') + ' from Ecole Systems — open the app to view the latest data.'
+          });
+          toast('✅ Shared', 'success');
+          return;
+        } finally {
+          document.body.removeChild(wrapper);
+        }
+      }
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    console.warn('shareReportSmart', e);
+  }
+  // Fallback
+  if (typeof printReportSmart === 'function') printReportSmart(containerIdOrEl, options);
+  else window.print();
+}
+
+function ensureShareButtons() {
+  // Add Share next to Print on active page section headers (mobile)
+  document.querySelectorAll('button[onclick*="printReportSmart"]').forEach(function(btn) {
+    if (btn.dataset.shareWired) return;
+    btn.dataset.shareWired = '1';
+    if (!navigator.share) return;
+    const shareBtn = document.createElement('button');
+    shareBtn.type = 'button';
+    shareBtn.className = btn.className;
+    shareBtn.textContent = '↗ Share';
+    shareBtn.onclick = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      shareReportSmart(null, { title: document.getElementById('topbar-title') ? document.getElementById('topbar-title').textContent : 'Report' });
+    };
+    if (btn.parentNode) btn.parentNode.insertBefore(shareBtn, btn.nextSibling);
+  });
+}
+
 function renderDashboard() {
+  try { injectHomeShortcuts('dash-home-shortcuts'); } catch (e) {}
+  try { ensureMobileSearchFab(); } catch (e) {}
+  try { bindPullToRefresh(); } catch (e) {}
+  try { updateOfflineQueueBadge(); } catch (e) {}
+  setTimeout(function() { try { ensureShareButtons(); } catch (e) {} }, 100);
   // Keep topbar welcome name in sync if staff link is available
   try {
     const label = document.getElementById('user-name-label');
@@ -13465,6 +14510,463 @@ function populateClassFilter(selectId) {
   if (!sel) return;
   const cur = sel.value;
   sel.innerHTML = '<option value="">All classes</option>' + CLASSES.map(c => `<option ${c===cur?'selected':''}>${c}</option>`).join('');
+}
+
+
+// ══════════════ ADMISSIONS REGISTER — PRINT (Feeding Revenue approach) ══════════════
+const ADM_PRINT_PREFS_KEY = 'nazareth_admissions_print_prefs';
+
+function defaultAdmissionsPrintPrefs() {
+  return {
+    orientation: 'landscape',
+    showId: true,
+    showClass: true,
+    showHouse: true,
+    showGender: true,
+    showParent: true,
+    showPhone: true,
+    showStatus: true,
+    showFee: true,
+    showDob: false,
+    showYear: false,
+    showKpis: true,
+    showLogo: true,
+    showEndorse: true,
+    showFooter: true
+  };
+}
+
+function getAdmissionsPrintPrefs() {
+  const base = defaultAdmissionsPrintPrefs();
+  try {
+    const fromDb = db && db.generalSettings && db.generalSettings.admissionsPrint;
+    if (fromDb && typeof fromDb === 'object') Object.assign(base, fromDb);
+  } catch (e) {}
+  try {
+    const raw = localStorage.getItem(ADM_PRINT_PREFS_KEY);
+    if (raw) Object.assign(base, JSON.parse(raw));
+  } catch (e) {}
+  if (base.orientation !== 'portrait') base.orientation = 'landscape';
+  return base;
+}
+
+function saveAdmissionsPrintPrefs(prefs) {
+  const p = Object.assign(defaultAdmissionsPrintPrefs(), prefs || {});
+  try { localStorage.setItem(ADM_PRINT_PREFS_KEY, JSON.stringify(p)); } catch (e) {}
+  try {
+    if (!db.generalSettings) db.generalSettings = {};
+    db.generalSettings.admissionsPrint = p;
+    if (typeof saveDb === 'function') saveDb();
+  } catch (e) {}
+  return p;
+}
+
+function readAdmissionsPrintPrefsFromModal() {
+  const p = defaultAdmissionsPrintPrefs();
+  const land = document.getElementById('adm-print-orient-landscape');
+  p.orientation = (land && land.checked) ? 'landscape' : 'portrait';
+  const chk = (id, key) => {
+    const el = document.getElementById(id);
+    if (el) p[key] = !!el.checked;
+  };
+  chk('adm-ps-id', 'showId');
+  chk('adm-ps-class', 'showClass');
+  chk('adm-ps-house', 'showHouse');
+  chk('adm-ps-gender', 'showGender');
+  chk('adm-ps-parent', 'showParent');
+  chk('adm-ps-phone', 'showPhone');
+  chk('adm-ps-status', 'showStatus');
+  chk('adm-ps-fee', 'showFee');
+  chk('adm-ps-dob', 'showDob');
+  chk('adm-ps-year', 'showYear');
+  chk('adm-ps-kpis', 'showKpis');
+  chk('adm-ps-logo', 'showLogo');
+  chk('adm-ps-endorse', 'showEndorse');
+  chk('adm-ps-footer', 'showFooter');
+  return p;
+}
+
+function saveAdmissionsPrintPrefsFromModal() {
+  return saveAdmissionsPrintPrefs(readAdmissionsPrintPrefsFromModal());
+}
+
+function applyAdmissionsPrintPrefsToModal(prefs) {
+  const p = Object.assign(defaultAdmissionsPrintPrefs(), prefs || getAdmissionsPrintPrefs());
+  const land = document.getElementById('adm-print-orient-landscape');
+  const port = document.getElementById('adm-print-orient-portrait');
+  if (land) land.checked = p.orientation !== 'portrait';
+  if (port) port.checked = p.orientation === 'portrait';
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+  set('adm-ps-id', p.showId);
+  set('adm-ps-class', p.showClass);
+  set('adm-ps-house', p.showHouse);
+  set('adm-ps-gender', p.showGender);
+  set('adm-ps-parent', p.showParent);
+  set('adm-ps-phone', p.showPhone);
+  set('adm-ps-status', p.showStatus);
+  set('adm-ps-fee', p.showFee);
+  set('adm-ps-dob', p.showDob);
+  set('adm-ps-year', p.showYear);
+  set('adm-ps-kpis', p.showKpis);
+  set('adm-ps-logo', p.showLogo);
+  set('adm-ps-endorse', p.showEndorse);
+  set('adm-ps-footer', p.showFooter);
+}
+
+function openAdmissionsPrintSettings() {
+  applyAdmissionsPrintPrefsToModal(getAdmissionsPrintPrefs());
+  const m = document.getElementById('adm-print-settings-modal');
+  if (m) m.classList.add('open');
+  else toast('⚠ Print settings modal not found', 'error');
+}
+
+function runAdmissionsPrintFromSettings(mode) {
+  const prefs = saveAdmissionsPrintPrefsFromModal();
+  closeModal('adm-print-settings-modal');
+  if (mode === 'pdf') exportAdmissionsPDF(prefs);
+  else printAdmissionsRegister(prefs);
+}
+
+/** Current admissions list matching on-screen filters (search / class / status). */
+function getAdmissionsPrintRows() {
+  const search = ((document.getElementById('adm-search') || {}).value || '').toLowerCase();
+  const cls = ((document.getElementById('adm-class-filter') || {}).value || '');
+  const st = ((document.getElementById('adm-status-filter') || {}).value || '');
+  return (db.admissions || []).filter(a =>
+    a &&
+    (!search || String(a.name || '').toLowerCase().includes(search) || String(a.id || '').toLowerCase().includes(search)) &&
+    (!cls || a.cls === cls) &&
+    (!st || a.status === st)
+  ).slice().sort((a, b) => {
+    const c = String(a.cls || '').localeCompare(String(b.cls || ''));
+    if (c) return c;
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  });
+}
+
+function admHouseLabel(a) {
+  if (!a) return '';
+  if (typeof houseBadge === 'function') {
+    // houseBadge returns HTML — for print we need plain text
+  }
+  const houses = db.houses || [];
+  const h = houses.find(x => String(x.id) === String(a.house) || x.name === a.house);
+  return (h && h.name) || a.house || '';
+}
+
+function admFeePrintValue(a) {
+  if (!a) return '';
+  const fee = parseFloat(a.fee);
+  if (Number.isFinite(fee) && fee > 0) {
+    const mode = a.feeMode ? ' · ' + a.feeMode : '';
+    return 'GHS ' + fee.toFixed(2) + mode;
+  }
+  if (a.feeStatus === 'Paid' || a.feePaid) return 'Paid';
+  return '—';
+}
+
+function buildAdmissionsPrintHtml(prefs) {
+  const p = Object.assign(defaultAdmissionsPrintPrefs(), prefs || getAdmissionsPrintPrefs());
+  const rows = getAdmissionsPrintRows();
+  const landscape = p.orientation !== 'portrait';
+  const school = (typeof schoolName === 'function' ? schoolName() : 'School');
+  const logo = (p.showLogo && typeof SCHOOL_LOGO_SRC !== 'undefined') ? SCHOOL_LOGO_SRC : '';
+  const year = (typeof ACTIVE_YEAR !== 'undefined' ? String(ACTIVE_YEAR) : '').replace('_', '/');
+  const printed = new Date().toLocaleString('en-GH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const by = (typeof welcomeDisplayName === 'function' && welcomeDisplayName()) || (currentUser ? currentUser.username : 'system');
+
+  const search = ((document.getElementById('adm-search') || {}).value || '').trim();
+  const cls = ((document.getElementById('adm-class-filter') || {}).value || '');
+  const st = ((document.getElementById('adm-status-filter') || {}).value || '');
+  const filterBits = [];
+  if (cls) filterBits.push('Class: ' + cls);
+  if (st) filterBits.push('Status: ' + st);
+  if (search) filterBits.push('Search: “' + search + '”');
+  const filterLabel = filterBits.length ? filterBits.join(' · ') : 'All students';
+
+  // KPIs
+  const byStatus = {};
+  rows.forEach(a => {
+    const s = a.status || '—';
+    byStatus[s] = (byStatus[s] || 0) + 1;
+  });
+  const classes = new Set(rows.map(a => a.cls).filter(Boolean));
+
+  const kpisHtml = p.showKpis ? `
+  <div class="kpis">
+    <div class="kpi"><div class="l">Students</div><div class="v">${rows.length}</div><div class="s">${esc(filterLabel)}</div></div>
+    <div class="kpi"><div class="l">Classes</div><div class="v">${classes.size}</div><div class="s">in this list</div></div>
+    <div class="kpi"><div class="l">Admitted</div><div class="v">${byStatus['Admitted'] || 0}</div><div class="s">status</div></div>
+    <div class="kpi"><div class="l">Continuing</div><div class="v">${byStatus['Continuing'] || 0}</div><div class="s">status</div></div>
+  </div>` : '';
+
+  const cols = [];
+  cols.push({ key: 'name', label: 'Student', always: true });
+  if (p.showId) cols.push({ key: 'id', label: 'ID' });
+  if (p.showClass) cols.push({ key: 'cls', label: 'Class' });
+  if (p.showHouse) cols.push({ key: 'house', label: 'House' });
+  if (p.showGender) cols.push({ key: 'gender', label: 'Gender' });
+  if (p.showParent) cols.push({ key: 'parent', label: 'Parent / Guardian' });
+  if (p.showPhone) cols.push({ key: 'phone', label: 'Phone' });
+  if (p.showStatus) cols.push({ key: 'status', label: 'Status' });
+  if (p.showFee) cols.push({ key: 'fee', label: 'Adm. Fee' });
+  if (p.showDob) cols.push({ key: 'dob', label: 'DOB' });
+  if (p.showYear) cols.push({ key: 'year', label: 'Year' });
+
+  const headCols = cols.map(c => '<th>' + esc(c.label) + '</th>').join('');
+  const bodyRows = rows.map((a, i) => {
+    const cells = cols.map(c => {
+      let val = '';
+      if (c.key === 'name') {
+        return '<td class="name"><div class="nm">' + esc(a.name || '—') + '</div>'
+          + (p.showId ? '' : '<div class="id">' + esc(a.id || '') + '</div>')
+          + '</td>';
+      }
+      if (c.key === 'id') val = a.id || '—';
+      else if (c.key === 'cls') val = a.cls || '—';
+      else if (c.key === 'house') val = admHouseLabel(a) || '—';
+      else if (c.key === 'gender') val = a.gender || '—';
+      else if (c.key === 'parent') val = a.parent || '—';
+      else if (c.key === 'phone') val = a.phone1 || a.phone2 || '—';
+      else if (c.key === 'status') {
+        const extra = (a.status === 'Withdrawn' && a.withdrawnDate) ? (' · ' + a.withdrawnDate) : '';
+        val = (a.status || '—') + extra;
+      }
+      else if (c.key === 'fee') val = admFeePrintValue(a);
+      else if (c.key === 'dob') val = a.dob || '—';
+      else if (c.key === 'year') val = a.year || '—';
+      return '<td class="c">' + esc(String(val)) + '</td>';
+    }).join('');
+    return '<tr>' + cells + '</tr>';
+  }).join('') || '<tr><td colspan="' + cols.length + '" style="text-align:center;padding:16px;color:#686f7d">No students match the current filters</td></tr>';
+
+  const endorseHtml = p.showEndorse ? `
+  <div class="endorse">
+    <div class="endorse-title">Endorsement</div>
+    <div class="endorse-grid">
+      <div class="endorse-block">
+        <div class="endorse-role">Prepared by</div>
+        <div class="endorse-line"><span class="endorse-label">Name</span></div>
+        <div class="endorse-line"><span class="endorse-label">Signature</span></div>
+        <div class="endorse-line short"><span class="endorse-label">Date</span></div>
+      </div>
+      <div class="endorse-block">
+        <div class="endorse-role">School Administrator / Headteacher</div>
+        <div class="endorse-line"><span class="endorse-label">Name</span></div>
+        <div class="endorse-line"><span class="endorse-label">Signature</span></div>
+        <div class="endorse-line short"><span class="endorse-label">Date</span></div>
+      </div>
+    </div>
+  </div>` : '';
+
+  const orientLabel = landscape ? 'Landscape' : 'Portrait';
+  const footHtml = p.showFooter ? `
+  <div class="foot">
+    <span>${rows.length} student${rows.length === 1 ? '' : 's'} · ${esc(filterLabel)}</span>
+    <span>Admissions Register · ${orientLabel} A4 · Ecole Systems</span>
+  </div>` : '';
+
+  const pageSize = landscape ? 'A4 landscape' : 'A4 portrait';
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Admissions Register — ${esc(year)}</title>
+<style>
+  @page { size: ${pageSize}; margin: 8mm; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  html, body { margin: 0; padding: 0; width: 100%; }
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    color: #1a1a2e;
+    font-size: 10px;
+    background: #fff;
+  }
+  .sheet { padding: 4mm 2mm; max-width: 100%; }
+  .hdr {
+    display: flex; align-items: flex-start; gap: 12px;
+    margin-bottom: 10px; padding-bottom: 8px;
+    border-bottom: 2px solid #0f1f3d;
+  }
+  .hdr img { width: 42px; height: 42px; object-fit: contain; }
+  .hdr h1 { margin: 0; font-size: 16px; color: #0f1f3d; font-family: Georgia, serif; }
+  .hdr .sub { font-size: 10px; color: #686f7d; margin-top: 2px; }
+  .hdr .meta { margin-left: auto; text-align: right; font-size: 9px; color: #686f7d; }
+  .kpis {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    margin-bottom: 10px;
+  }
+  .kpi {
+    border: 1px solid #e0d8c8; border-radius: 6px; padding: 6px 8px; background: #fdfcfa;
+  }
+  .kpi .l { font-size: 8px; text-transform: uppercase; letter-spacing: 0.04em; color: #686f7d; font-weight: 600; }
+  .kpi .v { font-family: Georgia, serif; font-size: 13px; font-weight: 700; color: #0f1f3d; }
+  .kpi .s { font-size: 8px; color: #686f7d; margin-top: 1px; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    background: #0f1f3d; color: #e8c97a;
+    font-size: 9px; font-weight: 600;
+    padding: 5px 4px; text-align: left;
+  }
+  td {
+    border-bottom: 1px solid #e8e2d6;
+    padding: 4px 4px;
+    vertical-align: middle;
+    font-size: 9.5px;
+  }
+  td.name .nm { font-weight: 600; color: #0f1f3d; }
+  td.name .id { font-size: 8px; color: #686f7d; }
+  td.c { font-size: 9px; }
+  tr:nth-child(even) td { background: #faf8f4; }
+  .foot {
+    margin-top: 8px; padding-top: 5px; border-top: 1px solid #e0d8c8;
+    font-size: 8.5px; color: #686f7d;
+    display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  }
+  .endorse { margin-top: 14px; page-break-inside: avoid; }
+  .endorse-title {
+    font-size: 10px; font-weight: 700; color: #0f1f3d;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    margin-bottom: 10px; padding-bottom: 4px; border-bottom: 1.5px solid #0f1f3d;
+  }
+  .endorse-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 28px; }
+  .endorse-block {
+    border: 1px solid #e0d8c8; border-radius: 6px;
+    padding: 10px 12px 12px; background: #fdfcfa;
+  }
+  .endorse-role { font-size: 10px; font-weight: 700; color: #0f1f3d; margin-bottom: 12px; }
+  .endorse-line {
+    border-bottom: 1px solid #1a1a2e; min-height: 22px;
+    margin-bottom: 12px; position: relative;
+  }
+  .endorse-line.short { width: 55%; margin-bottom: 0; }
+  .endorse-label {
+    position: absolute; left: 0; bottom: 3px;
+    font-size: 8px; color: #686f7d; text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .no-print { display: none !important; }
+  @media (max-width: 700px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+  }
+</style></head><body><div class="sheet">
+  <div class="hdr">
+    ${logo ? '<img src="' + logo + '" alt="">' : ''}
+    <div>
+      <h1>${esc(school)}</h1>
+      <div class="sub">Admissions Register</div>
+      <div class="sub">Academic Year ${esc(year)} · ${esc(filterLabel)}</div>
+    </div>
+    <div class="meta">Printed ${esc(printed)}<br>by ${esc(by)}</div>
+  </div>
+  ${kpisHtml}
+  <table>
+    <thead><tr>${headCols}</tr></thead>
+    <tbody>${bodyRows}</tbody>
+  </table>
+  ${endorseHtml}
+  ${footHtml}
+</div></body></html>`;
+}
+
+function printAdmissionsRegister(prefs) {
+  let html;
+  try {
+    html = buildAdmissionsPrintHtml(prefs);
+  } catch (err) {
+    console.error('buildAdmissionsPrintHtml failed', err);
+    toast('⚠ Could not build print layout — ' + (err && err.message ? err.message : 'see console'), 'error');
+    return;
+  }
+  if (!html) return;
+
+  const p = Object.assign(defaultAdmissionsPrintPrefs(), prefs || getAdmissionsPrintPrefs());
+  const frameW = p.orientation === 'portrait' ? 800 : 1100;
+
+  let frame = document.getElementById('adm-print-frame');
+  if (frame) frame.remove();
+  frame = document.createElement('iframe');
+  frame.id = 'adm-print-frame';
+  frame.setAttribute('title', 'Admissions Register print');
+  frame.style.cssText = 'position:fixed;left:-12000px;top:0;width:' + frameW + 'px;height:750px;border:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(frame);
+
+  const doc = frame.contentDocument || frame.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  const doPrint = () => {
+    try {
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+    } catch (e) {
+      console.error(e);
+      const w = window.open('', '_blank', 'width=1200,height=800');
+      if (!w) {
+        toast('⚠ Allow pop-ups to print, or use PDF', 'error');
+        return;
+      }
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      setTimeout(() => { try { w.focus(); w.print(); } catch (e2) {} }, 300);
+    }
+  };
+
+  setTimeout(doPrint, 500);
+  toast('🖨️ Print dialog opening — use ' + (p.orientation === 'portrait' ? 'Portrait' : 'Landscape') + ' if asked', 'success');
+}
+
+async function exportAdmissionsPDF(prefs) {
+  let html;
+  try {
+    html = buildAdmissionsPrintHtml(prefs);
+  } catch (err) {
+    console.error(err);
+    toast('⚠ Could not build PDF layout', 'error');
+    return;
+  }
+  if (!html) return;
+  if (typeof html2pdf === 'undefined') {
+    toast('⚠ PDF library not loaded — use Print instead', 'error');
+    return;
+  }
+
+  const p = Object.assign(defaultAdmissionsPrintPrefs(), prefs || getAdmissionsPrintPrefs());
+  const landscape = p.orientation !== 'portrait';
+  toast('⏳ Generating Admissions Register PDF…');
+
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  const styleMatch = html.match(/<style[^>]*>([\s\S]*)<\/style>/i);
+  const bodyHtml = bodyMatch ? bodyMatch[1] : html;
+  const styleHtml = styleMatch ? styleMatch[1] : '';
+  const captureW = landscape ? 1100 : 720;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'adm-pdf-export-root';
+  overlay.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;background:#ffffff;z-index:2147483646;overflow:auto;';
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'width:' + captureW + 'px;margin:0 auto;background:#fff;padding:12px;';
+  wrap.innerHTML = '<style>' + styleHtml + '</style>' + bodyHtml;
+  overlay.appendChild(wrap);
+  document.body.appendChild(overlay);
+
+  try {
+    await new Promise(r => setTimeout(r, 400));
+    const stamp = new Date().toISOString().slice(0, 10);
+    await html2pdf().set({
+      margin: [6, 6, 6, 6],
+      filename: 'admissions-register-' + stamp + '.pdf',
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, width: captureW, windowWidth: captureW },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: landscape ? 'landscape' : 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    }).from(wrap).save();
+    toast('✅ Admissions Register PDF downloaded', 'success');
+  } catch (err) {
+    console.error('Admissions PDF failed', err);
+    toast('⚠ PDF export failed — try Print instead', 'error');
+  } finally {
+    try { overlay.remove(); } catch (e) {}
+  }
 }
 
 function renderAdmissions() {
@@ -17113,6 +18615,7 @@ function renderFeedingSchedule() {
     const targetMonday = mondayOf(target);
     const nowMonday = mondayOf(new Date());
     weekOffset = Math.round((targetMonday - nowMonday) / (7*24*60*60*1000));
+    window._attWeekOffset = weekOffset;
     draw();
   }
 
@@ -21125,48 +22628,90 @@ function saveBkSettings(s) {
 }
 
 // ── Build a full backup payload ──
-function buildBackupPayload(label) {
-  return {
+function buildBackupPayload(label, reason) {
+  const deep = (v) => {
+    try { return JSON.parse(JSON.stringify(v)); } catch (e) { return v; }
+  };
+  const payload = {
     version:   BK_VERSION,
+    schemaVersion: (typeof DB_SCHEMA_VERSION !== 'undefined' ? DB_SCHEMA_VERSION : null),
     label:     label || '',
+    reason:    reason || 'manual',
     timestamp: new Date().toISOString(),
     createdBy: currentUser ? currentUser.username : 'system',
+    academicYear: (typeof ACTIVE_YEAR !== 'undefined' ? ACTIVE_YEAR : null),
     data: {
-      admissions: db.admissions,
-      payments:   db.payments,
-      revenue:    db.revenue,
-      expenses:   db.expenses,
+      admissions: deep(db.admissions),
+      payments:   deep(db.payments),
+      revenue:    deep(db.revenue),
+      expenses:   deep(db.expenses),
       nextAdmId:  db.nextAdmId,
       nextRevId:  db.nextRevId,
       nextExpId:  db.nextExpId,
-      txHistory:  db.txHistory || [],
+      txHistory:  deep(db.txHistory || []),
       nextTxId:   db.nextTxId  || 1,
+      // Extended modules for selective version restore
+      grades: deep(db.grades || {}),
+      gradeComponents: deep(db.gradeComponents || {}),
+      attendance: deep(db.attendance || {}),
+      skillsAssessments: deep(db.skillsAssessments || {}),
+      skillSubmissions: deep(db.skillSubmissions || []),
+      skillParams: deep(db.skillParams),
+      employees: deep(db.employees || []),
+      staffAttendance: deep(db.staffAttendance || {}),
+      appraisals: deep(db.appraisals || []),
+      training: deep(db.training || []),
+      subjects: deep(db.subjects),
+      academicCalendar: deep(db.academicCalendar),
+      pettyCash: deep(db.pettyCash || []),
+      nextPcId: db.nextPcId || 1,
+      carryForwards: deep(db.carryForwards || {}),
     },
-    fees: JSON.parse(JSON.stringify(FEE_BY_CLASS)),
-    feedingFees: JSON.parse(JSON.stringify(FEEDING_FEE_BY_CLASS)),
-    checksum: buildChecksum()
+    fees: deep(typeof FEE_BY_CLASS !== 'undefined' ? FEE_BY_CLASS : (db.fees || {})),
+    feedingFees: deep(typeof FEEDING_FEE_BY_CLASS !== 'undefined' ? FEEDING_FEE_BY_CLASS : (db.feedingFees || {})),
+    recordCounts: {
+      admissions: (db.admissions || []).length,
+      payments: Object.keys(db.payments || {}).length,
+      revenue: (db.revenue || []).length,
+      expenses: (db.expenses || []).length,
+      grades: Object.keys(db.grades || {}).length,
+      attendanceDays: Object.keys(db.attendance || {}).length,
+      skillSubs: (db.skillSubmissions || []).length,
+      employees: (db.employees || []).length
+    },
+    checksum: null
   };
+  payload.checksum = buildChecksumFromPayload(payload);
+  return payload;
+}
+
+function buildChecksumFromPayload(payload) {
+  const d = (payload && payload.data) || {};
+  const adm = d.admissions || [];
+  const s = (adm.length || 0) + '|' +
+            Object.keys(d.payments || {}).length + '|' +
+            (d.revenue || []).length + '|' +
+            (d.expenses || []).length + '|' +
+            adm.reduce((a,b) => a + (b.fee||0), 0) + '|' +
+            Object.keys(d.grades || {}).length + '|' +
+            Object.keys(d.attendance || {}).length;
+  try { return btoa(s); } catch (e) { return String(s.length); }
 }
 
 function buildChecksum() {
-  const s = db.admissions.length + '|' +
-            Object.keys(db.payments).length + '|' +
-            db.revenue.length + '|' +
-            db.expenses.length + '|' +
-            db.admissions.reduce((a,b) => a + (b.fee||0), 0);
-  return btoa(s);
+  return buildChecksumFromPayload({ data: {
+    admissions: db.admissions || [],
+    payments: db.payments || {},
+    revenue: db.revenue || [],
+    expenses: db.expenses || [],
+    grades: db.grades || {},
+    attendance: db.attendance || {}
+  }});
 }
 
 function verifyChecksum(payload) {
-  if (!payload.checksum) return 'unknown';
-  // Recompute from the payload data
-  const d = payload.data;
-  const s = d.admissions.length + '|' +
-            Object.keys(d.payments).length + '|' +
-            d.revenue.length + '|' +
-            d.expenses.length + '|' +
-            d.admissions.reduce((a,b) => a + (b.fee||0), 0);
-  return btoa(s) === payload.checksum ? 'ok' : 'mismatch';
+  if (!payload || !payload.checksum) return 'unknown';
+  return buildChecksumFromPayload(payload) === payload.checksum ? 'ok' : 'mismatch';
 }
 
 // ══════════════ BACKUP FILE ENCRYPTION (Web Crypto API) ══════════════
@@ -21284,6 +22829,308 @@ function pushAutoSlot(payload) {
   slots.unshift(entry);                   // newest first
   while (slots.length > BK_AUTO_SLOTS) slots.pop(); // keep only N slots
   saveAutoSlots(slots);
+  // Also record in advanced version history (same payload, longer retention)
+  try { pushVersionSnapshot(payload, payload.reason || 'auto'); } catch (e) { console.warn('version history', e); }
+}
+
+// ══════════════ ADVANCED VERSION HISTORY ══════════════
+const BK_VERSION_KEY = 'nazareth_version_history';
+const BK_VERSION_MAX = 20; // newest-first snapshots kept on this device
+
+const VERSION_MODULES = [
+  { key: 'admissions', label: 'Admissions / students', paths: ['admissions', 'nextAdmId'] },
+  { key: 'payments', label: 'Payments & fee balances', paths: ['payments', 'carryForwards'] },
+  { key: 'finance', label: 'Revenue & expenses', paths: ['revenue', 'expenses', 'nextRevId', 'nextExpId', 'txHistory', 'nextTxId', 'pettyCash', 'nextPcId'] },
+  { key: 'grades', label: 'Grades', paths: ['grades', 'gradeComponents'] },
+  { key: 'attendance', label: 'Student attendance', paths: ['attendance'] },
+  { key: 'skills', label: 'Skills assessments', paths: ['skillsAssessments', 'skillSubmissions', 'skillParams'] },
+  { key: 'staff', label: 'Staff / HR', paths: ['employees', 'staffAttendance', 'appraisals', 'training'] },
+  { key: 'academic', label: 'Subjects & calendar', paths: ['subjects', 'academicCalendar'] },
+  { key: 'fees', label: 'Fee schedules', paths: [] } // special: payload.fees / feedingFees
+];
+
+function loadVersionHistory() {
+  try {
+    const raw = localStorage.getItem(BK_VERSION_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list : [];
+  } catch (e) { return []; }
+}
+
+function saveVersionHistory(list) {
+  try {
+    safeLocalStorageSet(BK_VERSION_KEY, JSON.stringify(list), { critical: true });
+  } catch (e) {
+    console.warn('saveVersionHistory', e);
+    toast('⚠ Version history storage is full — oldest versions may not be kept', 'error');
+  }
+}
+
+function pushVersionSnapshot(payload, reason) {
+  if (!payload) return null;
+  const list = loadVersionHistory();
+  const id = 'VER-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+  const entry = {
+    id,
+    timestamp: payload.timestamp || new Date().toISOString(),
+    label: payload.label || 'Snapshot',
+    reason: reason || payload.reason || 'manual',
+    createdBy: payload.createdBy || (currentUser ? currentUser.username : 'system'),
+    academicYear: payload.academicYear || (typeof ACTIVE_YEAR !== 'undefined' ? ACTIVE_YEAR : null),
+    schemaVersion: payload.schemaVersion || null,
+    checksum: payload.checksum,
+    recordCounts: payload.recordCounts || {},
+    students: (payload.data && payload.data.admissions) ? payload.data.admissions.length : ((db.admissions || []).length),
+    payload
+  };
+  list.unshift(entry);
+  while (list.length > BK_VERSION_MAX) list.pop();
+  saveVersionHistory(list);
+  return entry;
+}
+
+/** Create a named version snapshot (Admin / Bursar). */
+function createVersionSnapshot(label, reason) {
+  if (!requireRole('Admin', 'Bursar')) return null;
+  const payload = buildBackupPayload(label || 'Named version', reason || 'manual');
+  const entry = pushVersionSnapshot(payload, reason || 'manual');
+  // Keep rotating auto slot in sync when intentional
+  try {
+    if (reason === 'year_lock' || reason === 'manual') {
+      const slots = loadAutoSlots();
+      slots.unshift({
+        timestamp: payload.timestamp,
+        label: payload.label,
+        students: (db.admissions || []).length,
+        checksum: payload.checksum,
+        payload
+      });
+      while (slots.length > BK_AUTO_SLOTS) slots.pop();
+      saveAutoSlots(slots);
+    }
+  } catch (e) {}
+  return entry;
+}
+
+function createVersionSnapshotPrompt() {
+  if (!requireRole('Admin', 'Bursar')) return;
+  const label = prompt('Version label:', 'Snapshot ' + new Date().toLocaleString('en-GH'));
+  if (label === null) return;
+  try {
+    const entry = createVersionSnapshot(label || 'Named version', 'manual');
+    if (entry) {
+      toast('✅ Version saved — ' + entry.id, 'success');
+      if (typeof renderBackupPage === 'function') renderBackupPage();
+    }
+  } catch (e) {
+    console.error(e);
+    toast('⚠ Could not save version — storage may be full', 'error');
+  }
+}
+
+function getVersionById(id) {
+  return loadVersionHistory().find(v => v && v.id === id) || null;
+}
+
+function previewVersion(id) {
+  const entry = getVersionById(id);
+  if (!entry || !entry.payload) { toast('⚠ Version not found', 'error'); return; }
+  const p = entry.payload;
+  const d = p.data || {};
+  const rc = entry.recordCounts || p.recordCounts || {};
+  const when = entry.timestamp ? new Date(entry.timestamp).toLocaleString('en-GH') : '—';
+  const chk = verifyChecksum(p);
+  const html = `
+    <div style="font-size:13px;line-height:1.55;color:var(--navy)">
+      <div style="margin-bottom:10px"><b>${esc(entry.label || 'Version')}</b>
+        <span style="color:var(--muted);font-size:12px"> · ${esc(entry.id)}</span></div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">
+        ${esc(when)} · by ${esc(entry.createdBy || '—')} · reason: ${esc(entry.reason || '—')}
+        · year ${esc(String(entry.academicYear || '—').replace('_','/'))}
+        · checksum ${chk === 'ok' ? '✅ ok' : chk === 'mismatch' ? '⚠ mismatch' : '—'}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12.5px">
+        <div>Students: <b>${rc.admissions != null ? rc.admissions : (d.admissions||[]).length}</b></div>
+        <div>Payments: <b>${rc.payments != null ? rc.payments : Object.keys(d.payments||{}).length}</b></div>
+        <div>Revenue: <b>${rc.revenue != null ? rc.revenue : (d.revenue||[]).length}</b></div>
+        <div>Expenses: <b>${rc.expenses != null ? rc.expenses : (d.expenses||[]).length}</b></div>
+        <div>Grades: <b>${rc.grades != null ? rc.grades : Object.keys(d.grades||{}).length}</b></div>
+        <div>Attendance days: <b>${rc.attendanceDays != null ? rc.attendanceDays : Object.keys(d.attendance||{}).length}</b></div>
+        <div>Skill submissions: <b>${rc.skillSubs != null ? rc.skillSubs : (d.skillSubmissions||[]).length}</b></div>
+        <div>Staff: <b>${rc.employees != null ? rc.employees : (d.employees||[]).length}</b></div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="closeModal('generic-info-modal');restoreVersionFull('${entry.id}')">↩ Restore full version</button>
+        <button class="btn btn-outline btn-sm" onclick="closeModal('generic-info-modal');openVersionModuleRestore('${entry.id}')">🧩 Restore selected modules…</button>
+      </div>
+    </div>`;
+  if (typeof showInfoModal === 'function') showInfoModal('📦 Version preview', html);
+  else alert(entry.label + '\n' + when);
+}
+
+function restoreVersionFull(id) {
+  if (!requireRole('Admin')) return;
+  const entry = getVersionById(id);
+  if (!entry || !entry.payload) { toast('⚠ Version not found', 'error'); return; }
+  if (!confirm('Restore FULL database from version\n' + (entry.label || entry.id) + '\n\nCurrent data will be replaced. A safeguard snapshot is taken first.')) return;
+  try {
+    const safeguard = buildBackupPayload('Pre-restore safeguard', 'safeguard');
+    pushVersionSnapshot(safeguard, 'safeguard');
+    pushAutoSlot(safeguard);
+  } catch (e) {}
+  _restorePayload = entry.payload;
+  // Prefer existing full restore path
+  if (typeof confirmRestore === 'function') {
+    try { confirmRestore(); return; } catch (e) { console.warn(e); }
+  }
+  applyVersionPayload(entry.payload, null);
+}
+
+function openVersionModuleRestore(id) {
+  if (!requireRole('Admin')) return;
+  const entry = getVersionById(id);
+  if (!entry) { toast('⚠ Version not found', 'error'); return; }
+  let ov = document.getElementById('version-module-modal');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.className = 'modal-overlay';
+    ov.id = 'version-module-modal';
+    document.body.appendChild(ov);
+  }
+  const checks = VERSION_MODULES.map(m =>
+    `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;cursor:pointer">
+      <input type="checkbox" class="ver-mod-cb" value="${m.key}" style="accent-color:var(--navy)"> ${esc(m.label)}
+    </label>`
+  ).join('');
+  ov.innerHTML = `
+    <div class="modal" style="width:min(440px,96vw)">
+      <div class="modal-header">
+        <span class="modal-title">🧩 Restore modules — ${esc(entry.label || entry.id)}</span>
+        <button class="modal-close" onclick="closeModal('version-module-modal')">✕</button>
+      </div>
+      <div style="padding:14px 20px;font-size:12px;color:var(--muted)">Choose which data areas to restore from this version. Everything else stays as it is now.</div>
+      <div style="padding:0 20px 12px">${checks}</div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('version-module-modal')">Cancel</button>
+        <button class="btn btn-primary" onclick="restoreVersionModules('${entry.id}')">↩ Restore selected</button>
+      </div>
+    </div>`;
+  ov.classList.add('open');
+}
+
+function restoreVersionModules(id) {
+  if (!requireRole('Admin')) return;
+  const entry = getVersionById(id);
+  if (!entry || !entry.payload) { toast('⚠ Version not found', 'error'); return; }
+  const mods = [...document.querySelectorAll('.ver-mod-cb:checked')].map(c => c.value);
+  if (!mods.length) { toast('⚠ Select at least one module', 'error'); return; }
+  if (!confirm('Restore modules: ' + mods.join(', ') + '\nfrom ' + (entry.label || id) + '?\n\nA safeguard snapshot is taken first.')) return;
+  try {
+    const safeguard = buildBackupPayload('Pre-module-restore safeguard', 'safeguard');
+    pushVersionSnapshot(safeguard, 'safeguard');
+  } catch (e) {}
+  applyVersionPayload(entry.payload, mods);
+  closeModal('version-module-modal');
+}
+
+function applyVersionPayload(payload, modulesOrNull) {
+  if (!payload || !payload.data) { toast('⚠ Invalid version payload', 'error'); return; }
+  const d = payload.data;
+  const all = !modulesOrNull || !modulesOrNull.length;
+  const has = (k) => all || modulesOrNull.includes(k);
+
+  if (has('admissions') && d.admissions) {
+    db.admissions = d.admissions;
+    if (d.nextAdmId != null) db.nextAdmId = d.nextAdmId;
+  }
+  if (has('payments')) {
+    if (d.payments) db.payments = d.payments;
+    if (d.carryForwards) db.carryForwards = d.carryForwards;
+  }
+  if (has('finance')) {
+    if (d.revenue) db.revenue = d.revenue;
+    if (d.expenses) db.expenses = d.expenses;
+    if (d.txHistory) db.txHistory = d.txHistory;
+    if (d.pettyCash) db.pettyCash = d.pettyCash;
+    if (d.nextRevId != null) db.nextRevId = d.nextRevId;
+    if (d.nextExpId != null) db.nextExpId = d.nextExpId;
+    if (d.nextTxId != null) db.nextTxId = d.nextTxId;
+    if (d.nextPcId != null) db.nextPcId = d.nextPcId;
+  }
+  if (has('grades')) {
+    if (d.grades) db.grades = d.grades;
+    if (d.gradeComponents) db.gradeComponents = d.gradeComponents;
+  }
+  if (has('attendance') && d.attendance) db.attendance = d.attendance;
+  if (has('skills')) {
+    if (d.skillsAssessments) db.skillsAssessments = d.skillsAssessments;
+    if (d.skillSubmissions) db.skillSubmissions = d.skillSubmissions;
+    if (d.skillParams !== undefined) db.skillParams = d.skillParams;
+  }
+  if (has('staff')) {
+    if (d.employees) db.employees = d.employees;
+    if (d.staffAttendance) db.staffAttendance = d.staffAttendance;
+    if (d.appraisals) db.appraisals = d.appraisals;
+    if (d.training) db.training = d.training;
+  }
+  if (has('academic')) {
+    if (d.subjects) db.subjects = d.subjects;
+    if (d.academicCalendar) db.academicCalendar = d.academicCalendar;
+  }
+  if (has('fees')) {
+    if (payload.fees) {
+      try {
+        Object.entries(payload.fees).forEach(([cls, vals]) => {
+          if (typeof FEE_BY_CLASS !== 'undefined' && FEE_BY_CLASS[cls]) FEE_BY_CLASS[cls] = vals;
+        });
+        db.fees = JSON.parse(JSON.stringify(typeof FEE_BY_CLASS !== 'undefined' ? FEE_BY_CLASS : payload.fees));
+        safeLocalStorageSet('nazareth_fees', JSON.stringify(db.fees));
+      } catch (e) {}
+    }
+    if (payload.feedingFees) {
+      try {
+        Object.entries(payload.feedingFees).forEach(([cls, vals]) => {
+          if (typeof FEEDING_FEE_BY_CLASS !== 'undefined' && FEEDING_FEE_BY_CLASS[cls]) FEEDING_FEE_BY_CLASS[cls] = vals;
+        });
+        db.feedingFees = JSON.parse(JSON.stringify(typeof FEEDING_FEE_BY_CLASS !== 'undefined' ? FEEDING_FEE_BY_CLASS : payload.feedingFees));
+        safeLocalStorageSet('nazareth_feeding_fees', JSON.stringify(db.feedingFees));
+      } catch (e) {}
+    }
+  }
+
+  try { if (typeof ensureDbShape === 'function') ensureDbShape(); } catch (e) {}
+  try { if (typeof logRestoreEvent === 'function') logRestoreEvent(all ? 'version_full' : 'version_modules', { modules: modulesOrNull || ['*'], label: payload.label }); } catch (e) {}
+
+  setSyncStatus('syncing');
+  toast('⏳ Applying version restore…');
+  const finish = () => {
+    setSyncStatus('saved');
+    toast('✅ Version restore complete', 'success');
+    if (typeof renderBackupPage === 'function') renderBackupPage();
+    if (typeof renderDashboard === 'function') renderDashboard();
+  };
+  if (typeof saveDb === 'function') {
+    try { saveDb(true); } catch (e) {}
+  }
+  if (typeof fbDb !== 'undefined' && fbDb) {
+    fbDb.ref(FB_PATH).set(db).then(finish).catch(err => {
+      setSyncStatus('offline');
+      toast('⚠ Restored locally but cloud sync failed: ' + (err && err.message ? err.message : ''), 'error');
+      finish();
+    });
+  } else {
+    finish();
+  }
+}
+
+function deleteVersion(id) {
+  if (!requireRole('Admin')) return;
+  if (!confirm('Delete this version from device history? This cannot be undone.')) return;
+  const list = loadVersionHistory().filter(v => v.id !== id);
+  saveVersionHistory(list);
+  toast('🗑️ Version removed from this device');
+  if (typeof renderBackupPage === 'function') renderBackupPage();
 }
 
 // ── Create a manual backup (stored in localStorage + downloaded as JSON) ──
@@ -21671,7 +23518,8 @@ function renderBackupPage() {
       <div class="backup-banner-title">🛡️ Backup & Restore</div>
       <div class="backup-banner-sub">Protect your school's financial data. Create backups before major changes,<br>restore from any saved backup if something goes wrong.</div>
     </div>
-    <div style="display:flex;gap:10px;flex-shrink:0">
+    <div style="display:flex;gap:10px;flex-shrink:0;flex-wrap:wrap">
+      <button class="btn btn-outline" onclick="createVersionSnapshotPrompt()">📌 Save Version</button>
       <button class="btn btn-gold" onclick="createManualBackup()">💾 Create Backup Now</button>
     </div>
   </div>
@@ -21685,7 +23533,44 @@ function renderBackupPage() {
     <div class="export-stat-pill">💾 <strong>${dataSize}</strong> Data size</div>
     <div class="export-stat-pill">📦 <strong>${list.length}</strong> Manual backups</div>
     <div class="export-stat-pill">⚡ <strong>${autoSlots.length}/${BK_AUTO_SLOTS}</strong> Auto-backup slots</div>
+    <div class="export-stat-pill">📚 <strong>${(typeof loadVersionHistory==='function'?loadVersionHistory():[]).length}</strong> Versions</div>
   </div>
+
+  <!-- ── Advanced Version History ── -->
+  ${(() => {
+    const versions = typeof loadVersionHistory === 'function' ? loadVersionHistory() : [];
+    const reasonLabel = (r) => ({
+      manual: 'Manual', auto: 'Auto', year_lock: 'Year lock', safeguard: 'Safeguard',
+      import: 'Import'
+    })[r] || (r || 'Snapshot');
+    const rows = versions.length ? versions.map(v => {
+      const when = v.timestamp ? new Date(v.timestamp).toLocaleString('en-GH') : '—';
+      const rc = v.recordCounts || {};
+      return `<div class="backup-entry">
+        <div class="backup-entry-info">
+          <div class="backup-entry-name">${esc(v.label || v.id)} <span style="font-size:11px;color:var(--muted);font-weight:400">· ${esc(reasonLabel(v.reason))}</span></div>
+          <div class="backup-entry-meta">${esc(when)} · ${esc(v.createdBy || '—')} · ${v.students != null ? v.students : (rc.admissions||0)} students · grades ${rc.grades != null ? rc.grades : '—'} · ${esc(v.id)}</div>
+        </div>
+        <div class="backup-entry-actions">
+          <button class="btn btn-sm btn-outline" onclick="previewVersion('${v.id}')">Preview</button>
+          <button class="btn btn-sm btn-outline" onclick="openVersionModuleRestore('${v.id}')">Modules</button>
+          <button class="btn btn-sm btn-primary" onclick="restoreVersionFull('${v.id}')">Restore</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteVersion('${v.id}')">✕</button>
+        </div>
+      </div>`;
+    }).join('') : `<div class="backup-empty"><div class="icon">📚</div>No versions yet. Click <b>Save Version</b> or lock an academic year to create the first snapshot.</div>`;
+    return `
+  <div class="card" style="margin-bottom:20px;overflow:hidden">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div>
+        <span class="card-title">📚 Version History</span>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">Up to ${typeof BK_VERSION_MAX !== 'undefined' ? BK_VERSION_MAX : 20} snapshots on this device — preview, restore full database, or restore selected modules</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="createVersionSnapshotPrompt()">📌 Save Version Now</button>
+    </div>
+    <div class="backup-history" style="max-height:340px;overflow:auto">${rows}</div>
+  </div>`;
+  })()}
 
   <div class="backup-grid">
 
@@ -24639,12 +26524,13 @@ function renderGradeEntry() {
     window.geSetTerm  = t => { selTerm = t; draw(); };
     window.geSetCategory = c => { selCategory = c; draw(); };
     window.geSetScore = (sid, subId, term, val, inp) => {
-      if (!canEditCurrentPage('grades')) { toast('⛔ You have view-only access to Grade Entry'); draw(); return; }
+      if (!canEditCurrentPage('grades')) { toast('⛔ You have view-only access to Grade Entry'); preserveScroll(() => draw()); return; }
+      softLocalEdit(2000);
       const score = val === '' ? null : Math.max(0, Math.min(100, Number(val)));
       setGrade(sid, subId, term, score, '');
       // Update input color
       inp.className = 'ge-score-input' + (score===null?'':score>=80?' score-a':score>=70?' score-b':score>=55?' score-c':' score-d');
-      toast('✅ Score saved');
+      toast('Saved', 'success');
     };
     // Mid Term Exams / Class Score / Homework — a single 0–100 input, stored
     // separately from the official Final Exams score (see setGradeComponent()).
@@ -24655,7 +26541,7 @@ function renderGradeEntry() {
       setGradeComponent(sid, subId, term, category, score);
       inp.className = 'ge-score-input' + (score===null ? '' : ' score-' + (gradeBandFor(score / cmax * 100) || { tone: 'd' }).tone);
       if (score !== null && String(score) !== String(val)) inp.value = score; // clamped to this category's maximum
-      toast('✅ Score saved');
+      toast('Saved', 'success');
     };
     // KG 1 / KG 2 only — two inputs (Class Score, Exam Score), each 0–50,
     // auto-summed into the composite score used everywhere else in the app.
@@ -24670,7 +26556,7 @@ function renderGradeEntry() {
         const total = (cs || 0) + (ex || 0);
         setGrade(sid, subId, term, total, '', cs === null ? 0 : cs, ex === null ? 0 : ex);
       }
-      toast('✅ Score saved');
+      toast('Saved', 'success');
     };
     window.geSaveAll = () => {
       if (!canEditCurrentPage('grades')) { toast('⛔ You have view-only access to Grade Entry'); return; }
@@ -24992,7 +26878,7 @@ function renderSkillsAssessment() {
       <div class="section-header">
         <div>
           <div class="section-title">🌟 Skills Assessment</div>
-          <div class="section-sub">Rate reading, writing, and attitude/effort skills — monthly — ${ACTIVE_YEAR}</div>
+          <div class="section-sub">Ratings auto-save · monthly · ${ACTIVE_YEAR}</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">${submitBtn}<button class="btn btn-outline btn-sm" onclick="printReportSmart()">🖨️ Print</button></div>
       </div>
@@ -25043,9 +26929,23 @@ function renderSkillsAssessment() {
     window.saSetMonth = m => { selMonth = m; draw(); };
     window.saSubmit = () => submitSkillAssessment(selClass, selMonth);
     window.saSetRating = (sid, sk, val, sel) => {
-      if (setSkillRating(sid, selMonth, sk, val) === false) { draw(); return; }
+      softLocalEdit(2000);
+      if (setSkillRating(sid, selMonth, sk, val) === false) { preserveScroll(() => draw()); return; }
       sel.className = 'skill-select' + (val ? ' ' + SKILL_RATING_CLASS[val] : '');
-      toast('✅ Rating saved');
+      // Update row average chip in place if present
+      try {
+        const row = sel.closest('tr');
+        if (row) {
+          const avgCell = row.querySelector('.skill-row-avg');
+          if (avgCell && typeof getSkillRatings === 'function') {
+            const r = getSkillRatings(sid, selMonth) || {};
+            const vals = Object.keys(r).map(k => Number(r[k])).filter(n => n >= 1 && n <= 4);
+            avgCell.textContent = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : '—';
+          }
+        }
+      } catch (e) {}
+      // Soft feedback — debounced by toast(); avoids spam while scoring a class
+      toast('✅ Rating saved', 'success');
     };
     window.saEditComment = (sid, sk) => {
       const student = students.find(x => x.id === sid);
@@ -25053,8 +26953,8 @@ function renderSkillsAssessment() {
       const current = getSkillComment(sid, selMonth, sk);
       const text = prompt(`Comment — ${skillDef ? skillDef.label : sk} for ${student ? student.name : sid}:`, current);
       if (text === null) return; // cancelled
-      if (setSkillComment(sid, selMonth, sk, text) === false) { draw(); return; }
-      draw();
+      softLocalEdit(2000);
+      if (setSkillComment(sid, selMonth, sk, text) === false) { preserveScroll(() => draw()); return; }
       toast(text.trim() ? '✅ Comment saved' : '🗑️ Comment removed');
     };
   }
@@ -26694,14 +28594,52 @@ function promoReject(cls) {
 }
 
 // ══════════════ ATTENDANCE ══════════════
+
+// ── Page-jump prevention ───────────────────────────────────────────────────
+// Full innerHTML redraws scroll the viewport to the top. Capture scroll before
+// a rebuild and restore it on the next frame. Data-entry screens (attendance,
+// grades, skills) should prefer in-place cell updates; use these helpers when
+// a full redraw is unavoidable.
+function preserveScroll(fn) {
+  const x = window.scrollX || window.pageXOffset || 0;
+  const y = window.scrollY || window.pageYOffset || 0;
+  const main = document.querySelector('.main-content') || document.querySelector('.content') || document.querySelector('main');
+  const mx = main ? main.scrollLeft : 0;
+  const my = main ? main.scrollTop : 0;
+  try { fn(); } finally {
+    requestAnimationFrame(() => {
+      try { window.scrollTo(x, y); } catch (e) {}
+      if (main) {
+        try { main.scrollLeft = mx; main.scrollTop = my; } catch (e) {}
+      }
+    });
+  }
+}
+
+function softLocalEdit(ms) {
+  window._softLocalEditUntil = Date.now() + (ms || 2500);
+}
+
+function isSoftLocalEditActive() {
+  return !!(window._softLocalEditUntil && Date.now() < window._softLocalEditUntil);
+}
+
 function renderAttendance() {
   const el = document.getElementById('att-inner');
+  if (!el) return;
   const admitted = db.admissions || [];
   const lockedClass = lockedClassFor();
-  let selClass = lockedClass || CLASSES[0] || '';
-  // Week offset: 0 = current week
-  let weekOffset = 0;
-  let showBulkPanel = false;
+  // Persist class / week so redraws and cloud echoes do not jump the user
+  if (lockedClass) {
+    window._attSelClass = lockedClass;
+  } else if (!window._attSelClass || (typeof CLASSES !== 'undefined' && CLASSES.length && !CLASSES.includes(window._attSelClass))) {
+    window._attSelClass = (CLASSES && CLASSES[0]) || '';
+  }
+  if (typeof window._attWeekOffset !== 'number') window._attWeekOffset = 0;
+  if (typeof window._attShowBulk !== 'boolean') window._attShowBulk = false;
+  let selClass = window._attSelClass;
+  let weekOffset = window._attWeekOffset;
+  let showBulkPanel = window._attShowBulk;
 
   function getWeekDates(offset) {
     const now = new Date();
@@ -26731,7 +28669,8 @@ function renderAttendance() {
     const targetMonday = mondayOf(target);
     const nowMonday = mondayOf(new Date());
     weekOffset = Math.round((targetMonday - nowMonday) / (7*24*60*60*1000));
-    draw();
+    window._attWeekOffset = weekOffset;
+    preserveScroll(() => draw());
   }
 
   // Mark every student in the current class with one status for one date, in a single click
@@ -26747,8 +28686,13 @@ function renderAttendance() {
     if (!db.attendance[k]) db.attendance[k] = {};
     studentsList.forEach(s => { db.attendance[k][s.id] = status; });
     logUsage('attendance', k);
+    softLocalEdit(2500);
     saveDb();
-    draw();
+    // Paint column in place — stay on the same week
+    try {
+      studentsList.forEach(s => attPaintCell(cls, date, s.id, status));
+      attPaintDaySummary(cls, date);
+    } catch (e) { preserveScroll(() => draw()); }
     const statusLabel = status === 'P' ? 'Present' : status === 'A' ? 'Absent' : 'Late';
     toast(`✅ Marked all ${studentsList.length} students ${statusLabel}`);
   }
@@ -26789,8 +28733,10 @@ function renderAttendance() {
       return;
     }
 
+    window._attLocalEditUntil = Date.now() + 2500;
     saveDb();
     showBulkPanel = false;
+    window._attShowBulk = false;
     draw();
     toast(`✅ Marked ${studentsList.length} students Present across ${schoolDays} school day${schoolDays!==1?'s':''}` +
       (skippedLocked ? ` · 🚫 ${skippedLocked} day${skippedLocked!==1?'s':''} skipped (holiday/break)` : '') +
@@ -26816,8 +28762,37 @@ function renderAttendance() {
     if (next === '') delete db.attendance[k][studentId];
     else db.attendance[k][studentId] = next;
     if (next !== '') logUsage('attendance', k);
+    softLocalEdit(2500);
+    try { attPaintCell(cls, date, studentId, next); attPaintDaySummary(cls, date); } catch (e) { console.warn(e); }
     saveDb();
-    draw();
+  }
+
+  function attPaintCell(cls, date, studentId, st) {
+    let btn = null;
+    document.querySelectorAll('button.att-cell[data-att-sid]').forEach(n => {
+      if (n.getAttribute('data-att-cls') === cls &&
+          n.getAttribute('data-att-date') === date &&
+          n.getAttribute('data-att-sid') === studentId) btn = n;
+    });
+    if (!btn) return;
+    btn.textContent = st || '·';
+    btn.className = 'att-cell ' + (st ? 'att-' + st : 'att-none');
+    btn.setAttribute('data-att-status', st || '');
+  }
+
+  function attPaintDaySummary(cls, date) {
+    const students = (db.admissions || []).filter(s => s.cls === cls);
+    let p = 0, t = 0;
+    students.forEach(s => {
+      const st = getStatus(cls, date, s.id);
+      if (st === 'P' || st === 'A' || st === 'L') {
+        t++;
+        if (st === 'P') p++;
+      }
+    });
+    document.querySelectorAll('.att-day-sum').forEach(elSum => {
+      if (elSum.getAttribute('data-att-date') === date) elSum.textContent = t ? (p + '/' + t) : '—';
+    });
   }
 
   function draw() {
@@ -26867,7 +28842,8 @@ function renderAttendance() {
         const cls = st ? 'att-'+st : 'att-none';
         return canEdit
           ? `<td style="text-align:center;padding:6px 4px">
-          <button class="att-cell ${cls}" onclick="attCycle('${selClass}','${d}','${s.id}')" title="Click to cycle: → P → A → L →">${label}</button>
+          <button type="button" class="att-cell ${cls}" data-att-cls="${esc(selClass)}" data-att-date="${d}" data-att-sid="${esc(s.id)}" data-att-status="${st || ''}"
+            onclick="event.preventDefault();event.stopPropagation();attCycle('${selClass}','${d}','${s.id}')" title="Click to cycle: → P → A → L →">${label}</button>
         </td>`
           : `<td style="text-align:center;padding:6px 4px">
           <span class="att-cell ${cls}" style="cursor:default">${label}</span>
@@ -26903,7 +28879,7 @@ function renderAttendance() {
       }
       const pCount = students.filter(s => getStatus(selClass,d,s.id)==='P').length;
       const total  = students.length;
-      return `<td style="text-align:center;padding:8px 4px;font-size:11px;font-weight:600;color:var(--green)">
+      return `<td class="att-day-sum" data-att-date="${d}" style="text-align:center;padding:8px 4px;font-size:11px;font-weight:600;color:var(--green)">
         ${pCount}/${total}
       </td>`;
     }).join('');
@@ -26912,7 +28888,7 @@ function renderAttendance() {
       <div class="section-header">
         <div>
           <div class="section-title">Attendance Register</div>
-          <div class="section-sub">Weekly attendance tracking — ${ACTIVE_YEAR}</div>
+          <div class="section-sub">Weekly attendance — ${ACTIVE_YEAR} · click a cell to mark Present → Absent → Late</div>
         </div>
         ${currentUser && currentUser.role === 'Admin'
           ? `<button class="btn btn-outline btn-sm" onclick="attToggleBulkPanel()">📅 Bulk Mark Present</button>`
@@ -26977,12 +28953,16 @@ function renderAttendance() {
           </div>`
       }`;
 
-    window.attSetClass = c => { if (lockedClass) return; selClass = c; draw(); };
-    window.attWeek     = d => { weekOffset += d; draw(); };
-    window.attCycle    = (cls, date, sid) => { cycleStatus(cls, date, sid); };
+    window.attSetClass = c => { if (lockedClass) return; selClass = c; window._attSelClass = c; preserveScroll(() => draw()); };
+    window.attWeek = d => { weekOffset += d; window._attWeekOffset = weekOffset; preserveScroll(() => draw()); };
+    window.attCycle = (cls, date, sid) => { cycleStatus(cls, date, sid); };
     window.attJumpToDate = dateStr => jumpToDate(dateStr);
-    window.attMarkAll    = date => markAllForDate(selClass, date, students, 'P');
-    window.attToggleBulkPanel = () => { showBulkPanel = !showBulkPanel; draw(); };
+    window.attMarkAll = date => markAllForDate(selClass, date, students, 'P');
+    window.attToggleBulkPanel = () => {
+      showBulkPanel = !showBulkPanel;
+      window._attShowBulk = showBulkPanel;
+      draw();
+    };
     window.attBulkMark = () => {
       const from = document.getElementById('att-bulk-from').value;
       const to   = document.getElementById('att-bulk-to').value;
@@ -30651,7 +32631,118 @@ function renderAnomalyDetection() {
 // that summary is instructed to only reference numbers actually present in
 // what was computed, not to invent its own analysis.
 
+/** Prefer active academic-calendar term, else Term 1. */
+function aidDefaultTerm() {
+  try {
+    if (typeof getCurrentTermStatus === 'function') {
+      const cts = getCurrentTermStatus();
+      if (cts && cts.term && typeof TERMS !== 'undefined' && TERMS.includes(cts.term)) return cts.term;
+    }
+  } catch (e) {}
+  return (typeof TERMS !== 'undefined' && TERMS.length) ? TERMS[0] : 'Term 1';
+}
+
+function aidTermDateRange(term) {
+  const td = (db.academicCalendar && db.academicCalendar.terms && db.academicCalendar.terms[term]) || {};
+  return { start: td.start || null, end: td.end || null };
+}
+
+/** True if YYYY-MM-DD falls inside the term's calendar window. If the term has no dates configured, returns null (caller decides). */
+function aidDateInTerm(dateStr, term) {
+  if (!dateStr || !term) return null;
+  const r = aidTermDateRange(term);
+  if (!r.start || !r.end) return null;
+  return dateStr >= r.start && dateStr <= r.end;
+}
+
+/**
+ * Skill / attendance months that belong to a term.
+ * Uses academic calendar dates when set; otherwise splits the 12 academic months evenly across TERMS.
+ */
+function aidMonthsForTerm(term) {
+  const months = typeof skillMonths === 'function' ? skillMonths() : [];
+  if (!term || !months.length) return months;
+  const range = aidTermDateRange(term);
+  const monthNum = { Sep:9, Oct:10, Nov:11, Dec:12, Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8 };
+  if (range.start && range.end) {
+    const filtered = months.filter(m => {
+      const parts = String(m).split(/\s+/);
+      const mon = monthNum[parts[0]];
+      const yr = parseInt(parts[1], 10);
+      if (!mon || !yr) return false;
+      const mid = yr + '-' + String(mon).padStart(2, '0') + '-15';
+      return mid >= range.start && mid <= range.end;
+    });
+    if (filtered.length) return filtered;
+  }
+  const idx = (typeof TERMS !== 'undefined') ? TERMS.indexOf(term) : -1;
+  if (idx < 0) return months;
+  const size = Math.ceil(months.length / Math.max(1, TERMS.length));
+  return months.slice(idx * size, (idx + 1) * size);
+}
+
+/** True if a YYYY-MM-DD falls in the month-set used for this term (calendar or fallback split). */
+function aidDateMatchesTermMonths(dateStr, term) {
+  if (!dateStr || !term) return false;
+  const months = typeof aidMonthsForTerm === 'function' ? aidMonthsForTerm(term) : [];
+  if (!months.length) return false;
+  const monthNum = { Sep:9, Oct:10, Nov:11, Dec:12, Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8 };
+  const inv = {};
+  Object.keys(monthNum).forEach(k => { inv[monthNum[k]] = k; });
+  const parts = String(dateStr).split('-');
+  if (parts.length < 2) return false;
+  const yr = parseInt(parts[0], 10);
+  const mon = parseInt(parts[1], 10);
+  const label = (inv[mon] || '') + ' ' + yr;
+  // Also try academic-year label matching skillMonths format
+  return months.some(m => {
+    if (m === label) return true;
+    // e.g. "Sep 2026" vs date 2026-09-xx
+    const mp = String(m).split(/\s+/);
+    return mp[0] === inv[mon] && parseInt(mp[1], 10) === yr;
+  });
+}
+
+/** Should this attendance key be included for the selected term? Strict — no silent all-year mix-in. */
+function aidAttendanceKeyInTerm(key, term) {
+  if (!term) return true;
+  const d = aidAttendanceKeyDate(key);
+  if (!d) return false;
+  const inTerm = aidDateInTerm(d, term);
+  if (inTerm === true) return true;
+  if (inTerm === false) return false;
+  // No calendar dates for this term — use month-set fallback only (never whole year)
+  return aidDateMatchesTermMonths(d, term);
+}
+
+/** Extract YYYY-MM-DD from attendance map keys like "Basic_1|2026-09-15". */
+function aidAttendanceKeyDate(key) {
+  if (!key) return null;
+  const m = String(key).match(/(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
+}
+
+/** Fee status for one student in one term only (no full-year roll-up). */
+function calcStudentStatusForTerm(studentId, term) {
+  if (!term) return calcStudentStatus(studentId);
+  const billedCore = typeof getStudentFee === 'function' ? getStudentFee(studentId, term) : 0;
+  let cf = 0;
+  if (typeof TERMS !== 'undefined' && TERMS[0] === term) {
+    cf = (db.carryForwards && db.carryForwards[studentId]) || 0;
+  }
+  const totalBilled = (Number(billedCore) || 0) + (Number(cf) || 0);
+  const paid = ((db.payments || {})[studentId + '|' + term] || { paid: 0 }).paid || 0;
+  const bal = totalBilled - paid;
+  let status;
+  if (bal < -0.02) status = 'Overpayment';
+  else if (Math.abs(bal) < 0.02) status = 'Paid';
+  else if (paid <= 0) status = 'Unpaid';
+  else status = 'Partial';
+  return { totalBilled, totalPaid: paid, bal, status, carryForward: cf, term };
+}
+
 function aidStudentAverage(s, term) {
+  if (!term) return null;
   const subs = subjectsForClass(s.cls);
   const scores = subs.map(sub => { const g = getGrade(s.id, sub.id, term); return g ? g.score : null; }).filter(v => v !== null);
   return scores.length ? scores.reduce((a, v) => a + v, 0) / scores.length : null;
@@ -30691,19 +32782,23 @@ function aidSubjectAverages(term, clsFilter) {
   })).sort((a, b) => a.avg - b.avg);
 }
 
-function aidSchoolAttendanceRate(clsFilter) {
+function aidSchoolAttendanceRate(clsFilter, term) {
   const att = db.attendance || {};
   const prefix = clsFilter ? clsFilter.replace(/\s/g, '_') + '|' : null;
   let P = 0, total = 0;
   Object.keys(att).forEach(k => {
     if (prefix && !k.startsWith(prefix)) return;
-    Object.values(att[k]).forEach(status => {
+    if (term && !aidAttendanceKeyInTerm(k, term)) return;
+    const day = att[k];
+    if (!day || typeof day !== 'object') return;
+    Object.values(day).forEach(status => {
       if (status === 'P') P++;
       if (status === 'P' || status === 'A' || status === 'L') total++;
     });
   });
   return total > 0 ? Math.round((P / total) * 100) : null;
 }
+
 
 // Attendance/performance link, shown as a plain bucket comparison (high vs
 // low attendance students' average score) rather than a raw correlation
@@ -30712,17 +32807,19 @@ function aidAttendancePerformanceLink(term, clsFilter) {
   const att = db.attendance || {};
   const students = (db.admissions || []).filter(s => !clsFilter || s.cls === clsFilter);
   const rows = students.map(s => {
-    const prefix = s.cls.replace(/\s/g, '_') + '|';
+    const prefix = (s.cls || '').replace(/\s/g, '_') + '|';
     let P = 0, total = 0;
     Object.keys(att).forEach(k => {
       if (!k.startsWith(prefix)) return;
-      const status = att[k][s.id];
+      if (term && !aidAttendanceKeyInTerm(k, term)) return;
+      const status = att[k] && att[k][s.id];
       if (status) { total++; if (status === 'P') P++; }
     });
     const attRate = total > 0 ? (P / total) * 100 : null;
     const perfAvg = aidStudentAverage(s, term);
     return { attRate, perfAvg };
   }).filter(r => r.attRate !== null && r.perfAvg !== null);
+
 
   if (rows.length < 6) return null; // not enough paired data to say anything meaningful
 
@@ -31855,7 +33952,7 @@ function aidGradeCoverage(term, clsFilter) {
   };
 }
 
-function aidAttendanceDetail(clsFilter) {
+function aidAttendanceDetail(clsFilter, term) {
   const att = db.attendance || {};
   const students = (typeof enrolledAdmissions === 'function'
     ? enrolledAdmissions()
@@ -31869,6 +33966,7 @@ function aidAttendanceDetail(clsFilter) {
     const seenDays = new Set();
     Object.keys(att).forEach(k => {
       if (!k.startsWith(prefix)) return;
+      if (term && !aidAttendanceKeyInTerm(k, term)) return;
       const day = att[k];
       if (!day || typeof day !== 'object') return;
       const st = day[s.id];
@@ -31890,7 +33988,7 @@ function aidAttendanceDetail(clsFilter) {
 
   const withMarks = rows.filter(r => r.total > 0).sort((a, b) => (a.rate ?? 999) - (b.rate ?? 999));
   const noMarks = rows.filter(r => r.total === 0);
-  const schoolRate = aidSchoolAttendanceRate(clsFilter);
+  const schoolRate = aidSchoolAttendanceRate(clsFilter, term);
   const chronic = withMarks.filter(r => r.rate !== null && r.rate < 75);
   const watch = withMarks.filter(r => r.rate !== null && r.rate >= 75 && r.rate < 85);
   const perfect = withMarks.filter(r => r.rate === 100);
@@ -31902,16 +34000,16 @@ function aidAttendanceDetail(clsFilter) {
   // Link low attendance to low grades when possible
   let gradeLink = null;
   try {
-    const term = (typeof TERMS !== 'undefined' && TERMS.length) ? TERMS[TERMS.length - 1] : null;
-    if (term && typeof aidStudentAverage === 'function') {
+    const termForGrade = term || ((typeof TERMS !== 'undefined' && TERMS.length) ? TERMS[0] : null);
+    if (termForGrade && typeof aidStudentAverage === 'function') {
       const both = [];
       chronic.forEach(r => {
         const s = students.find(x => x.id === r.id);
         if (!s) return;
-        const g = aidStudentAverage(s, term);
+        const g = aidStudentAverage(s, termForGrade);
         if (g != null && g < 50) both.push({ name: r.name, cls: r.cls, att: r.rate, grade: Math.round(g * 10) / 10 });
       });
-      gradeLink = { term, bothLow: both.slice(0, 20), bothLowCount: both.length };
+      gradeLink = { term: termForGrade, bothLow: both.slice(0, 20), bothLowCount: both.length };
     }
   } catch (e) { gradeLink = null; }
 
@@ -31971,7 +34069,7 @@ function aidAttendanceDetail(clsFilter) {
 }
 
 
-function aidFeesReport(clsFilter) {
+function aidFeesReport(clsFilter, term) {
   const students = (typeof enrolledAdmissions === 'function'
     ? enrolledAdmissions()
     : (db.admissions || []).filter(s => ['Admitted','Continuing','Scholarship'].includes(s.status))
@@ -31982,7 +34080,9 @@ function aidFeesReport(clsFilter) {
   const owing = [];
   const classAgg = {};
   students.forEach(s => {
-    const c = typeof calcStudentStatus === 'function' ? calcStudentStatus(s.id) : { totalBilled: 0, totalPaid: 0, bal: 0, status: 'Unpaid' };
+    const c = term && typeof calcStudentStatusForTerm === 'function'
+      ? calcStudentStatusForTerm(s.id, term)
+      : (typeof calcStudentStatus === 'function' ? calcStudentStatus(s.id) : { totalBilled: 0, totalPaid: 0, bal: 0, status: 'Unpaid' });
     billed += c.totalBilled || 0;
     paid += c.totalPaid || 0;
     byStatus[c.status] = (byStatus[c.status] || 0) + 1;
@@ -31999,7 +34099,7 @@ function aidFeesReport(clsFilter) {
   owing.sort((a, b) => b.bal - a.bal);
   const rate = billed > 0 ? Math.round((paid / billed) * 1000) / 10 : null;
   const outstanding = Math.max(0, billed - paid);
-  const pendingFees = (db.txHistory || []).filter(t => t.status === 'pending' && (t.type === 'payment' || t.type === 'adjustment_add')).length;
+  const pendingFees = (db.txHistory || []).filter(t => t.status === 'pending' && (t.type === 'payment' || t.type === 'adjustment_add') && (!term || !t.term || t.term === term)).length;
 
   const classRows = Object.keys(classAgg).sort().map(cls => {
     const c = classAgg[cls];
@@ -32010,16 +34110,16 @@ function aidFeesReport(clsFilter) {
   // Academic risk among debtors
   let academicLink = null;
   try {
-    const term = (typeof TERMS !== 'undefined' && TERMS.length) ? TERMS[TERMS.length - 1] : null;
-    if (term && typeof aidStudentAverage === 'function') {
+    const termForGrade = term || ((typeof TERMS !== 'undefined' && TERMS.length) ? TERMS[0] : null);
+    if (termForGrade && typeof aidStudentAverage === 'function') {
       const debtRisk = [];
       owing.forEach(o => {
         const s = students.find(x => x.id === o.id);
         if (!s) return;
-        const g = aidStudentAverage(s, term);
+        const g = aidStudentAverage(s, termForGrade);
         if (g != null && g < 50) debtRisk.push({ name: o.name, cls: o.cls, bal: o.bal, grade: Math.round(g * 10) / 10 });
       });
-      academicLink = { term, debtRisk: debtRisk.slice(0, 20), debtRiskCount: debtRisk.length };
+      academicLink = { term: termForGrade, debtRisk: debtRisk.slice(0, 20), debtRiskCount: debtRisk.length };
     }
   } catch (e) { academicLink = null; }
 
@@ -32064,10 +34164,10 @@ function aidFeesReport(clsFilter) {
 }
 
 
-function aidSkillsReport(clsFilter) {
+function aidSkillsReport(clsFilter, term) {
   // Powerful analysis over live Skills Assessment data (db.skillsAssessments)
   // plus submission workflow status. Ratings are 1–4 on school-defined skills.
-  const months = typeof skillMonths === 'function' ? skillMonths() : [];
+  const months = term && typeof aidMonthsForTerm === 'function' ? aidMonthsForTerm(term) : (typeof skillMonths === 'function' ? skillMonths() : []);
   const students = (typeof enrolledAdmissions === 'function'
     ? enrolledAdmissions()
     : (db.admissions || []).filter(s => ['Admitted','Continuing','Scholarship'].includes(s.status))
@@ -32524,7 +34624,7 @@ function aidCrossSourceInsights(term, clsFilter) {
   );
   let both = 0, owingOnly = 0, riskOnly = 0;
   students.forEach(s => {
-    const c = calcStudentStatus(s.id);
+    const c = typeof calcStudentStatusForTerm === 'function' ? calcStudentStatusForTerm(s.id, term) : calcStudentStatus(s.id);
     const avg = aidStudentAverage(s, term);
     const owing = c.bal > 0.02;
     const risk = avg !== null && avg < 50;
@@ -32595,7 +34695,7 @@ function aidCrossSourceInsights(term, clsFilter) {
     });
   }
   // Skills assessment (coverage, risk, trend)
-  const sk = aidSkillsReport(clsFilter);
+  const sk = aidSkillsReport(clsFilter, term);
   if (sk.filledCells === 0 && sk.studentCount > 0) {
     insights.push({
       source: 'Skills Assessment',
@@ -32847,13 +34947,29 @@ function liveAnalyticsFeed(limit) {
   return items.slice(0, limit);
 }
 
-function liveAnalyticsSnapshot() {
+function liveAnalyticsSnapshot(term, clsFilter) {
   const todayStr = typeof today === 'function' ? today() : new Date().toISOString().slice(0, 10);
+  // Honour the Academic Intelligence term filter (never silently use “last term” or full-year totals)
+  if (!term) {
+    try {
+      term = (window._aidSelectedTerm && typeof TERMS !== 'undefined' && TERMS.includes(window._aidSelectedTerm))
+        ? window._aidSelectedTerm
+        : (typeof aidDefaultTerm === 'function' ? aidDefaultTerm() : (TERMS && TERMS[0]));
+    } catch (e) {
+      term = (typeof TERMS !== 'undefined' && TERMS.length) ? TERMS[0] : null;
+    }
+  }
+  if (clsFilter === undefined) {
+    try {
+      const sc = window._aidSelectedClass;
+      clsFilter = (sc && sc !== '__ALL__') ? sc : null;
+    } catch (e) { clsFilter = null; }
+  }
+
   let gradeSlots = 0, gradeFilled = 0, gradeAvg = null, atRisk = 0;
   try {
-    const term = (typeof TERMS !== 'undefined' && TERMS.length) ? TERMS[TERMS.length - 1] : null;
     if (term && typeof aidGradeCoverage === 'function') {
-      const g = aidGradeCoverage(term, null);
+      const g = aidGradeCoverage(term, clsFilter || null);
       gradeSlots = g.expected || 0;
       gradeFilled = g.entered || 0;
       gradeAvg = g.overallAvg;
@@ -32863,9 +34979,9 @@ function liveAnalyticsSnapshot() {
 
   let attRate = null, attChronic = 0;
   try {
-    attRate = typeof aidSchoolAttendanceRate === 'function' ? aidSchoolAttendanceRate(null) : null;
+    attRate = typeof aidSchoolAttendanceRate === 'function' ? aidSchoolAttendanceRate(clsFilter || null, term) : null;
     if (typeof aidAttendanceDetail === 'function') {
-      const ad = aidAttendanceDetail(null);
+      const ad = aidAttendanceDetail(clsFilter || null, term);
       attChronic = (ad.chronic && ad.chronic.length) || 0;
     }
   } catch (e) {}
@@ -32873,7 +34989,7 @@ function liveAnalyticsSnapshot() {
   let feeRate = null, feeOutstanding = 0, pendingFees = 0, feeUnpaid = 0;
   try {
     if (typeof aidFeesReport === 'function') {
-      const f = aidFeesReport(null);
+      const f = aidFeesReport(clsFilter || null, term);
       feeRate = f.rate;
       feeOutstanding = f.outstanding != null ? f.outstanding : Math.max(0, (f.billed || 0) - (f.paid || 0));
       pendingFees = f.pendingFees || 0;
@@ -32884,7 +35000,7 @@ function liveAnalyticsSnapshot() {
   let skillsPending = 0, skillsCoverage = null, skillsAvg = null, skillsLow = 0;
   try {
     if (typeof aidSkillsReport === 'function') {
-      const sk = aidSkillsReport(null);
+      const sk = aidSkillsReport(clsFilter || null, term);
       skillsPending = sk.pending || 0;
       skillsCoverage = sk.coveragePct;
       skillsAvg = sk.overallAvg;
@@ -32950,10 +35066,9 @@ function liveAnalyticsSnapshot() {
   if (skillsLow >= 3) alerts.push({ sev: 'warn', text: skillsLow + ' learners with low skill averages' });
   if (!alerts.length) alerts.push({ sev: 'good', text: 'No critical live alerts right now' });
 
-  // Class heat (quick grade coverage per class for current term)
+  // Class heat (grade coverage per class for the *selected* term)
   const classHeat = [];
   try {
-    const term = (typeof TERMS !== 'undefined' && TERMS.length) ? TERMS[TERMS.length - 1] : null;
     const classList = (typeof CLASSES !== 'undefined' ? CLASSES : []).slice(0, 12);
     if (term && typeof aidGradeCoverage === 'function') {
       classList.forEach(cls => {
@@ -32969,6 +35084,8 @@ function liveAnalyticsSnapshot() {
   } catch (e) {}
 
   return {
+    term: term || null,
+    clsFilter: clsFilter || null,
     students, classes, todayStr,
     gradePct: gradeSlots > 0 ? Math.round(gradeFilled / gradeSlots * 100) : null,
     gradeAvg, atRisk,
@@ -33183,8 +35300,14 @@ function renderAcademicIntelligence() {
   if (!el) return;
 
   const lockedClass = lockedClassFor();
-  let selectedTerm = TERMS[TERMS.length - 1];
-  let selectedClass = lockedClass || '__ALL__';
+  // Persist term/class so redraws (and live refresh) keep the user's selection
+  if (!window._aidSelectedTerm || (typeof TERMS !== 'undefined' && !TERMS.includes(window._aidSelectedTerm))) {
+    window._aidSelectedTerm = aidDefaultTerm();
+  }
+  if (window._aidSelectedClass == null) window._aidSelectedClass = lockedClass || '__ALL__';
+  if (lockedClass) window._aidSelectedClass = lockedClass;
+  let selectedTerm = window._aidSelectedTerm;
+  let selectedClass = window._aidSelectedClass;
   const chartInstances = {};
   function destroyCharts() { Object.values(chartInstances).forEach(c => { try { c.destroy(); } catch (e) {} }); }
 
@@ -33192,12 +35315,18 @@ function renderAcademicIntelligence() {
     const clsFilter = selectedClass === '__ALL__' ? null : selectedClass;
     const termIdx = TERMS.indexOf(selectedTerm);
     const priorTerm = termIdx > 0 ? TERMS[termIdx - 1] : null;
+    // Only terms up to the selected one matter for trends; future terms with no data stay empty
+    const termsUpTo = TERMS.slice(0, Math.max(0, termIdx) + 1);
 
-    // ── 1. WHAT HAPPENED ──
-    const schoolAvgsByTerm = TERMS.map(t => aidSchoolAverage(t, clsFilter));
+    // ── 1. WHAT HAPPENED (scoped to selectedTerm) ──
+    const schoolAvgsByTerm = TERMS.map(t => {
+      // Do not invent averages for terms beyond the selection when comparing
+      if (TERMS.indexOf(t) > termIdx) return null;
+      return aidSchoolAverage(t, clsFilter);
+    });
     const currentAvg = schoolAvgsByTerm[termIdx];
     const priorAvg = termIdx > 0 ? schoolAvgsByTerm[termIdx - 1] : null;
-    const attendanceRate = aidSchoolAttendanceRate(clsFilter);
+    const attendanceRate = aidSchoolAttendanceRate(clsFilter, selectedTerm);
     const classAvgs = aidClassAverages(selectedTerm); // always all classes — this table/chart is inherently a comparison
     const subjectAvgs = aidSubjectAverages(selectedTerm, clsFilter);
     const totalStudents = (db.admissions || []).filter(s => !clsFilter || s.cls === clsFilter).length;
@@ -33244,10 +35373,10 @@ function renderAcademicIntelligence() {
 
     // ── Multi-source detailed reports ──
     const gradeCov = aidGradeCoverage(selectedTerm, clsFilter);
-    const attDetail = aidAttendanceDetail(clsFilter);
-    const staffAttRep = aidStaffAttendanceReport();
-    const feesRep = aidFeesReport(clsFilter);
-    const skillsRep = aidSkillsReport(clsFilter);
+    const attDetail = aidAttendanceDetail(clsFilter, selectedTerm);
+    const staffAttRep = aidStaffAttendanceReport(); // staff attendance is not term-scoped in the register
+    const feesRep = aidFeesReport(clsFilter, selectedTerm);
+    const skillsRep = aidSkillsReport(clsFilter, selectedTerm);
     const enrollRep = aidEnrollmentReport(clsFilter);
     const promoRep = aidPromotionReport(clsFilter);
     const crossInsights = aidCrossSourceInsights(selectedTerm, clsFilter);
@@ -33282,7 +35411,7 @@ function renderAcademicIntelligence() {
       <div class="section-header" style="margin-bottom:14px">
         <div>
           <div class="section-title">🧠 Academic Intelligence</div>
-          <div class="section-sub">Filter the analysis by term and class${clsFilter ? ` — currently showing ${esc(clsFilter)} only` : ''}</div>
+          <div class="section-sub">Showing <b>${esc(selectedTerm)}</b> only${clsFilter ? ` · ${esc(clsFilter)}` : ''} — switch term above to see other terms. Empty terms stay empty until data is entered.</div>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <select id="aid-term-sel" onchange="aidSelectTerm(this.value)">
@@ -33296,8 +35425,14 @@ function renderAcademicIntelligence() {
         </div>
       </div>
 
+      ${currentAvg === null && (!gradeCov || gradeCov.entered === 0) ? `
+      <div class="aid-callout aid-callout-neutral" style="margin-bottom:14px">
+        📭 <b>No academic data for ${esc(selectedTerm)}</b> yet${clsFilter ? ' in ' + esc(clsFilter) : ''}.
+        Grades, fees, skills, and attendance below only reflect what was recorded for this term — other terms are not mixed in.
+      </div>` : ''}
+
       ${(() => {
-        const live = liveAnalyticsSnapshot();
+        const live = liveAnalyticsSnapshot(selectedTerm, clsFilter);
         const st = liveAnalyticsSyncState();
         const feed = live.feed || [];
         const alerts = live.alerts || [];
@@ -34171,9 +36306,10 @@ function renderAcademicIntelligence() {
       if (!window.Chart) return;
       const trendCanvas = document.getElementById('aid-chart-trend');
       if (trendCanvas) {
-        const labels = [...TERMS];
-        const data = [...schoolAvgsByTerm];
-        if (projection) { labels.push('Projected'); data.push(projection.projected); }
+        // Only plot terms up to the selection — future empty terms are omitted, not shown as zero
+        const labels = TERMS.filter((t, i) => i <= termIdx);
+        const data = schoolAvgsByTerm.slice(0, termIdx + 1).map(v => (v == null ? null : Math.round(v * 10) / 10));
+        if (projection && currentAvg != null) { labels.push('Projected'); data.push(projection.projected); }
         chartInstances.trend = new Chart(trendCanvas, {
           type: 'line',
           data: { labels, datasets: [{
@@ -34564,8 +36700,8 @@ function renderAcademicIntelligence() {
     }
   }
 
-  window.aidSelectTerm = v => { selectedTerm = v; draw(); };
-  window.aidSelectClass = v => { if (lockedClass) return; selectedClass = v; draw(); };
+  window.aidSelectTerm = v => { selectedTerm = v; window._aidSelectedTerm = v; try { aidCacheInvalidate('term-change'); } catch (e) {} draw(); };
+  window.aidSelectClass = v => { if (lockedClass) return; selectedClass = v; window._aidSelectedClass = v; try { aidCacheInvalidate('class-change'); } catch (e) {} draw(); };
   window.aidShowSource = (src, btn) => {
     document.querySelectorAll('.aid-src-panel').forEach(p => { p.style.display = 'none'; });
     document.querySelectorAll('[data-aid-src]').forEach(b => b.classList.remove('active'));
@@ -40304,6 +42440,7 @@ function renderTeacherDashboard() {
       <div class="section-sub" style="font-size:13px">${dateStr} · ${esc(termBit)}</div>
     </div>
     ${bdayBlock}
+    ${(typeof isMobileViewport === 'function' ? isMobileViewport() : (typeof window !== 'undefined' && window.innerWidth <= 768)) && typeof renderHomeShortcutsHtml === 'function' ? renderHomeShortcutsHtml() : ''}
 
     ${classPicker}
 
@@ -42099,7 +44236,122 @@ function printBRS(id) {
     .total-row td{font-weight:700;background:#faf8f3}
     .final-row td{font-weight:700;background:#0f1f3d;color:#e8c97a}
     @media print{ @page{margin:15mm} }
-  </style></head><body>
+  
+  /* Continue / home shortcuts — mobile only */
+  .home-shortcuts,
+  #dash-home-shortcuts {
+    display: none !important;
+  }
+  @media (max-width: 768px) {
+    .home-shortcuts,
+    #dash-home-shortcuts {
+      display: block !important;
+    }
+    .home-shortcuts-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    .home-shortcut-tile {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      text-align: left;
+      padding: 14px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(224,216,200,0.95);
+      background: linear-gradient(180deg, #fff, #fcfaf6);
+      cursor: pointer;
+      min-height: 88px;
+      font-family: inherit;
+      box-shadow: var(--shadow-soft);
+    }
+    .home-shortcut-tile.is-primary {
+      border-color: rgba(201,168,76,0.45);
+      background: linear-gradient(180deg, #fffdf8, #f8f0dc);
+    }
+    .home-shortcut-tile .hs-icon { font-size: 22px; }
+    .home-shortcut-tile .hs-label { font-size: 13px; font-weight: 700; color: var(--navy); }
+    .home-shortcut-tile .hs-sub { font-size: 11px; color: var(--muted); }
+  }
+
+
+  /* Pull-to-refresh — exact classic iOS 12-blade spinner (mobile only) */
+  #ptr-indicator {
+    display: none !important;
+  }
+  @media (max-width: 768px) {
+    #ptr-indicator {
+      --ptr-y: 0px;
+      --ptr-scale: 1;
+      --ptr-opacity: 1;
+      display: none;
+      position: fixed;
+      top: max(8px, env(safe-area-inset-top, 0px));
+      left: 50%;
+      transform: translateX(-50%) translateY(var(--ptr-y)) scale(var(--ptr-scale));
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border: none;
+      background: transparent !important;
+      box-shadow: none !important;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 400;
+      transition: opacity 0.2s ease, transform 0.15s ease;
+    }
+    #ptr-indicator.show {
+      display: block !important;
+      opacity: var(--ptr-opacity, 1);
+    }
+    /* Classic UIActivityIndicatorView geometry (em-based) */
+    #ptr-indicator .ptr-ios-spinner {
+      font-size: 36px;
+      position: relative;
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+    }
+    #ptr-indicator .ptr-blade {
+      position: absolute;
+      left: 0.4629em;
+      bottom: 0;
+      width: 0.074em;
+      height: 0.2777em;
+      border-radius: 0.5em;
+      background-color: transparent;
+      transform-origin: center -0.2222em;
+      animation: ptrSpinnerFade 1s infinite linear;
+    }
+    #ptr-indicator .ptr-blade:nth-child(1)  { transform: rotate(0deg);   animation-delay: 0s; }
+    #ptr-indicator .ptr-blade:nth-child(2)  { transform: rotate(30deg);  animation-delay: 0.083s; }
+    #ptr-indicator .ptr-blade:nth-child(3)  { transform: rotate(60deg);  animation-delay: 0.166s; }
+    #ptr-indicator .ptr-blade:nth-child(4)  { transform: rotate(90deg);  animation-delay: 0.249s; }
+    #ptr-indicator .ptr-blade:nth-child(5)  { transform: rotate(120deg); animation-delay: 0.332s; }
+    #ptr-indicator .ptr-blade:nth-child(6)  { transform: rotate(150deg); animation-delay: 0.415s; }
+    #ptr-indicator .ptr-blade:nth-child(7)  { transform: rotate(180deg); animation-delay: 0.498s; }
+    #ptr-indicator .ptr-blade:nth-child(8)  { transform: rotate(210deg); animation-delay: 0.581s; }
+    #ptr-indicator .ptr-blade:nth-child(9)  { transform: rotate(240deg); animation-delay: 0.664s; }
+    #ptr-indicator .ptr-blade:nth-child(10) { transform: rotate(270deg); animation-delay: 0.747s; }
+    #ptr-indicator .ptr-blade:nth-child(11) { transform: rotate(300deg); animation-delay: 0.830s; }
+    #ptr-indicator .ptr-blade:nth-child(12) { transform: rotate(330deg); animation-delay: 0.913s; }
+    /* Always animate when visible (pull + loading) — exact iOS trail */
+    @keyframes ptrSpinnerFade {
+      0%   { background-color: #8e8e93; }
+      100% { background-color: transparent; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #ptr-indicator .ptr-blade {
+        animation: none;
+        background-color: #8e8e93;
+        opacity: 0.45;
+      }
+    }
+  }
+
+</style></head><body>
     <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid var(--navy);padding-bottom:10px;margin-bottom:4px">
       <img src="${SCHOOL_LOGO_SRC}" alt="School Logo" style="width:40px;height:40px;object-fit:contain;flex-shrink:0">
       <h1 style="border:none;padding:0;margin:0">${esc(schoolName())} — Bank Reconciliation Statement</h1>
