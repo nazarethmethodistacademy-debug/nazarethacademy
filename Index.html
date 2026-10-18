@@ -3338,6 +3338,8 @@
     /* ── Payment Tracker: hide interactive elements ── */
     #page-payment .section-header .btn,
     #page-payment .toolbar { display: none !important; }
+    #page-payment #pay-list-collapsed { display: none !important; }
+    #page-payment #pay-list-expanded { display: block !important; }
     #page-payment thead tr th:last-child,
     #page-payment tbody tr td:last-child,
     #page-payment tfoot tr td:last-child { display: none !important; }
@@ -3923,6 +3925,282 @@
       z-index: 20;
       background: var(--cream);
       border-bottom: 1px solid var(--border);
+    }
+
+    /* ═══ MOBILE UX RULES ═══ */
+    /* 1) No horizontal scroll on main flows */
+    html, body {
+      overflow-x: hidden !important;
+      max-width: 100vw;
+    }
+    .main, .main-content, .page, .page.active {
+      overflow-x: hidden !important;
+      max-width: 100%;
+      width: 100%;
+    }
+    .card {
+      overflow-x: hidden !important; /* was auto — caused sideways scroll */
+      max-width: 100%;
+    }
+    /* Tables only scroll inside an explicit table-scroll wrapper */
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      max-width: 100%;
+      margin: 0 -2px;
+    }
+    .table-scroll table { min-width: 640px; }
+
+    /* 2) One thumb-friendly primary action per page */
+    .section-header {
+      flex-direction: column !important;
+      align-items: stretch !important;
+      gap: 12px !important;
+    }
+    .section-header > div:first-child { width: 100%; }
+    .section-header .btn-primary,
+    .section-header > .btn-primary {
+      width: 100% !important;
+      min-height: 48px !important;
+      font-size: 15px !important;
+      border-radius: 12px !important;
+      justify-content: center !important;
+      order: 10;
+    }
+    /* Secondary actions sit in a row under the primary */
+    .section-header .btn-outline,
+    .section-header .btn-gold,
+    .section-header .btn-sm {
+      min-height: 44px;
+      flex: 1 1 auto;
+    }
+    .section-header > div:last-child:not(:first-child) {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      width: 100%;
+    }
+
+    /* 3) Lists as cards; dense tables opt-in */
+    .mobile-card-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 4px 0 12px;
+    }
+    .mobile-data-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 14px 12px;
+      box-shadow: 0 1px 4px rgba(15,31,61,0.04);
+    }
+    .mobile-data-card .mdc-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .mobile-data-card .mdc-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--navy);
+      line-height: 1.3;
+    }
+    .mobile-data-card .mdc-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .mobile-data-card .mdc-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 12px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(224,216,200,0.7);
+    }
+    .mobile-data-card .mdc-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .mobile-data-card .mdc-val {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--navy);
+      margin-top: 2px;
+    }
+    .mobile-data-card .mdc-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .mobile-data-card .mdc-actions .btn {
+      flex: 1;
+      min-height: 42px;
+      justify-content: center;
+    }
+    /* Desktop/table view hidden on mobile unless opted in */
+    .mobile-table-view { display: none !important; }
+    body.pay-show-table .mobile-table-view { display: block !important; }
+    body.pay-show-table .mobile-card-list { display: none !important; }
+    .view-toggle-bar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 0 4px;
+      flex-wrap: wrap;
+    }
+    .view-toggle-bar .btn {
+      min-height: 40px;
+      border-radius: 10px;
+    }
+  }
+
+  /* Desktop: never force card-only */
+  @media (min-width: 769px) {
+    .mobile-card-list { display: none !important; }
+    .mobile-table-view { display: block !important; }
+    .view-toggle-bar .pay-view-toggle { display: none !important; }
+    #mobile-home-shell { display: none !important; }
+    body.mobile-version .desktop-dash-heavy { display: '' !important; }
+  }
+
+  /* ══ MOBILE VERSION SHELL ══ */
+  @media (max-width: 768px) {
+    body.mobile-version .main {
+      padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    }
+    body.mobile-version .topbar {
+      padding-left: 12px;
+      padding-right: 12px;
+    }
+    body.mobile-version .content {
+      padding: 12px 12px 24px !important;
+    }
+    /* Hide dense desktop dashboard blocks on mobile home */
+    body.mobile-version #page-dashboard.active #dash-section-charts,
+    body.mobile-version #page-dashboard.active #dash-section-tables,
+    body.mobile-version #page-dashboard.active #dash-section-modules {
+      display: none !important;
+    }
+    #mobile-home-shell {
+      display: block;
+      margin-bottom: 16px;
+    }
+    .mhs-greeting {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--navy);
+      letter-spacing: -0.3px;
+      line-height: 1.25;
+      margin: 4px 0 4px;
+    }
+    .mhs-sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 14px;
+      line-height: 1.45;
+    }
+    .mhs-kpi-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .mhs-kpi {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 14px;
+      min-height: 72px;
+    }
+    .mhs-kpi .k-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .mhs-kpi .k-val {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--navy);
+      margin-top: 4px;
+    }
+    .mhs-kpi .k-hint {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .mhs-section-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin: 8px 0 10px;
+    }
+    .mhs-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .mhs-action {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      text-align: left;
+      padding: 16px 14px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--white);
+      cursor: pointer;
+      min-height: 96px;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.12s, box-shadow 0.12s;
+    }
+    .mhs-action:active { transform: scale(0.97); }
+    .mhs-action.is-primary {
+      background: linear-gradient(145deg, #0f1f3d 0%, #1a335f 100%);
+      border-color: #0f1f3d;
+      color: #fff;
+    }
+    .mhs-action.is-primary .mhs-a-label { color: #fff; }
+    .mhs-action.is-primary .mhs-a-sub { color: rgba(255,255,255,0.72); }
+    .mhs-a-icon { font-size: 24px; line-height: 1; }
+    .mhs-a-label { font-size: 14px; font-weight: 700; color: var(--navy); }
+    .mhs-a-sub { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+    .mhs-search-btn {
+      width: 100%;
+      min-height: 48px;
+      border-radius: 14px;
+      margin-bottom: 14px;
+      font-size: 15px;
+      justify-content: center;
+    }
+    /* Mobile page header strip */
+    .mobile-page-bar {
+      display: none;
+    }
+    body.mobile-version .mobile-page-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding: 4px 0;
+    }
+    body.mobile-version .mobile-page-bar .mpb-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--navy);
     }
   }
 
@@ -5168,30 +5446,57 @@
           <div id="cf-banner-detail" style="font-size:12px;color:#b45309;margin-top:2px"></div>
         </div>
       </div>
-      <div class="card" style="overflow: visible">
-        <div class="toolbar">
-          <input type="text" id="pay-search" placeholder="🔍  Search student…" oninput="renderPayments()" style="width:200px">
-          <select id="pay-class-filter" onchange="renderPayments()"><option value="">All classes</option></select>
-          <select id="pay-status-filter" onchange="renderPayments()">
-            <option value="">All statuses</option>
-            <option>Paid</option><option>Partial</option><option>Unpaid</option><option>Overpayment</option>
-            <option value="Outstanding">Outstanding (Partial + Unpaid)</option>
-          </select>
-          <div class="spacer"></div>
-          <span id="pay-count" style="font-size:12px;color:var(--muted)"></span>
+      <!-- Collapsed by default: click to view full student payment list -->
+      <div class="card" id="pay-list-card" style="overflow: visible">
+        <div id="pay-list-collapsed" style="padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--navy)">📋 Student list &amp; payment status</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5">
+              View every student’s fees, payments, balances, and status. Click below to open the full list.
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <button type="button" class="btn btn-outline" onclick="openReportPrintSettings('payment')">🖨️ Print / PDF</button>
+            <button type="button" class="btn btn-primary" id="pay-show-list-btn" onclick="togglePaymentList(true)">
+              Show student list
+            </button>
+          </div>
         </div>
-        <table class="sticky-header">
-          <thead><tr>
-            <th>ID</th><th>Student</th><th>Class</th>
-            <th>B/F Arrears</th>
-            <th>T1 Fee</th><th>T1 Paid</th><th>T1 Bal</th>
-            <th>T2 Fee</th><th>T2 Paid</th><th>T2 Bal</th>
-            <th>T3 Fee</th><th>T3 Paid</th><th>T3 Bal</th>
-            <th>Total</th><th>Collected</th><th>Balance</th><th>Status</th><th>Actions</th>
-          </tr></thead>
-          <tbody id="payments-body"></tbody>
-          <tfoot><tr id="payments-total-row"></tr></tfoot>
-        </table>
+        <div id="pay-list-expanded" style="display:none">
+          <div class="toolbar" style="padding-top:14px">
+            <button type="button" class="btn btn-outline btn-sm" onclick="togglePaymentList(false)" title="Hide list">✕ Hide list</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="openReportPrintSettings('payment')">🖨️ Print / PDF</button>
+            <input type="text" id="pay-search" placeholder="🔍  Search student…" oninput="renderPayments()" style="width:200px;max-width:100%;flex:1 1 140px">
+            <select id="pay-class-filter" onchange="renderPayments()"><option value="">All classes</option></select>
+            <select id="pay-status-filter" onchange="renderPayments()">
+              <option value="">All statuses</option>
+              <option>Paid</option><option>Partial</option><option>Unpaid</option><option>Overpayment</option>
+              <option value="Outstanding">Outstanding (Partial + Unpaid)</option>
+            </select>
+            <div class="spacer"></div>
+            <span id="pay-count" style="font-size:12px;color:var(--muted)"></span>
+          </div>
+          <div class="view-toggle-bar">
+            <button type="button" class="btn btn-outline btn-sm pay-view-toggle" id="pay-view-cards-btn" onclick="setPaymentListView('cards')">📇 Cards</button>
+            <button type="button" class="btn btn-outline btn-sm pay-view-toggle" id="pay-view-table-btn" onclick="setPaymentListView('table')">▦ Table</button>
+            <span style="font-size:11px;color:var(--muted);margin-left:4px" id="pay-view-hint">Cards are easier on phones — switch to Table for the full grid.</span>
+          </div>
+          <div id="pay-cards-list" class="mobile-card-list" aria-label="Student payment cards"></div>
+          <div class="mobile-table-view table-scroll">
+            <table class="sticky-header">
+              <thead><tr>
+                <th>ID</th><th>Student</th><th>Class</th>
+                <th>B/F Arrears</th>
+                <th>T1 Fee</th><th>T1 Paid</th><th>T1 Bal</th>
+                <th>T2 Fee</th><th>T2 Paid</th><th>T2 Bal</th>
+                <th>T3 Fee</th><th>T3 Paid</th><th>T3 Bal</th>
+                <th>Total</th><th>Collected</th><th>Balance</th><th>Status</th><th>Actions</th>
+              </tr></thead>
+              <tbody id="payments-body"></tbody>
+              <tfoot><tr id="payments-total-row"></tr></tfoot>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -5852,7 +6157,7 @@
       <div class="form-group" id="adm-withdrawn-date-wrap" style="display:none">
         <label>Withdrawal date</label>
         <input type="date" id="adm-withdrawn-date" title="Used for mid-term report cards and weekly withdrawn count">
-        <div style="font-size:10px;color:var(--muted);margin-top:3px">Soft withdrawal: report cards for terms already started still include this student.</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px">Withdrawn students are excluded from attendance, feeding, grades, and skills. Report-card inclusion is controlled in General Settings.</div>
       </div>
       <div class="form-group"><label>Parent / Guardian *</label><input id="adm-parent" placeholder="Name of guardian"></div>
       <div class="form-group"><label>Relationship</label><input id="adm-rel" placeholder="e.g. Father"></div>
@@ -6954,6 +7259,36 @@
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="gs-allow-delete-class" style="width:16px;height:16px;accent-color:var(--navy)"> Allow delete class</label>
         </div>
       </div>
+      <div class="card" style="padding:14px 16px;margin-top:12px">
+        <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:8px">🚪 Withdrawn students</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:12px;line-height:1.5">
+          Control whether students marked <strong>Withdrawn</strong> still appear in live school activities.
+          By default they are excluded from real enrolment (attendance, feeding, grades, skills, and related lists).
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+            <input type="checkbox" id="gs-exclude-withdrawn-activities" style="width:18px;height:18px;accent-color:var(--navy);flex-shrink:0;margin-top:2px">
+            <span>
+              <span style="font-size:12.5px;font-weight:600;color:var(--navy)">Exclude withdrawn from school activities</span>
+              <span style="display:block;font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.5">Hide withdrawn students from Attendance, Feeding Revenue, Grade Entry, Skills Assessment, and other day-to-day class lists.</span>
+            </span>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+            <input type="checkbox" id="gs-include-withdrawn-report-cards" style="width:18px;height:18px;accent-color:var(--navy);flex-shrink:0;margin-top:2px">
+            <span>
+              <span style="font-size:12.5px;font-weight:600;color:var(--navy)">Include withdrawn on report cards (soft withdrawal)</span>
+              <span style="display:block;font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.5">When on, mid-term withdrawals can still appear on report cards for terms they attended (uses withdrawal date). When off, withdrawn students are left off report cards entirely.</span>
+            </span>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+            <input type="checkbox" id="gs-show-withdrawn-by-term" style="width:18px;height:18px;accent-color:var(--navy);flex-shrink:0;margin-top:2px">
+            <span>
+              <span style="font-size:12.5px;font-weight:600;color:var(--navy)">Show withdrawn students by term</span>
+              <span style="display:block;font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.5">When on, term-filtered reports (Statistical Report, skills/term packs) include students who withdrew during that term, based on their withdrawal date vs term dates. Day-to-day attendance and feeding stay controlled by “Exclude withdrawn from school activities”.</span>
+            </span>
+          </label>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('general-settings-modal')">Cancel</button>
@@ -7797,7 +8132,11 @@ const DB_SEED = {
     allowEditSubject: true,
     allowDeleteSubject: true,
     allowEditClass: true,
-    allowDeleteClass: true
+    allowDeleteClass: true,
+    // Withdrawn students are not active school enrolment
+    excludeWithdrawnFromActivities: true,  // attendance, feeding, grades, skills, duty lists
+    includeWithdrawnOnReportCards: false,  // when false, report cards exclude all withdrawn
+    showWithdrawnByTerm: false             // when on, term reports include students withdrawn during that term
   },
   // ── APPROVAL WORKFLOW CONFIG — which roles submit-for-approval vs approve, per workflow ──
   approvalConfig: {
@@ -8922,6 +9261,13 @@ function openGeneralSettingsModal() {
   set('gs-allow-delete-subject', 'allowDeleteSubject');
   set('gs-allow-edit-class', 'allowEditClass');
   set('gs-allow-delete-class', 'allowDeleteClass');
+  // Withdrawn: exclude activities defaults ON; report-card soft-include defaults OFF
+  const ex = document.getElementById('gs-exclude-withdrawn-activities');
+  if (ex) ex.checked = db.generalSettings.excludeWithdrawnFromActivities !== false;
+  const rc = document.getElementById('gs-include-withdrawn-report-cards');
+  if (rc) rc.checked = !!db.generalSettings.includeWithdrawnOnReportCards;
+  const sw = document.getElementById('gs-show-withdrawn-by-term');
+  if (sw) sw.checked = !!db.generalSettings.showWithdrawnByTerm;
   document.getElementById('general-settings-modal').classList.add('open');
 }
 
@@ -8946,6 +9292,12 @@ function saveGeneralSettings() {
   read('gs-allow-delete-subject', 'allowDeleteSubject');
   read('gs-allow-edit-class', 'allowEditClass');
   read('gs-allow-delete-class', 'allowDeleteClass');
+  const exEl = document.getElementById('gs-exclude-withdrawn-activities');
+  if (exEl) db.generalSettings.excludeWithdrawnFromActivities = !!exEl.checked;
+  const rcEl = document.getElementById('gs-include-withdrawn-report-cards');
+  if (rcEl) db.generalSettings.includeWithdrawnOnReportCards = !!rcEl.checked;
+  const swEl = document.getElementById('gs-show-withdrawn-by-term');
+  if (swEl) db.generalSettings.showWithdrawnByTerm = !!swEl.checked;
   saveDb();
   toast('✅ General settings saved');
   closeModal('general-settings-modal');
@@ -10207,7 +10559,10 @@ function ensureGeneralSettingsDefaults() {
     allowEditSubject: true,
     allowDeleteSubject: true,
     allowEditClass: true,
-    allowDeleteClass: true
+    allowDeleteClass: true,
+    excludeWithdrawnFromActivities: true,
+    includeWithdrawnOnReportCards: false,
+    showWithdrawnByTerm: false
   };
   Object.keys(defaults).forEach(k => {
     if (g[k] === undefined) g[k] = defaults[k];
@@ -12307,6 +12662,7 @@ function goHome() {
   const view = typeof getDashboardViewForRole === 'function' ? getDashboardViewForRole() : null;
   const home = (view && view.home) || ((currentUser && (currentUser.role === 'Teacher' || currentUser.role === 'Class Teacher')) ? 'teacherdashboard' : 'dashboard');
   navigate(home);
+  try { setTimeout(initMobileVersion, 0); } catch (e) {}
 }
 
 function navigate(page) {
@@ -13822,6 +14178,182 @@ function isMobileViewport() {
   return window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
 }
 
+/** Apply / remove the dedicated mobile version shell. */
+function syncMobileVersionClass() {
+  try {
+    if (isMobileViewport()) document.body.classList.add('mobile-version');
+    else document.body.classList.remove('mobile-version');
+  } catch (e) {}
+}
+
+function roleBottomNavItems() {
+  const role = (currentUser && currentUser.role) ? currentUser.role : '';
+  const isTeacher = /teacher/i.test(role);
+  if (isTeacher) {
+    return [
+      { id: 'bn-dashboard', icon: '🏠', label: 'Home', page: null, home: true },
+      { id: 'bn-attendance', icon: '📅', label: 'Attendance', page: 'attendance' },
+      { id: 'bn-grades', icon: '📝', label: 'Grades', page: 'grades' },
+      { id: 'bn-skills', icon: '🌟', label: 'Skills', page: 'skillsassessment' }
+    ];
+  }
+  if (role === 'Bursar') {
+    return [
+      { id: 'bn-dashboard', icon: '🏠', label: 'Home', page: null, home: true },
+      { id: 'bn-payment', icon: '💳', label: 'Payments', page: 'payment' },
+      { id: 'bn-workflow', icon: '✅', label: 'Approvals', page: 'workflow' },
+      { id: 'bn-revenue', icon: '💹', label: 'Revenue', page: 'revenue' }
+    ];
+  }
+  // Admin / Headteacher / Secretary / default
+  return [
+    { id: 'bn-dashboard', icon: '🏠', label: 'Home', page: null, home: true },
+    { id: 'bn-payment', icon: '💳', label: 'Payments', page: 'payment' },
+    { id: 'bn-attendance', icon: '📅', label: 'Attendance', page: 'attendance' },
+    { id: 'bn-admission', icon: '🎓', label: 'Students', page: 'admission' }
+  ];
+}
+
+function rebuildBottomNavForMobile() {
+  const nav = document.getElementById('bottom-nav');
+  if (!nav) return;
+  if (!isMobileViewport()) return;
+  const items = roleBottomNavItems();
+  const html = items.map(it => {
+    const click = it.home
+      ? "goHome();updateBottomNav('" + it.id + "')"
+      : "navigate('" + it.page + "');updateBottomNav('" + it.id + "')";
+    return '<div class="bottom-nav-item" id="' + it.id + '" onclick="' + click + '" role="button" tabindex="0">' +
+      '<span class="bn-icon">' + it.icon + '</span><span class="bn-label">' + it.label + '</span></div>';
+  }).join('') +
+    '<div class="bottom-nav-more" onclick="toggleSidebar()" role="button" tabindex="0" aria-label="Open menu">' +
+    '<span class="bn-icon">☰</span><span class="bn-label">More</span></div>';
+  nav.innerHTML = html;
+  // Keep page→bn map in sync for navigate()
+  window._bnPageMap = window._bnPageMap || {};
+  items.forEach(it => {
+    if (it.page) window._bnPageMap[it.page] = it.id;
+    if (it.home) {
+      window._bnPageMap['dashboard'] = it.id;
+      window._bnPageMap['teacherdashboard'] = it.id;
+    }
+  });
+}
+
+function mobileHomeKpis() {
+  try {
+    const enrolled = typeof enrolledAdmissions === 'function'
+      ? enrolledAdmissions()
+      : (db.admissions || []).filter(a => ['Admitted','Continuing','Scholarship'].includes(a.status));
+    let outstanding = 0, collected = 0;
+    enrolled.forEach(s => {
+      try {
+        const c = typeof calcStudentStatus === 'function' ? calcStudentStatus(s.id) : null;
+        if (!c) return;
+        if (c.status === 'Unpaid' || c.status === 'Partial') outstanding++;
+        collected += (c.totalPaid || 0);
+      } catch (e) {}
+    });
+    const pendingWf = (db.workflowQueue || db.approvals || []).length
+      || ((db.skillSubmissions || []).filter(x => x.status === 'pending').length);
+    return {
+      students: enrolled.length,
+      outstanding: outstanding,
+      collected: collected,
+      pending: typeof pendingWf === 'number' ? pendingWf : 0
+    };
+  } catch (e) {
+    return { students: 0, outstanding: 0, collected: 0, pending: 0 };
+  }
+}
+
+function renderMobileHomeShell() {
+  if (!isMobileViewport()) {
+    const old = document.getElementById('mobile-home-shell');
+    if (old) old.remove();
+    return;
+  }
+  const page = document.getElementById('page-dashboard') || document.getElementById('page-teacherdashboard');
+  if (!page || !page.classList.contains('active')) return;
+
+  const name = (currentUser && (currentUser.name || currentUser.displayName || currentUser.username)) || 'there';
+  const first = String(name).split(' ')[0];
+  const role = (currentUser && currentUser.role) || '';
+  const k = mobileHomeKpis();
+  const actions = (typeof roleHomeShortcuts === 'function' ? roleHomeShortcuts() : []).slice(0, 6);
+
+  let host = document.getElementById('mobile-home-shell');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'mobile-home-shell';
+    // Prefer after term banner / at top of dashboard content
+    const banner = document.getElementById('dash-term-banner') || document.getElementById('dash-birthday-banner');
+    if (banner && banner.parentNode) banner.parentNode.insertBefore(host, banner.nextSibling);
+    else {
+      const content = page.querySelector('.section-header');
+      if (content && content.parentNode) content.parentNode.insertBefore(host, content.nextSibling);
+      else page.insertBefore(host, page.firstChild);
+    }
+  }
+
+  const fmtN = (n) => {
+    try { return typeof fmt === 'function' ? fmt(n) : Number(n).toLocaleString(); } catch (e) { return String(n); }
+  };
+
+  host.innerHTML = `
+    <div class="mhs-greeting">Hi, ${esc(first)} 👋</div>
+    <div class="mhs-sub">${esc(role)} · Academic Year ${(ACTIVE_YEAR || '').replace('_', '/')} — quick access for phone</div>
+    <button type="button" class="btn btn-outline mhs-search-btn" onclick="openMobileStudentSearch()">🔍 Find a student</button>
+    <div class="mhs-kpi-row">
+      <div class="mhs-kpi" onclick="navigate('admission')" style="cursor:pointer">
+        <div class="k-label">Students</div>
+        <div class="k-val">${k.students}</div>
+        <div class="k-hint">Enrolled</div>
+      </div>
+      <div class="mhs-kpi" onclick="navigate('payment')" style="cursor:pointer">
+        <div class="k-label">Outstanding</div>
+        <div class="k-val" style="color:${k.outstanding ? 'var(--red)' : 'var(--green)'}">${k.outstanding}</div>
+        <div class="k-hint">Need follow-up</div>
+      </div>
+      <div class="mhs-kpi" onclick="navigate('payment')" style="cursor:pointer">
+        <div class="k-label">Collected</div>
+        <div class="k-val">GHS ${fmtN(k.collected)}</div>
+        <div class="k-hint">This year</div>
+      </div>
+      <div class="mhs-kpi" onclick="navigate('workflow')" style="cursor:pointer">
+        <div class="k-label">Approvals</div>
+        <div class="k-val">${k.pending}</div>
+        <div class="k-hint">In queue</div>
+      </div>
+    </div>
+    <div class="mhs-section-label">Continue</div>
+    <div class="mhs-actions">
+      ${actions.map(a => `
+        <button type="button" class="mhs-action ${a.primary ? 'is-primary' : ''}" onclick="navigate('${a.page}')">
+          <span class="mhs-a-icon">${a.icon}</span>
+          <span class="mhs-a-label">${esc(a.label)}</span>
+          <span class="mhs-a-sub">${esc(a.sub || '')}</span>
+        </button>`).join('')}
+    </div>
+  `;
+}
+
+function initMobileVersion() {
+  syncMobileVersionClass();
+  rebuildBottomNavForMobile();
+  try { renderMobileHomeShell(); } catch (e) { console.warn('mobile home', e); }
+}
+
+// Keep shell in sync on rotate / resize
+try {
+  if (window.matchMedia) {
+    window.matchMedia('(max-width: 768px)').addEventListener('change', function() {
+      initMobileVersion();
+      try { if (typeof renderDashboard === 'function') renderDashboard(); } catch (e) {}
+    });
+  }
+} catch (e) {}
+
 function roleHomeShortcuts() {
   const role = (currentUser && currentUser.role) ? currentUser.role : '';
   const locked = typeof lockedClassFor === 'function' ? lockedClassFor() : null;
@@ -14181,6 +14713,7 @@ function ensureShareButtons() {
 
 function renderDashboard() {
   try { injectHomeShortcuts('dash-home-shortcuts'); } catch (e) {}
+  try { initMobileVersion(); } catch (e) {}
   try { ensureMobileSearchFab(); } catch (e) {}
   try { bindPullToRefresh(); } catch (e) {}
   try { updateOfflineQueueBadge(); } catch (e) {}
@@ -15298,10 +15831,81 @@ function deleteAdmission(id) {
 }
 
 // ══════════════ PAYMENT TRACKER ══════════════
+function setPaymentListView(mode) {
+  const isTable = mode === 'table';
+  try {
+    if (isTable) document.body.classList.add('pay-show-table');
+    else document.body.classList.remove('pay-show-table');
+    sessionStorage.setItem('payListView', isTable ? 'table' : 'cards');
+  } catch (e) {}
+  const cardsBtn = document.getElementById('pay-view-cards-btn');
+  const tableBtn = document.getElementById('pay-view-table-btn');
+  if (cardsBtn) cardsBtn.classList.toggle('btn-primary', !isTable);
+  if (cardsBtn) cardsBtn.classList.toggle('btn-outline', isTable);
+  if (tableBtn) tableBtn.classList.toggle('btn-primary', isTable);
+  if (tableBtn) tableBtn.classList.toggle('btn-outline', !isTable);
+}
+
+function restorePaymentListView() {
+  let mode = 'cards';
+  try {
+    const saved = sessionStorage.getItem('payListView');
+    if (saved === 'table' || saved === 'cards') mode = saved;
+    else if (typeof isMobileViewport === 'function' && !isMobileViewport()) mode = 'table';
+  } catch (e) {}
+  setPaymentListView(mode);
+}
+
+function togglePaymentList(show) {
+  const collapsed = document.getElementById('pay-list-collapsed');
+  const expanded = document.getElementById('pay-list-expanded');
+  if (!collapsed || !expanded) return;
+  const open = show === true || (show !== false && expanded.style.display === 'none');
+  if (show === false) {
+    expanded.style.display = 'none';
+    collapsed.style.display = 'flex';
+    try { sessionStorage.setItem('payListOpen', '0'); } catch (e) {}
+    return;
+  }
+  if (open || show === true) {
+    collapsed.style.display = 'none';
+    expanded.style.display = '';
+    try { sessionStorage.setItem('payListOpen', '1'); } catch (e) {}
+    try { renderPayments(); } catch (e) {}
+  } else {
+    expanded.style.display = 'none';
+    collapsed.style.display = 'flex';
+    try { sessionStorage.setItem('payListOpen', '0'); } catch (e) {}
+  }
+}
+
+function restorePaymentListState() {
+  let open = false;
+  try { open = sessionStorage.getItem('payListOpen') === '1'; } catch (e) {}
+  const collapsed = document.getElementById('pay-list-collapsed');
+  const expanded = document.getElementById('pay-list-expanded');
+  if (!collapsed || !expanded) return;
+  if (open) {
+    collapsed.style.display = 'none';
+    expanded.style.display = '';
+  } else {
+    expanded.style.display = 'none';
+    collapsed.style.display = 'flex';
+  }
+  try { restorePaymentListView(); } catch (e) {}
+}
+
 function renderPayments() {
   const canEdit = canEditCurrentPage('payment');
   const recordBtn = document.getElementById('pay-record-btn');
   if (recordBtn) recordBtn.style.display = canEdit ? '' : 'none';
+  restorePaymentListState();
+  // Skip heavy table work while list is collapsed
+  const expanded = document.getElementById('pay-list-expanded');
+  if (expanded && expanded.style.display === 'none') {
+    populateClassFilter('pay-class-filter');
+    return;
+  }
   populateClassFilter('pay-class-filter');
   const search = (document.getElementById('pay-search')||{value:''}).value.toLowerCase();
   const cls = (document.getElementById('pay-class-filter')||{value:''}).value;
@@ -15332,6 +15936,7 @@ function renderPayments() {
 
   let gTotB=0,gTotPaid=0,gTotBal=0,gTotCF=0;
   const rendered = [];
+  const cards = [];
   rows.forEach(s => {
     const isAdmitted = s.status === 'Admitted' || s.status === 'Pending';
     const isScholarship = s.status === 'Scholarship';
@@ -15370,14 +15975,42 @@ function renderPayments() {
         ${canEdit && gsAllow('allowEditPayment') ? `<button class="btn btn-sm btn-outline" onclick="openEditPaymentModal('${s.id}')" title="Edit payments">✏️</button>` : ''}
       </td>
     </tr>`);
+    cards.push(`<div class="mobile-data-card">
+      <div class="mdc-top">
+        <div>
+          <div class="mdc-name">${esc(s.name)}</div>
+          <div class="mdc-meta">${esc(s.cls)} · ${esc(s.id)}${cf > 0 ? ' · B/F ' + fmt(cf) : ''}</div>
+        </div>
+        <span class="badge badge-${sBadge[c.status]}">${c.status}</span>
+      </div>
+      <div class="mdc-grid">
+        <div><div class="mdc-label">Total fees</div><div class="mdc-val">${fmt(totalB)}</div></div>
+        <div><div class="mdc-label">Collected</div><div class="mdc-val">${fmt(totalPaid)}</div></div>
+        <div><div class="mdc-label">Balance</div><div class="mdc-val" style="color:${totalBal>0?'var(--red)':'var(--green)'}">${fmt(totalBal)}</div></div>
+        <div><div class="mdc-label">Status</div><div class="mdc-val" style="font-size:13px">${c.status}</div></div>
+      </div>
+      <div class="mdc-actions">
+        <button class="btn btn-sm btn-outline" onclick="openTxHistoryModal('${s.id}')">📜 History</button>
+        ${canEdit && gsAllow('allowEditPayment') ? `<button class="btn btn-sm btn-primary" onclick="openEditPaymentModal('${s.id}')">✏️ Edit</button>` : ''}
+      </div>
+    </div>`);
   });
   document.getElementById('pay-count').textContent = rendered.length + ' students';
-  document.getElementById('payments-body').innerHTML = rendered.join('') || '<tr><td colspan="18" class="empty-state">No records found.</td></tr>';
-  document.getElementById('payments-total-row').innerHTML =
+  const bodyEl = document.getElementById('payments-body');
+  if (bodyEl) bodyEl.innerHTML = rendered.join('') || '<tr><td colspan="18" class="empty-state">No records found.</td></tr>';
+  const totEl = document.getElementById('payments-total-row');
+  if (totEl) totEl.innerHTML =
     `<td colspan="3">TOTAL</td>
      <td style="font-weight:600;color:#b45309;text-align:right">${gTotCF > 0 ? fmt(gTotCF) : '—'}</td>
      <td colspan="9"></td>
      <td>${fmt(gTotB)}</td><td>${fmt(gTotPaid)}</td><td>${fmt(gTotBal)}</td><td></td><td></td>`;
+  const cardsEl = document.getElementById('pay-cards-list');
+  if (cardsEl) {
+    cardsEl.innerHTML = cards.length
+      ? cards.join('')
+      : '<div class="empty-state" style="padding:24px;text-align:center;color:var(--muted)">No records found.</div>';
+  }
+  try { restorePaymentListView(); } catch (e) {}
 }
 
 function openPaymentModal() {
@@ -15403,22 +16036,66 @@ function openPaymentModal() {
 //  • Revenue Tracker's Admission Fees picker ('rev') is a one-time fee that only
 //    applies to students currently in "Admitted" status — see saveRevenue() and
 //    getAdmissionFeeTotal(), which both enforce the same rule.
-// Enrolled students for day-to-day class lists (grade entry, skills assessment).
-// Withdrawn and Pending are excluded from live registers.
+// Enrolled students for day-to-day class lists (grade entry, skills assessment,
+// attendance, feeding, etc.). Withdrawn and Pending are excluded when settings
+// say so (excludeWithdrawnFromActivities — default ON).
 const ENROLLED_STATUSES = ['Admitted', 'Continuing', 'Scholarship'];
 function isEnrolledStudent(s) {
   return !!(s && ENROLLED_STATUSES.includes(s.status));
 }
+function excludeWithdrawnFromActivities() {
+  try {
+    if (typeof ensureGeneralSettingsDefaults === 'function') ensureGeneralSettingsDefaults();
+    return !db.generalSettings || db.generalSettings.excludeWithdrawnFromActivities !== false;
+  } catch (e) { return true; }
+}
+function includeWithdrawnOnReportCards() {
+  try {
+    if (typeof ensureGeneralSettingsDefaults === 'function') ensureGeneralSettingsDefaults();
+    return !!(db.generalSettings && db.generalSettings.includeWithdrawnOnReportCards);
+  } catch (e) { return false; }
+}
+function showWithdrawnByTerm() {
+  try {
+    if (typeof ensureGeneralSettingsDefaults === 'function') ensureGeneralSettingsDefaults();
+    return !!(db.generalSettings && db.generalSettings.showWithdrawnByTerm);
+  } catch (e) { return false; }
+}
+/** True if a Withdrawn student should appear on term-scoped views for this term. */
+function wasWithdrawnDuringTerm(s, term) {
+  if (!s || s.status !== 'Withdrawn') return false;
+  const wd = s.withdrawnDate || '';
+  const { start, end } = termCalendarBounds(term);
+  if (start && wd && wd < start) return false; // left before term started
+  if (end && wd && wd > end) {
+    // withdrew after term ended — they were active for the whole term
+    return true;
+  }
+  if (!wd) {
+    try {
+      if (typeof getCurrentTermStatus === 'function') {
+        const cts = getCurrentTermStatus();
+        if (cts && cts.term) return (TERM_ORDER[term] || 0) <= (TERM_ORDER[cts.term] || 0);
+      }
+    } catch (e) {}
+    return true;
+  }
+  return true; // withdrew on/after term start
+}
 function enrolledAdmissions() {
-  return (db.admissions || []).filter(isEnrolledStudent);
+  const all = db.admissions || [];
+  if (!excludeWithdrawnFromActivities()) {
+    // Setting off: only hide Pending from live activity lists
+    return all.filter(s => s && s.status !== 'Pending');
+  }
+  return all.filter(isEnrolledStudent);
 }
 
 /**
- * Soft withdrawal (mid-semester):
- * - Live registers (grades / skills entry): enrolled only.
- * - Report cards for a term: still include Withdrawn students who left during
- *   or after that term started (withdrawnDate), so end-of-term packs remain possible.
- * - Skills reports: historical ratings for withdrawn students remain visible.
+ * Soft withdrawal (optional via Settings → includeWithdrawnOnReportCards):
+ * - Live registers (attendance / feeding / grades / skills): use enrolledAdmissions().
+ * - Report cards: only include Withdrawn when the setting is ON and the student
+ *   left during/after that term (withdrawnDate).
  */
 function termCalendarBounds(term) {
   const td = (db.academicCalendar && db.academicCalendar.terms && db.academicCalendar.terms[term]) || {};
@@ -15429,32 +16106,17 @@ function isEligibleForTermReport(s, term) {
   if (!s) return false;
   if (isEnrolledStudent(s)) return true;
   if (s.status !== 'Withdrawn') return false;
-  const wd = s.withdrawnDate || '';
-  const { start, end } = termCalendarBounds(term);
-  // Withdrew before this term began → not on this term's report card
-  if (start && wd && wd < start) return false;
-  // No withdrawn date: allow for current/prior terms only (legacy records)
-  if (!wd) {
-    try {
-      if (typeof getCurrentTermStatus === 'function') {
-        const cts = getCurrentTermStatus();
-        if (cts && cts.term) {
-          return (TERM_ORDER[term] || 0) <= (TERM_ORDER[cts.term] || 0);
-        }
-      }
-    } catch (e) {}
-    return true;
-  }
-  // Withdrew on/after term start (or term dates not set) → include
-  return true;
+  // Soft include when report-card setting OR show-by-term setting is on
+  if (!includeWithdrawnOnReportCards() && !showWithdrawnByTerm()) return false;
+  return wasWithdrawnDuringTerm(s, term);
 }
 
 function isEligibleForSkillsReportRow(studentId) {
   const adm = (db.admissions || []).find(a => a.id === studentId);
   if (!adm) return true; // keep snapshot name even if record removed
   if (isEnrolledStudent(adm)) return true;
-  // Soft withdrawal: still show on skills reports / detailed report
-  if (adm.status === 'Withdrawn') return true;
+  // Only show withdrawn on skills reports when soft report-card mode is on
+  if (adm.status === 'Withdrawn' && includeWithdrawnOnReportCards()) return true;
   return false;
 }
 
@@ -18573,7 +19235,8 @@ function renderFeedingSchedule() {
   const el = document.getElementById('fd-inner');
   if (!el) return;
 
-  const admitted = db.admissions || [];
+  // Real school enrolment only — withdrawn students are not fed / billed on feeding
+  const admitted = typeof enrolledAdmissions === 'function' ? enrolledAdmissions() : (db.admissions || []).filter(s => ['Admitted','Continuing','Scholarship'].includes(s.status));
   let selClass   = CLASSES[0] || '';
   let weekOffset = 0;
   let showBulkPanel = false;
@@ -21247,7 +21910,15 @@ function renderStats(activeTerm) {
   // activeTerm: 'all' | 'Term 1' | 'Term 2' | 'Term 3'
   const filterTerm = activeTerm && activeTerm !== 'all' ? activeTerm : null;
 
-  const admitted = db.admissions.filter(a => a.status === 'Admitted' || a.status === 'Continuing' || a.status === 'Scholarship');
+  let admitted = db.admissions.filter(a => a.status === 'Admitted' || a.status === 'Continuing' || a.status === 'Scholarship');
+  // Optional: include students withdrawn during the selected term
+  if (filterTerm && typeof showWithdrawnByTerm === 'function' && showWithdrawnByTerm()) {
+    const withdrawnInTerm = (db.admissions || []).filter(a =>
+      a.status === 'Withdrawn' && typeof wasWithdrawnDuringTerm === 'function' && wasWithdrawnDuringTerm(a, filterTerm)
+    );
+    const seen = new Set(admitted.map(a => a.id));
+    withdrawnInTerm.forEach(a => { if (!seen.has(a.id)) { admitted.push(a); seen.add(a.id); } });
+  }
   const pending  = db.admissions.filter(a => a.status === 'Pending');  const allStudents = db.admissions;
 
   // ── Enrollment metrics ──
@@ -21257,10 +21928,19 @@ function renderStats(activeTerm) {
   const maleP   = totalEnrolled ? (maleCount/totalEnrolled*100).toFixed(1) : 0;
   const femaleP = totalEnrolled ? (femaleCount/totalEnrolled*100).toFixed(1) : 0;
 
-  // Class distribution
+  // Class distribution + male/female per class
   const classDist = {};
-  CLASSES.forEach(c => { classDist[c] = admitted.filter(s=>s.cls===c).length; });
+  const classGender = {}; // { className: { male, female, other, total } }
+  CLASSES.forEach(c => {
+    const inClass = admitted.filter(s => s.cls === c);
+    const male = inClass.filter(s => s.gender === 'Male').length;
+    const female = inClass.filter(s => s.gender === 'Female').length;
+    const other = inClass.length - male - female;
+    classDist[c] = inClass.length;
+    classGender[c] = { male, female, other, total: inClass.length };
+  });
   const maxClassCount = Math.max(...Object.values(classDist), 1);
+  const classesWithStudents = CLASSES.filter(c => classDist[c] > 0);
 
   // ── Determine which terms to include ──
   const activeTerms = filterTerm ? [filterTerm] : TERMS;
@@ -21474,6 +22154,62 @@ function renderStats(activeTerm) {
         ${statRow('Total Registered', allStudents.length+' students', 'All statuses')}
         ${statRow('Admission Fees Collected', 'GHS '+fmt(admFees), 'All registered students')}
       </div>
+    </div>
+  </div>
+
+  <!-- Male / Female by class -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="stat-section-title">👫 Male &amp; Female Students by Class</div>
+    <div class="section-sub" style="padding:0 16px 10px;margin:0">Enrollment split for every class (Admitted, Continuing, Scholarship)</div>
+    <div style="overflow-x:auto">
+      <table class="data-table" style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:var(--navy);color:#fff">
+            <th style="text-align:left;padding:10px 14px">Class</th>
+            <th style="text-align:right;padding:10px 14px">Male</th>
+            <th style="text-align:right;padding:10px 14px">Female</th>
+            <th style="text-align:right;padding:10px 14px">Total</th>
+            <th style="text-align:right;padding:10px 14px">% Male</th>
+            <th style="text-align:right;padding:10px 14px">% Female</th>
+            <th style="padding:10px 14px;min-width:140px">Gender mix</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${classesWithStudents.length ? classesWithStudents.map(c => {
+            const g = classGender[c] || { male:0, female:0, other:0, total:0 };
+            const pm = g.total ? (g.male / g.total * 100) : 0;
+            const pf = g.total ? (g.female / g.total * 100) : 0;
+            return `<tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:10px 14px;font-weight:600;color:var(--navy)">${esc(c)}</td>
+              <td style="padding:10px 14px;text-align:right;color:#0f1f3d;font-weight:600">${g.male}</td>
+              <td style="padding:10px 14px;text-align:right;color:#97640d;font-weight:600">${g.female}</td>
+              <td style="padding:10px 14px;text-align:right;font-weight:700">${g.total}</td>
+              <td style="padding:10px 14px;text-align:right;color:var(--muted)">${pm.toFixed(1)}%</td>
+              <td style="padding:10px 14px;text-align:right;color:var(--muted)">${pf.toFixed(1)}%</td>
+              <td style="padding:10px 14px">
+                <div style="display:flex;height:10px;border-radius:6px;overflow:hidden;background:var(--border)">
+                  <div style="width:${pm}%;background:#0f1f3d" title="Male ${g.male}"></div>
+                  <div style="width:${pf}%;background:#c9a84c" title="Female ${g.female}"></div>
+                </div>
+              </td>
+            </tr>`;
+          }).join('') : `<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">No enrolled students yet.</td></tr>`}
+        </tbody>
+        <tfoot>
+          <tr style="background:var(--cream);font-weight:700">
+            <td style="padding:10px 14px">All classes</td>
+            <td style="padding:10px 14px;text-align:right">${maleCount}</td>
+            <td style="padding:10px 14px;text-align:right">${femaleCount}</td>
+            <td style="padding:10px 14px;text-align:right">${totalEnrolled}</td>
+            <td style="padding:10px 14px;text-align:right">${maleP}%</td>
+            <td style="padding:10px 14px;text-align:right">${femaleP}%</td>
+            <td style="padding:10px 14px"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div style="padding:12px 16px 16px">
+      <canvas id="stats-class-gender-bar" height="${Math.max(200, classesWithStudents.length * 32)}"></canvas>
     </div>
   </div>
 
@@ -21932,7 +22668,7 @@ function renderStats(activeTerm) {
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.label + ': ' + c.raw + ' students' } } } }
   });
 
-  // 2. Class distribution — colorful horizontal bar, one bar per class with students
+  // 2. Class distribution — total headcount per class
   const classLabels = CLASSES.filter(c => classDist[c]);
   statsChart('stats-class-bar', {
     type: 'bar',
@@ -21944,6 +22680,44 @@ function renderStats(activeTerm) {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.raw + ' student' + (c.raw!==1?'s':'') } } },
       scales: { x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: 'rgba(0,0,0,0.05)' } }, y: { grid: { display: false } } }
+    }
+  });
+
+  // 2b. Male / Female stacked by class
+  const genderClassLabels = classesWithStudents;
+  statsChart('stats-class-gender-bar', {
+    type: 'bar',
+    data: {
+      labels: genderClassLabels,
+      datasets: [
+        {
+          label: 'Male',
+          data: genderClassLabels.map(c => (classGender[c] || {}).male || 0),
+          backgroundColor: '#0f1f3d',
+          borderRadius: 3,
+          stack: 'g'
+        },
+        {
+          label: 'Female',
+          data: genderClassLabels.map(c => (classGender[c] || {}).female || 0),
+          backgroundColor: '#c9a84c',
+          borderRadius: 3,
+          stack: 'g'
+        }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + c.raw + ' student' + (c.raw !== 1 ? 's' : '') } }
+      },
+      scales: {
+        x: { stacked: true, beginAtZero: true, ticks: { precision: 0 }, grid: { color: 'rgba(0,0,0,0.05)' } },
+        y: { stacked: true, grid: { display: false } }
+      }
     }
   });
 
@@ -24240,6 +25014,7 @@ function showApp(user) {
     initDb(function() {
       populateTermSelects(); // build all term dropdowns from TERMS config
       renderDashboard();
+      try { initMobileVersion(); } catch (e) {}
       renderFeeSchedule();
       renderNotifBell();
       checkUrgentNotifToast();
@@ -25729,6 +26504,137 @@ function printReportSmart(containerIdOrEl, options) {
   setTimeout(() => window.print(), 50);
 }
 
+/**
+ * Feeding-style print: clone the report into a hidden iframe and print that
+ * document (clean page, correct A4 orientation, no app chrome).
+ */
+async function printReportViaIframe(containerIdOrEl, options, title) {
+  const opts = options || {};
+  let source = null;
+  if (typeof containerIdOrEl === 'string') source = document.getElementById(containerIdOrEl);
+  else if (containerIdOrEl && containerIdOrEl.nodeType === 1) source = containerIdOrEl;
+  if (!source) {
+    const active = document.querySelector('.page.active');
+    source = active ? (active.querySelector('[id$="-inner"]') || active) : null;
+  }
+  if (!source) { printReportSmart(containerIdOrEl, opts); return; }
+
+  let landscape;
+  if (opts.orientation === 'landscape') landscape = true;
+  else if (opts.orientation === 'portrait') landscape = false;
+  else landscape = typeof reportNeedsLandscape === 'function' ? reportNeedsLandscape(source) : true;
+
+  applyReportPrintHideClasses(opts);
+  const clone = source.cloneNode(true);
+  clone.querySelectorAll('button, .toolbar, .no-print, .stat-tab-bar, input, select').forEach(n => {
+    try { n.remove(); } catch (e) {}
+  });
+  // Copy canvas charts to images so they appear in the print document
+  try {
+    const liveCanvases = source.querySelectorAll('canvas');
+    const cloneCanvases = clone.querySelectorAll('canvas');
+    liveCanvases.forEach((cv, i) => {
+      const target = cloneCanvases[i];
+      if (!target || !cv) return;
+      try {
+        const img = document.createElement('img');
+        img.src = cv.toDataURL('image/png');
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+        target.parentNode.replaceChild(img, target);
+      } catch (e) {}
+    });
+  } catch (e) {}
+
+  const school = (typeof schoolName === 'function' ? schoolName() : 'School');
+  const year = (typeof ACTIVE_YEAR !== 'undefined' ? String(ACTIVE_YEAR).replace('_', '/') : '');
+  const stamp = new Date().toLocaleDateString('en-GH', { day: 'numeric', month: 'long', year: 'numeric' });
+  const logo = (typeof SCHOOL_LOGO_SRC !== 'undefined') ? SCHOOL_LOGO_SRC : '';
+  const pageSize = landscape ? 'A4 landscape' : 'A4 portrait';
+  const frameW = landscape ? 1100 : 800;
+
+  const hideCss = [];
+  const s = opts.sections || {};
+  if (s.kpis === false) hideCss.push('.kpi-grid, .kpi-card, .kpi-mini, .stat-grid-3 > .card:has(.kpi-mini) { display:none !important; }');
+  if (s.tables === false) hideCss.push('table, .data-table { display:none !important; }');
+  if (s.charts === false) hideCss.push('canvas, .chart-wrap, [id*="chart"] { display:none !important; }');
+  if (s.banner === false) hideCss.push('.report-banner { display:none !important; }');
+  if (s.notes === false) hideCss.push('.report-notes, .notes-block { display:none !important; }');
+  if (s.toolbars === false) hideCss.push('.toolbar, .stat-tab-bar { display:none !important; }');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${(title || 'Report').replace(/</g,'')}</title>
+<style>
+  @page { size: ${pageSize}; margin: 10mm; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; color: #1a1a1a; margin: 0; padding: 12px 16px; background: #fff; }
+  h1,h2,h3 { color: #0f1f3d; margin: 0 0 8px; }
+  .print-letterhead { display:flex; align-items:center; gap:12px; border-bottom: 3px solid #0f1f3d; padding-bottom: 10px; margin-bottom: 14px; }
+  .print-letterhead img { width: 48px; height: 48px; object-fit: contain; }
+  .print-letterhead .school { font-size: 16px; font-weight: 700; color: #0f1f3d; }
+  .print-letterhead .sub { font-size: 12px; color: #666; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; font-size: 10px; }
+  th { background: #0f1f3d; color: #fff; text-align: left; padding: 6px 8px; }
+  td { border-bottom: 1px solid #e8e0d0; padding: 5px 8px; }
+  .card { border: 1px solid #e8e0d0; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; page-break-inside: avoid; }
+  .section-title { font-size: 13px; font-weight: 700; color: #0f1f3d; margin: 12px 0 6px; }
+  .kpi-grid, .stat-grid-2, .stat-grid-3 { display: grid; gap: 10px; margin-bottom: 12px; }
+  .kpi-grid { grid-template-columns: repeat(4, 1fr); }
+  .stat-grid-2 { grid-template-columns: 1fr 1fr; }
+  .stat-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .kpi-value, .kpi-mini-val { font-weight: 700; font-size: 16px; color: #0f1f3d; }
+  .report-banner { background: #0f1f3d; color: #fff; padding: 12px 16px; border-radius: 8px; margin-bottom: 14px; }
+  button, .btn, .toolbar, .no-print { display: none !important; }
+  img { max-width: 100%; }
+  ${hideCss.join('\n  ')}
+  @media print {
+    body { padding: 0; }
+    .card { break-inside: avoid; }
+  }
+</style></head><body>
+  <div class="print-letterhead">
+    ${logo ? '<img src="'+logo+'" alt="">' : ''}
+    <div>
+      <div class="school">${school.replace(/</g,'')}</div>
+      <div class="sub">${(title || 'Report').replace(/</g,'')} — ${year} · ${stamp}</div>
+    </div>
+  </div>
+  ${clone.innerHTML}
+</body></html>`;
+
+  clearReportPrintHideClasses();
+
+  let frame = document.getElementById('report-print-frame');
+  if (frame) frame.remove();
+  frame = document.createElement('iframe');
+  frame.id = 'report-print-frame';
+  frame.setAttribute('title', title || 'Report print');
+  frame.style.cssText = 'position:fixed;left:-12000px;top:0;width:' + frameW + 'px;height:800px;border:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(frame);
+  const doc = frame.contentDocument || frame.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  const doPrint = () => {
+    try {
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+    } catch (e) {
+      console.error(e);
+      const w = window.open('', '_blank', 'width=1200,height=800');
+      if (!w) { toast('⚠ Allow pop-ups to print', 'error'); return; }
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      setTimeout(() => { try { w.focus(); w.print(); } catch (e2) {} }, 300);
+    }
+  };
+  setTimeout(doPrint, 450);
+  if (typeof toast === 'function') {
+    toast('🖨️ Print dialog opening — ' + (landscape ? 'Landscape' : 'Portrait'), 'success');
+  }
+}
+
 // ── Shared report print settings (Weekly / Board / Management / Stats) ──
 const REPORT_PRINT_PREFS_KEY = 'nazareth_report_print_prefs';
 const REPORT_PRINT_DEFS = {
@@ -25759,6 +26665,8 @@ const REPORT_PRINT_DEFS = {
     containerId: null, // resolve active management page
     filename: () => 'Management Account Report - ' + ACTIVE_YEAR.replace('_','-') + '.pdf',
     reportTitle: 'Management Account Report',
+    defaultOrientation: 'landscape',
+    useIframePrint: true,
     sections: { kpis: true, tables: true, charts: false, banner: true, notes: false, toolbars: false }
   },
   stats: {
@@ -25767,14 +26675,25 @@ const REPORT_PRINT_DEFS = {
     filename: () => 'Statistical Report - ' + ACTIVE_YEAR.replace('_','-') + '.pdf',
     reportTitle: 'Statistical Report',
     useStatsPdf: true,
+    useIframePrint: true,
+    defaultOrientation: 'auto',
     sections: { kpis: true, tables: true, charts: true, banner: true, notes: false, toolbars: false }
+  },
+  payment: {
+    title: 'Payment Tracker',
+    containerId: 'pay-list-card',
+    filename: () => 'Payment Tracker - ' + ACTIVE_YEAR.replace('_','-') + '.pdf',
+    reportTitle: 'Payment Tracker — Student list & status',
+    defaultOrientation: 'landscape',
+    sections: { kpis: false, tables: true, charts: false, banner: false, notes: false, toolbars: false }
   }
 };
 
 function defaultReportPrintPrefs(key) {
   const def = REPORT_PRINT_DEFS[key] || {};
   const sec = Object.assign({ kpis: true, tables: true, charts: true, banner: true, notes: true, toolbars: false }, def.sections || {});
-  return { orientation: 'auto', sections: sec };
+  const orient = def.defaultOrientation || 'auto';
+  return { orientation: orient, sections: sec };
 }
 
 function getReportPrintPrefs(key) {
@@ -25831,6 +26750,10 @@ window._rpsCurrentKey = null;
 function openReportPrintSettings(key) {
   const def = REPORT_PRINT_DEFS[key];
   if (!def) { toast('⚠ Unknown report', 'error'); return; }
+  // Payment list: expand so the table is on-screen for print/PDF capture
+  if (key === 'payment' && typeof togglePaymentList === 'function') {
+    try { togglePaymentList(true); } catch (e) {}
+  }
   window._rpsCurrentKey = key;
   const prefs = getReportPrintPrefs(key);
   const titleEl = document.getElementById('rps-title');
@@ -25904,11 +26827,16 @@ async function runReportPrintFromSettings(mode) {
   const opts = { orientation: prefs.orientation, sections: prefs.sections };
 
   if (mode === 'print') {
-    printReportSmart(containerId, opts);
+    // Feeding-style iframe print for Stats, Management, Payment (and any flag)
+    if (def.useIframePrint || key === 'stats' || key === 'management' || key === 'payment') {
+      await printReportViaIframe(containerId, opts, def.reportTitle || def.title);
+    } else {
+      printReportSmart(containerId, opts);
+    }
     return;
   }
 
-  // PDF
+  // PDF — same orientation / section prefs as feeding-style settings
   applyReportPrintHideClasses(opts);
   try {
     if (def.useWeeklyPdf) {
@@ -26095,6 +27023,23 @@ async function exportStatsReportToPDF(options) {
   const source = document.getElementById('stats-inner');
   if (!source) { toast('⚠ Could not find the Statistical Report on the page'); return; }
   if (typeof html2pdf === 'undefined') { toast('⚠ PDF export library failed to load — check your internet connection', 'error'); return; }
+
+  // Orientation: landscape | portrait | auto (mixed cover+body like before)
+  let orientMode = opts.orientation || 'auto';
+  if (orientMode === 'auto') {
+    orientMode = (typeof reportNeedsLandscape === 'function' && reportNeedsLandscape(source)) ? 'mixed' : 'portrait';
+  }
+  if (orientMode === 'landscape' || orientMode === 'portrait') {
+    // Single orientation — reuse generic page export (feeding-style simplicity)
+    try {
+      await exportPageToPDF('stats-inner',
+        'Statistical Report - ' + ACTIVE_YEAR.replace('_','-') + '.pdf',
+        'Statistical Report', opts);
+    } finally {
+      if (typeof clearReportPrintHideClasses === 'function') clearReportPrintHideClasses();
+    }
+    return;
+  }
 
   toast('⏳ Generating PDF…');
 
@@ -28627,7 +29572,8 @@ function isSoftLocalEditActive() {
 function renderAttendance() {
   const el = document.getElementById('att-inner');
   if (!el) return;
-  const admitted = db.admissions || [];
+  // Real school enrolment only (Withdrawn/Pending excluded when setting is on)
+  const admitted = typeof enrolledAdmissions === 'function' ? enrolledAdmissions() : (db.admissions || []).filter(s => ['Admitted','Continuing','Scholarship'].includes(s.status));
   const lockedClass = lockedClassFor();
   // Persist class / week so redraws and cloud echoes do not jump the user
   if (lockedClass) {
@@ -31544,7 +32490,7 @@ function renderReportCard() {
         </select>
         <span style="font-size:12px;color:var(--muted)">${students.length} student${students.length!==1?'s':''}${students.some(s=>s.status==='Withdrawn') ? ' · includes withdrawn (soft)' : ''}</span>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin:-6px 0 12px">Day-to-day Grade Entry and Skills Assessment hide withdrawn students. Report cards still include mid-term withdrawals for the term they attended (uses <strong>withdrawn date</strong> on the student record).</div>
+      <div style="font-size:11px;color:var(--muted);margin:-6px 0 12px">Withdrawn students are hidden from Grade Entry, Skills, Attendance, and Feeding. Report cards include mid-term withdrawals only when <strong>General Settings → Include withdrawn on report cards</strong> is turned on.</div>
       ${cards||'<div class="empty-state"><div class="icon">📝</div>No students found (report cards are not issued for Creche)</div>'}`;
 
     window.rcSearch = v => { searchQ=v; draw(); };
