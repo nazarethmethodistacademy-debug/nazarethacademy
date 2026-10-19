@@ -4044,10 +4044,15 @@
       min-height: 42px;
       justify-content: center;
     }
-    /* Desktop/table view hidden on mobile unless opted in */
-    .mobile-table-view { display: none !important; }
-    body.pay-show-table .mobile-table-view { display: block !important; }
-    body.pay-show-table .mobile-card-list { display: none !important; }
+    /* Desktop/table view hidden on mobile unless opted in (per page) */
+    #page-payment .mobile-table-view { display: none !important; }
+    #page-payment .mobile-card-list { display: flex !important; }
+    body.pay-show-table #page-payment .mobile-table-view { display: block !important; }
+    body.pay-show-table #page-payment .mobile-card-list { display: none !important; }
+    #page-admission .adm-table-wrap { display: none !important; }
+    #page-admission #adm-cards-list { display: flex !important; }
+    body.adm-show-table #page-admission .adm-table-wrap { display: block !important; }
+    body.adm-show-table #page-admission #adm-cards-list { display: none !important; }
     .view-toggle-bar {
       display: flex;
       gap: 8px;
@@ -4065,9 +4070,18 @@
   @media (min-width: 769px) {
     .mobile-card-list { display: none !important; }
     .mobile-table-view { display: block !important; }
-    .view-toggle-bar .pay-view-toggle { display: none !important; }
+    .view-toggle-bar .pay-view-toggle,
+    .view-toggle-bar .adm-view-toggle,
+    .view-toggle-bar .adm-view-hint { display: none !important; }
     #mobile-home-shell { display: none !important; }
     body.mobile-version .desktop-dash-heavy { display: '' !important; }
+  }
+  /* Admissions: cards default on mobile; table when opted in */
+  @media (max-width: 768px) {
+    body:not(.adm-show-table) #page-admission .adm-table-wrap { display: none !important; }
+    body:not(.adm-show-table) #page-admission #adm-cards-list { display: flex !important; }
+    body.adm-show-table #page-admission .adm-table-wrap { display: block !important; }
+    body.adm-show-table #page-admission #adm-cards-list { display: none !important; }
   }
 
   /* ══ MOBILE VERSION SHELL ══ */
@@ -5113,7 +5127,7 @@
         <span id="topbar-school-name" style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Nazareth Academy</span>
         <div class="topbar-title" id="topbar-title">Dashboard</div>
       </div>
-      <button class="btn btn-outline btn-sm" id="back-to-dash-btn" onclick="goHome()" style="display:none;margin-left:12px">🏠 <span class="back-btn-label">Back to Dashboard</span></button>
+      <button class="btn btn-outline btn-sm" id="back-to-dash-btn" onclick="goBack()" style="display:none;margin-left:12px;gap:4px"><span id="back-btn-arrow">←</span> <span class="back-btn-label">Dashboard</span></button>
     </div>
     <div class="topbar-meta">
       <button class="btn btn-outline btn-sm" id="cmdk-trigger-btn" onclick="openCmdPalette()" title="Jump to a page" style="color:var(--muted);gap:6px">
@@ -5402,7 +5416,7 @@
 
       <div class="card" style="overflow: visible">
         <div class="toolbar">
-          <input type="text" id="adm-search" placeholder="🔍  Search by name or ID…" oninput="renderAdmissions()" style="width:220px">
+          <input type="text" id="adm-search" placeholder="🔍  Search by name or ID…" oninput="renderAdmissions()" style="width:220px;max-width:100%;flex:1 1 140px">
           <select id="adm-class-filter" onchange="renderAdmissions()">
             <option value="">All classes</option>
           </select>
@@ -5419,12 +5433,20 @@
           <button type="button" class="btn btn-outline btn-sm" onclick="openAdmissionsPrintSettings()" title="Print settings">🖨 Print</button>
           <button type="button" class="btn btn-outline btn-sm" onclick="exportAdmissionsPDF()" title="Download PDF">📄 PDF</button>
         </div>
-        <table class="sticky-header">
-          <thead><tr>
-            <th>Student ID</th><th>Full Name</th><th>Class</th><th>Section/House</th><th>Gender</th><th>Parent/Guardian</th><th>Phone</th><th>Status</th><th>Adm. Fee</th><th></th>
-          </tr></thead>
-          <tbody id="admissions-body"></tbody>
-        </table>
+        <div class="view-toggle-bar">
+          <button type="button" class="btn btn-outline btn-sm adm-view-toggle" id="adm-view-cards-btn" onclick="setAdmissionsListView('cards')">📇 Cards</button>
+          <button type="button" class="btn btn-outline btn-sm adm-view-toggle" id="adm-view-table-btn" onclick="setAdmissionsListView('table')">▦ Table</button>
+          <span style="font-size:11px;color:var(--muted);margin-left:4px" class="adm-view-hint">Cards work better on phones — switch to Table for the full grid.</span>
+        </div>
+        <div id="adm-cards-list" class="mobile-card-list" aria-label="Student admission cards"></div>
+        <div class="mobile-table-view table-scroll adm-table-wrap">
+          <table class="sticky-header">
+            <thead><tr>
+              <th>Student ID</th><th>Full Name</th><th>Class</th><th>Section/House</th><th>Gender</th><th>Parent/Guardian</th><th>Phone</th><th>Status</th><th>Adm. Fee</th><th></th>
+            </tr></thead>
+            <tbody id="admissions-body"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -5621,8 +5643,7 @@
           <div class="section-sub" id="income-period-sub">Ecole Systems · Select a date range below</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-outline" onclick="exportPageToPDF('page-income', 'Statement of Comprehensive Income - ' + ACTIVE_YEAR.replace('_','-') + '.pdf', 'Statement of Comprehensive Income')">📄 PDF</button>
-          <button class="btn btn-outline" onclick="printReportSmart('page-income')">🖨 Print Statement</button>
+          <button class="btn btn-outline" onclick="openReportPrintSettings('income')">🖨️ Print / PDF</button>
         </div>
       </div>
 
@@ -12661,11 +12682,42 @@ const _dynamicPages = {
 function goHome() {
   const view = typeof getDashboardViewForRole === 'function' ? getDashboardViewForRole() : null;
   const home = (view && view.home) || ((currentUser && (currentUser.role === 'Teacher' || currentUser.role === 'Class Teacher')) ? 'teacherdashboard' : 'dashboard');
+  window._navHistory = []; // going home always resets the history stack
   navigate(home);
   try { setTimeout(initMobileVersion, 0); } catch (e) {}
 }
 
-function navigate(page) {
+// ── Navigation history stack ─────────────────────────────────────────────────
+// Tracks visited pages so the back button returns to the actual previous page,
+// not always "Dashboard". Max depth: 20 entries to prevent unbounded growth.
+window._navHistory  = [];   // stack of {page, title} visited
+window._currentPage = null; // the page currently visible
+
+function goBack() {
+  if (window._navHistory.length > 0) {
+    const prev = window._navHistory.pop();
+    navigate(prev.page, true); // true = "this is a back-navigation, don't push to history"
+  } else {
+    goHome();
+  }
+}
+
+function _updateBackBtn(page) {
+  const backBtn = document.getElementById('back-to-dash-btn');
+  if (!backBtn) return;
+  const isHome = (page === 'dashboard' || page === 'teacherdashboard');
+  if (isHome || window._navHistory.length === 0) {
+    backBtn.style.display = 'none';
+    return;
+  }
+  backBtn.style.display = 'inline-flex';
+  const prev = window._navHistory[window._navHistory.length - 1];
+  const label = backBtn.querySelector('.back-btn-label');
+  if (label) label.textContent = prev.title || 'Back';
+}
+
+function navigate(page, _isBack) {
+
   // Access Control (Admin-configurable, see Access Control settings page) governs
   // whether the current role can reach this page at all. Admin is always exempt.
   if (currentUser && currentUser.role !== 'Admin') {
@@ -12696,13 +12748,19 @@ function navigate(page) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   document.getElementById('topbar-title').textContent = pageTitles[page];
-  const backBtn = document.getElementById('back-to-dash-btn');
-  if (backBtn) {
-    const isHome = (page === 'dashboard' || page === 'teacherdashboard');
-    backBtn.style.display = isHome ? 'none' : 'inline-flex';
-    const backLabel = backBtn.querySelector('.back-btn-label');
-    if (backLabel) backLabel.textContent = (currentUser && (currentUser.role === 'Teacher' || currentUser.role === 'Class Teacher')) ? 'My Dashboard' : 'Back to Dashboard';
+  // ── History management ──
+  if (!_isBack && window._currentPage && window._currentPage !== page) {
+    // Push the page we're leaving onto the stack
+    const currentTitle = pageTitles[window._currentPage] || window._currentPage;
+    window._navHistory.push({ page: window._currentPage, title: currentTitle });
+    if (window._navHistory.length > 20) window._navHistory.shift(); // cap depth
   }
+  if (_isBack) {
+    // Navigating backwards — don't push; history already popped in goBack()
+  }
+  window._currentPage = page;
+  // ── Update back button ──
+  _updateBackBtn(page);
   if (typeof event !== 'undefined' && event && event.currentTarget && event.currentTarget.classList) {
     event.currentTarget.classList.add('active');
   }
@@ -15303,71 +15361,98 @@ function buildAdmissionsPrintHtml(prefs) {
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Admissions Register — ${esc(year)}</title>
 <style>
-  @page { size: ${pageSize}; margin: 8mm; }
+  @page { size: ${pageSize}; margin: 10mm; }
   * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  html, body { margin: 0; padding: 0; width: 100%; }
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    background: #fff !important;
+    overflow: visible !important;
+  }
   body {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
     color: #1a1a2e;
     font-size: 10px;
-    background: #fff;
   }
-  .sheet { padding: 4mm 2mm; max-width: 100%; }
+  .sheet {
+    padding: 12px 16px 16px;
+    max-width: 100%;
+    width: 100%;
+    margin: 0;
+    overflow: visible;
+  }
   .hdr {
     display: flex; align-items: flex-start; gap: 12px;
-    margin-bottom: 10px; padding-bottom: 8px;
-    border-bottom: 2px solid #0f1f3d;
+    margin: 0 0 12px 0; padding: 0 0 10px 0;
+    border-bottom: 2.5px solid #0f1f3d;
+    width: 100%;
   }
-  .hdr img { width: 42px; height: 42px; object-fit: contain; }
-  .hdr h1 { margin: 0; font-size: 16px; color: #0f1f3d; font-family: Georgia, serif; }
-  .hdr .sub { font-size: 10px; color: #686f7d; margin-top: 2px; }
-  .hdr .meta { margin-left: auto; text-align: right; font-size: 9px; color: #686f7d; }
+  .hdr img { width: 46px; height: 46px; object-fit: contain; flex-shrink: 0; }
+  .hdr-text { flex: 1; min-width: 0; }
+  .hdr h1 {
+    margin: 0; font-size: 17px; color: #0f1f3d;
+    font-family: Georgia, 'Times New Roman', serif; font-weight: 700;
+    line-height: 1.25; word-break: break-word;
+  }
+  .hdr .sub { font-size: 10.5px; color: #5c6570; margin-top: 3px; line-height: 1.35; }
+  .hdr .meta {
+    flex-shrink: 0; text-align: right; font-size: 9px; color: #686f7d;
+    line-height: 1.4; padding-top: 2px;
+  }
   .kpis {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
-    margin-bottom: 10px;
+    margin: 0 0 12px 0; width: 100%;
   }
   .kpi {
-    border: 1px solid #e0d8c8; border-radius: 6px; padding: 6px 8px; background: #fdfcfa;
+    border: 1px solid #e0d8c8; border-radius: 6px;
+    padding: 8px 10px; background: #fdfcfa;
+    min-width: 0;
   }
   .kpi .l { font-size: 8px; text-transform: uppercase; letter-spacing: 0.04em; color: #686f7d; font-weight: 600; }
-  .kpi .v { font-family: Georgia, serif; font-size: 13px; font-weight: 700; color: #0f1f3d; }
-  .kpi .s { font-size: 8px; color: #686f7d; margin-top: 1px; }
-  table { width: 100%; border-collapse: collapse; }
+  .kpi .v { font-family: Georgia, serif; font-size: 14px; font-weight: 700; color: #0f1f3d; margin-top: 2px; }
+  .kpi .s { font-size: 8px; color: #686f7d; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  table { width: 100%; border-collapse: collapse; table-layout: auto; margin: 0; }
   th {
     background: #0f1f3d; color: #e8c97a;
-    font-size: 9px; font-weight: 600;
-    padding: 5px 4px; text-align: left;
+    font-size: 8.5px; font-weight: 600;
+    padding: 7px 6px; text-align: left;
+    white-space: nowrap;
   }
+  th:first-child, td:first-child { padding-left: 8px; }
+  th:last-child, td:last-child { padding-right: 8px; }
   td {
     border-bottom: 1px solid #e8e2d6;
-    padding: 4px 4px;
+    padding: 6px 6px;
     vertical-align: middle;
     font-size: 9.5px;
+    word-break: break-word;
   }
-  td.name .nm { font-weight: 600; color: #0f1f3d; }
-  td.name .id { font-size: 8px; color: #686f7d; }
+  td.name .nm { font-weight: 700; color: #0f1f3d; display: block; line-height: 1.3; }
+  td.name .id { font-size: 8px; color: #686f7d; display: block; margin-top: 1px; }
   td.c { font-size: 9px; }
   tr:nth-child(even) td { background: #faf8f4; }
   .foot {
-    margin-top: 8px; padding-top: 5px; border-top: 1px solid #e0d8c8;
+    margin-top: 10px; padding-top: 6px; border-top: 1px solid #e0d8c8;
     font-size: 8.5px; color: #686f7d;
     display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;
   }
-  .endorse { margin-top: 14px; page-break-inside: avoid; }
+  .endorse { margin-top: 16px; page-break-inside: avoid; }
   .endorse-title {
     font-size: 10px; font-weight: 700; color: #0f1f3d;
     letter-spacing: 0.04em; text-transform: uppercase;
-    margin-bottom: 10px; padding-bottom: 4px; border-bottom: 1.5px solid #0f1f3d;
+    margin: 0 0 10px 0; padding: 0 0 4px 0; border-bottom: 1.5px solid #0f1f3d;
   }
-  .endorse-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 28px; }
+  .endorse-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 24px; width: 100%; }
   .endorse-block {
     border: 1px solid #e0d8c8; border-radius: 6px;
-    padding: 10px 12px 12px; background: #fdfcfa;
+    padding: 12px 14px 14px; background: #fdfcfa;
+    min-width: 0;
   }
-  .endorse-role { font-size: 10px; font-weight: 700; color: #0f1f3d; margin-bottom: 12px; }
+  .endorse-role { font-size: 10px; font-weight: 700; color: #0f1f3d; margin-bottom: 14px; }
   .endorse-line {
-    border-bottom: 1px solid #1a1a2e; min-height: 22px;
-    margin-bottom: 12px; position: relative;
+    border-bottom: 1px solid #1a1a2e; min-height: 24px;
+    margin-bottom: 14px; position: relative;
   }
   .endorse-line.short { width: 55%; margin-bottom: 0; }
   .endorse-label {
@@ -15375,13 +15460,14 @@ function buildAdmissionsPrintHtml(prefs) {
     font-size: 8px; color: #686f7d; text-transform: uppercase; letter-spacing: 0.03em;
   }
   .no-print { display: none !important; }
-  @media (max-width: 700px) {
-    .kpis { grid-template-columns: repeat(2, 1fr); }
+  @media print {
+    html, body { margin: 0 !important; padding: 0 !important; }
+    .sheet { padding: 0; }
   }
 </style></head><body><div class="sheet">
   <div class="hdr">
     ${logo ? '<img src="' + logo + '" alt="">' : ''}
-    <div>
+    <div class="hdr-text">
       <h1>${esc(school)}</h1>
       <div class="sub">Admissions Register</div>
       <div class="sub">Academic Year ${esc(year)} · ${esc(filterLabel)}</div>
@@ -15470,26 +15556,54 @@ async function exportAdmissionsPDF(prefs) {
   const styleMatch = html.match(/<style[^>]*>([\s\S]*)<\/style>/i);
   const bodyHtml = bodyMatch ? bodyMatch[1] : html;
   const styleHtml = styleMatch ? styleMatch[1] : '';
-  const captureW = landscape ? 1100 : 720;
+  // Wider canvas + box-sizing so left edge is never clipped by html2canvas
+  const captureW = landscape ? 1050 : 740;
 
   const overlay = document.createElement('div');
   overlay.id = 'adm-pdf-export-root';
   overlay.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;background:#ffffff;z-index:2147483646;overflow:auto;';
 
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'width:' + captureW + 'px;margin:0 auto;background:#fff;padding:12px;';
-  wrap.innerHTML = '<style>' + styleHtml + '</style>' + bodyHtml;
+  wrap.className = 'adm-pdf-inner';
+  wrap.style.cssText = 'width:' + captureW + 'px;max-width:' + captureW + 'px;margin:0 auto;padding:16px 20px 20px;background:#ffffff;box-sizing:border-box;overflow:visible;';
+  wrap.innerHTML = '<style>' + styleHtml +
+    ' html,body{margin:0!important;padding:0!important;background:#fff!important;}' +
+    ' .sheet{padding:0!important;max-width:100%!important;width:100%!important;margin:0!important;}' +
+    '</style>' + bodyHtml;
   overlay.appendChild(wrap);
   document.body.appendChild(overlay);
 
+  await new Promise(r => setTimeout(r, 350));
   try {
-    await new Promise(r => setTimeout(r, 400));
+    const imgs = wrap.querySelectorAll('img');
+    await Promise.all(Array.from(imgs).map(img => {
+      if (img.complete && img.naturalWidth) return Promise.resolve();
+      return new Promise(res => { img.onload = res; img.onerror = res; setTimeout(res, 1200); });
+    }));
+  } catch (e) {}
+
+  try {
     const stamp = new Date().toISOString().slice(0, 10);
+    const w = Math.max(wrap.scrollWidth, wrap.offsetWidth, captureW);
+    const h = Math.max(wrap.scrollHeight, wrap.offsetHeight, 400);
     await html2pdf().set({
-      margin: [6, 6, 6, 6],
+      margin: [8, 8, 8, 8],
       filename: 'admissions-register-' + stamp + '.pdf',
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, width: captureW, windowWidth: captureW },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        x: 0,
+        y: 0,
+        width: w,
+        height: h,
+        windowWidth: w,
+        windowHeight: h
+      },
       jsPDF: { unit: 'mm', format: 'a4', orientation: landscape ? 'landscape' : 'portrait' },
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
     }).from(wrap).save();
@@ -15498,8 +15612,31 @@ async function exportAdmissionsPDF(prefs) {
     console.error('Admissions PDF failed', err);
     toast('⚠ PDF export failed — try Print instead', 'error');
   } finally {
-    try { overlay.remove(); } catch (e) {}
+    try { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch (e) {}
   }
+}
+
+function setAdmissionsListView(mode) {
+  const isTable = mode === 'table';
+  try {
+    if (isTable) document.body.classList.add('adm-show-table');
+    else document.body.classList.remove('adm-show-table');
+    sessionStorage.setItem('admListView', isTable ? 'table' : 'cards');
+  } catch (e) {}
+  const cardsBtn = document.getElementById('adm-view-cards-btn');
+  const tableBtn = document.getElementById('adm-view-table-btn');
+  if (cardsBtn) { cardsBtn.classList.toggle('btn-primary', !isTable); cardsBtn.classList.toggle('btn-outline', isTable); }
+  if (tableBtn) { tableBtn.classList.toggle('btn-primary', isTable); tableBtn.classList.toggle('btn-outline', !isTable); }
+}
+
+function restoreAdmissionsListView() {
+  let mode = 'cards';
+  try {
+    const saved = sessionStorage.getItem('admListView');
+    if (saved === 'table' || saved === 'cards') mode = saved;
+    else if (typeof isMobileViewport === 'function' && !isMobileViewport()) mode = 'table';
+  } catch (e) {}
+  setAdmissionsListView(mode);
 }
 
 function renderAdmissions() {
@@ -15507,45 +15644,102 @@ function renderAdmissions() {
   const newBtn = document.getElementById('adm-new-btn');
   if (newBtn) newBtn.style.display = canEdit ? '' : 'none';
   populateClassFilter('adm-class-filter');
-  const search = (document.getElementById('adm-search')||{value:''}).value.toLowerCase();
-  const cls = (document.getElementById('adm-class-filter')||{value:''}).value;
-  const st = (document.getElementById('adm-status-filter')||{value:''}).value;
-  let rows = db.admissions.filter(a =>
-    (!search || a.name.toLowerCase().includes(search) || a.id.toLowerCase().includes(search)) &&
+  const search = (document.getElementById('adm-search') || { value: '' }).value.toLowerCase();
+  const cls = (document.getElementById('adm-class-filter') || { value: '' }).value;
+  const st = (document.getElementById('adm-status-filter') || { value: '' }).value;
+  const rows = (db.admissions || []).filter(a =>
+    (!search || (a.name || '').toLowerCase().includes(search) || (a.id || '').toLowerCase().includes(search)) &&
     (!cls || a.cls === cls) && (!st || a.status === st)
   );
-  document.getElementById('adm-count').textContent = rows.length + ' records';
-  document.getElementById('admissions-body').innerHTML = rows.map(a => `
-    <tr>
-      <td style="font-family:monospace;font-size:11px;color:var(--muted)">${a.id}</td>
-      <td>
-        <div style="display:flex;align-items:center;gap:8px">
-          ${a.photo
-            ? `<img src="${a.photo}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid var(--border);flex-shrink:0">`
-            : `<div style="width:32px;height:32px;border-radius:50%;background:var(--cream2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px">&#128100;</div>`
-          }
-          <b>${esc(a.name)}</b>
-        </div>
-      </td>
-      <td>${a.cls}</td>
-      <td>${houseBadge(a.house)}</td>
-      <td>${a.gender}</td>
-      <td>${esc(a.parent) || '<span style="color:var(--muted)">—</span>'}</td>
-      <td>${esc(a.phone1) || '<span style="color:var(--muted)">—</span>'}</td>
-      <td><span class="badge badge-${a.status==='Admitted'?'admitted':a.status==='Continuing'?'continuing':a.status==='Scholarship'?'scholarship':a.status==='Withdrawn'?'withdrawn':'pending'}">${a.status}</span>${a.status==='Withdrawn' && a.withdrawnDate ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">${a.withdrawnDate}</div>` : ''}</td>
-      <td>${admFeeCell(a)}</td>
-      <td style="display:flex;gap:6px;align-items:center;padding:8px 14px">
-        ${canEdit && gsAllow('allowEditStudent') ? `<button class="btn btn-sm btn-outline" onclick="openEditAdmissionModal('${a.id}')" title="Edit student">✏️</button>` : ''}
-        ${canEdit && gsAllow('allowDeleteStudent') ? `<button class="btn btn-sm btn-danger" onclick="deleteAdmission('${a.id}')">✕</button>` : ''}
-      </td>
-    </tr>`).join('') || '<tr><td colspan="10" class="empty-state">No students found.</td></tr>';
+  const countEl = document.getElementById('adm-count');
+  if (countEl) countEl.textContent = rows.length + ' records';
+
+  const statusBadge = (a) => {
+    const stCls = a.status === 'Admitted' ? 'admitted'
+      : a.status === 'Continuing' ? 'continuing'
+      : a.status === 'Scholarship' ? 'scholarship'
+      : a.status === 'Withdrawn' ? 'withdrawn' : 'pending';
+    const extra = (a.status === 'Withdrawn' && a.withdrawnDate)
+      ? '<div style="font-size:10px;color:var(--muted);margin-top:2px">' + a.withdrawnDate + '</div>'
+      : '';
+    return '<span class="badge badge-' + stCls + '">' + a.status + '</span>' + extra;
+  };
+
+  const bodyEl = document.getElementById('admissions-body');
+  if (bodyEl) {
+    bodyEl.innerHTML = rows.map(a => {
+      const photo = a.photo
+        ? '<img src="' + a.photo + '" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid var(--border);flex-shrink:0">'
+        : '<div style="width:32px;height:32px;border-radius:50%;background:var(--cream2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px">&#128100;</div>';
+      const editBtn = (canEdit && typeof gsAllow === 'function' && gsAllow('allowEditStudent'))
+        ? '<button class="btn btn-sm btn-outline" onclick="openEditAdmissionModal(\'' + a.id + '\')" title="Edit student">✏️</button>'
+        : '';
+      const delBtn = (canEdit && typeof gsAllow === 'function' && gsAllow('allowDeleteStudent'))
+        ? '<button class="btn btn-sm btn-danger" onclick="deleteAdmission(\'' + a.id + '\')">✕</button>'
+        : '';
+      return '<tr>' +
+        '<td style="font-family:monospace;font-size:11px;color:var(--muted)">' + a.id + '</td>' +
+        '<td><div style="display:flex;align-items:center;gap:8px">' + photo + '<b>' + esc(a.name) + '</b></div></td>' +
+        '<td>' + esc(a.cls) + '</td>' +
+        '<td>' + (typeof houseBadge === 'function' ? houseBadge(a.house) : esc(a.house || '—')) + '</td>' +
+        '<td>' + esc(a.gender || '') + '</td>' +
+        '<td>' + (esc(a.parent) || '<span style="color:var(--muted)">—</span>') + '</td>' +
+        '<td>' + (esc(a.phone1) || '<span style="color:var(--muted)">—</span>') + '</td>' +
+        '<td>' + statusBadge(a) + '</td>' +
+        '<td>' + (typeof admFeeCell === 'function' ? admFeeCell(a) : (a.fee != null ? a.fee : '—')) + '</td>' +
+        '<td style="display:flex;gap:6px;align-items:center;padding:8px 14px">' + editBtn + delBtn + '</td>' +
+        '</tr>';
+    }).join('') || '<tr><td colspan="10" class="empty-state">No students found.</td></tr>';
+  }
+
+  const cardsEl = document.getElementById('adm-cards-list');
+  if (cardsEl) {
+    if (!rows.length) {
+      cardsEl.innerHTML = '<div class="empty-state" style="padding:28px;text-align:center;color:var(--muted)">No students found.</div>';
+    } else {
+      cardsEl.innerHTML = rows.map(a => {
+        const stCls = a.status === 'Admitted' ? 'admitted'
+          : a.status === 'Continuing' ? 'continuing'
+          : a.status === 'Scholarship' ? 'scholarship'
+          : a.status === 'Withdrawn' ? 'withdrawn' : 'pending';
+        const photo = a.photo
+          ? '<img src="' + a.photo + '" alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:1px solid var(--border);flex-shrink:0">'
+          : '<div style="width:44px;height:44px;border-radius:50%;background:var(--cream2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px">&#128100;</div>';
+        const feeBit = (typeof admFeeCell === 'function') ? admFeeCell(a) : (a.fee != null ? 'GHS ' + a.fee : '—');
+        const editBtn = (canEdit && typeof gsAllow === 'function' && gsAllow('allowEditStudent'))
+          ? '<button class="btn btn-sm btn-primary" onclick="openEditAdmissionModal(\'' + a.id + '\')">✏️ Edit</button>'
+          : '';
+        const delBtn = (canEdit && typeof gsAllow === 'function' && gsAllow('allowDeleteStudent'))
+          ? '<button class="btn btn-sm btn-danger" onclick="deleteAdmission(\'' + a.id + '\')">✕ Delete</button>'
+          : '';
+        const wd = (a.status === 'Withdrawn' && a.withdrawnDate)
+          ? '<div style="font-size:11px;color:var(--muted);margin-top:8px">Withdrawn ' + a.withdrawnDate + '</div>'
+          : '';
+        return '<div class="mobile-data-card">' +
+          '<div class="mdc-top">' +
+            '<div style="display:flex;gap:12px;align-items:center;min-width:0">' + photo +
+              '<div style="min-width:0">' +
+                '<div class="mdc-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(a.name) + '</div>' +
+                '<div class="mdc-meta">' + esc(a.id) + ' · ' + esc(a.cls) + (a.gender ? ' · ' + esc(a.gender) : '') + '</div>' +
+              '</div>' +
+            '</div>' +
+            '<span class="badge badge-' + stCls + '">' + a.status + '</span>' +
+          '</div>' +
+          '<div class="mdc-grid">' +
+            '<div><div class="mdc-label">Parent</div><div class="mdc-val" style="font-size:13px;font-weight:600">' + (esc(a.parent) || '—') + '</div></div>' +
+            '<div><div class="mdc-label">Phone</div><div class="mdc-val" style="font-size:13px;font-weight:600">' + (esc(a.phone1) || '—') + '</div></div>' +
+            '<div><div class="mdc-label">Adm. fee</div><div class="mdc-val" style="font-size:13px">' + feeBit + '</div></div>' +
+            '<div><div class="mdc-label">House</div><div class="mdc-val" style="font-size:13px">' + (typeof houseBadge === 'function' ? houseBadge(a.house) : esc(a.house || '—')) + '</div></div>' +
+          '</div>' + wd +
+          '<div class="mdc-actions">' + editBtn + delBtn + '</div>' +
+        '</div>';
+      }).join('');
+    }
+  }
+  try { restoreAdmissionsListView(); } catch (e) {}
 }
 
-// Renders the ADM. FEE cell using getStudentAdmissionFeeTotal() so it stays in
-// sync with any Revenue Tracker top-ups filed for this student — see that
-// function for why. When there's a top-up on top of the registration fee, show
-// a small breakdown underneath so it's clear where the total came from rather
-// than just a number that no longer matches the registration form.
+
 function admFeeCell(a) {
   const { total, base, topUps } = getStudentAdmissionFeeTotal(a.id);
   if (topUps > 0) {
@@ -26566,15 +26760,17 @@ async function printReportViaIframe(containerIdOrEl, options, title) {
 <style>
   @page { size: ${pageSize}; margin: 10mm; }
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; color: #1a1a1a; margin: 0; padding: 12px 16px; background: #fff; }
+  html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; background: #fff !important; overflow: visible !important; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; color: #1a1a1a; padding: 14px 18px !important; box-sizing: border-box; }
   h1,h2,h3 { color: #0f1f3d; margin: 0 0 8px; }
-  .print-letterhead { display:flex; align-items:center; gap:12px; border-bottom: 3px solid #0f1f3d; padding-bottom: 10px; margin-bottom: 14px; }
-  .print-letterhead img { width: 48px; height: 48px; object-fit: contain; }
-  .print-letterhead .school { font-size: 16px; font-weight: 700; color: #0f1f3d; }
-  .print-letterhead .sub { font-size: 12px; color: #666; margin-top: 2px; }
+  .print-letterhead { display:flex; align-items:flex-start; gap:12px; border-bottom: 3px solid #0f1f3d; padding: 0 0 12px 0; margin: 0 0 14px 0; width: 100%; box-sizing: border-box; }
+  .print-letterhead img { width: 48px; height: 48px; object-fit: contain; flex-shrink: 0; }
+  .print-letterhead .school { font-size: 17px; font-weight: 700; color: #0f1f3d; line-height: 1.25; word-break: break-word; }
+  .print-letterhead .sub { font-size: 12px; color: #666; margin-top: 3px; line-height: 1.35; }
   table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; font-size: 10px; }
-  th { background: #0f1f3d; color: #fff; text-align: left; padding: 6px 8px; }
-  td { border-bottom: 1px solid #e8e0d0; padding: 5px 8px; }
+  th { background: #0f1f3d; color: #e8c97a; text-align: left; padding: 7px 8px; }
+  th:first-child, td:first-child { padding-left: 10px; }
+  td { border-bottom: 1px solid #e8e0d0; padding: 6px 8px; word-break: break-word; }
   .card { border: 1px solid #e8e0d0; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; page-break-inside: avoid; }
   .section-title { font-size: 13px; font-weight: 700; color: #0f1f3d; margin: 12px 0 6px; }
   .kpi-grid, .stat-grid-2, .stat-grid-3 { display: grid; gap: 10px; margin-bottom: 12px; }
@@ -26667,6 +26863,7 @@ const REPORT_PRINT_DEFS = {
     reportTitle: 'Management Account Report',
     defaultOrientation: 'landscape',
     useIframePrint: true,
+    useManagementPdf: true,
     sections: { kpis: true, tables: true, charts: false, banner: true, notes: false, toolbars: false }
   },
   stats: {
@@ -26685,7 +26882,35 @@ const REPORT_PRINT_DEFS = {
     filename: () => 'Payment Tracker - ' + ACTIVE_YEAR.replace('_','-') + '.pdf',
     reportTitle: 'Payment Tracker — Student list & status',
     defaultOrientation: 'landscape',
+    useIframePrint: true,
     sections: { kpis: false, tables: true, charts: false, banner: false, notes: false, toolbars: false }
+  },
+  balancesheet: {
+    title: 'Statement of Financial Position',
+    containerId: 'bs-inner',
+    filename: () => 'Statement of Financial Position - ' + ACTIVE_YEAR.replace('_','-') + '.pdf',
+    reportTitle: 'Statement of Financial Position (Balance Sheet)',
+    defaultOrientation: 'portrait',
+    useIframePrint: true,
+    sections: { kpis: true, tables: true, charts: false, banner: true, notes: false, toolbars: false }
+  },
+  income: {
+    title: 'Statement of Comprehensive Income',
+    containerId: 'page-income',
+    filename: () => 'Statement of Comprehensive Income - ' + ACTIVE_YEAR.replace('_','-') + '.pdf',
+    reportTitle: 'Statement of Comprehensive Income',
+    defaultOrientation: 'portrait',
+    useIframePrint: true,
+    sections: { kpis: true, tables: true, charts: false, banner: true, notes: false, toolbars: false }
+  },
+  cashflow: {
+    title: 'Statement of Cash Flows',
+    containerId: 'cf-inner',
+    filename: () => 'Statement of Cash Flows - ' + ACTIVE_YEAR.replace('_','-') + '.pdf',
+    reportTitle: 'Statement of Cash Flows',
+    defaultOrientation: 'portrait',
+    useIframePrint: true,
+    sections: { kpis: true, tables: true, charts: false, banner: true, notes: false, toolbars: false }
   }
 };
 
@@ -26753,6 +26978,28 @@ function openReportPrintSettings(key) {
   // Payment list: expand so the table is on-screen for print/PDF capture
   if (key === 'payment' && typeof togglePaymentList === 'function') {
     try { togglePaymentList(true); } catch (e) {}
+  }
+  // Balance Sheet: ensure the page has been rendered
+  if (key === 'balancesheet') {
+    try {
+      if (!document.getElementById('bs-inner') || !document.getElementById('bs-inner').innerHTML.trim()) {
+        if (typeof renderBalanceSheet === 'function') renderBalanceSheet();
+      }
+    } catch (e) {}
+  }
+  // Income Statement: ensure content is ready
+  if (key === 'income') {
+    try {
+      if (typeof renderIncomeStatement === 'function') renderIncomeStatement();
+    } catch (e) {}
+  }
+  // Cash Flow Statement: ensure page is rendered
+  if (key === 'cashflow') {
+    try {
+      if (!document.getElementById('cf-inner') || !document.getElementById('cf-inner').innerHTML.trim()) {
+        if (typeof renderCashFlow === 'function') renderCashFlow();
+      }
+    } catch (e) {}
   }
   window._rpsCurrentKey = key;
   const prefs = getReportPrintPrefs(key);
@@ -26843,6 +27090,15 @@ async function runReportPrintFromSettings(mode) {
       await exportWeeklyReportToPDF(opts);
     } else if (def.useStatsPdf) {
       await exportStatsReportToPDF(opts);
+    } else if (def.useManagementPdf || key === 'management') {
+      // Ensure the management page is rendered, then export the live container
+      const mid = resolveReportContainerId('management') || 'page-report_management';
+      let el = document.getElementById(mid);
+      if (!el || !el.innerHTML || el.innerHTML.trim().length < 40) {
+        try { if (typeof renderReport === 'function') renderReport('management'); } catch (e) {}
+        el = document.getElementById(mid);
+      }
+      await exportPageToPDF(mid, def.filename(), def.reportTitle, opts);
     } else {
       await exportPageToPDF(containerId, def.filename(), def.reportTitle, opts);
     }
@@ -26949,46 +27205,72 @@ async function exportPageToPDF(containerId, filename, reportTitle, options) {
     else if (opts.orientation === 'portrait') landscape = false;
   }
   const orientation = landscape ? 'landscape' : 'portrait';
-  const captureW = landscape ? 1250 : 900;
+  const captureW = landscape ? 1100 : 760;
   toast('⏳ Generating PDF (' + orientation + ')…');
+
+  // Full-screen white overlay (same reliable capture as Admissions / Feeding)
+  const overlay = document.createElement('div');
+  overlay.id = 'generic-pdf-export-root';
+  overlay.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;background:#ffffff;z-index:2147483646;overflow:auto;';
 
   const wrap = document.createElement('div');
   wrap.className = 'pdf-generic-mode';
-  // position:absolute, not position:fixed — html2canvas clones the document
-  // into its own internal iframe to rasterize it, and doesn't reliably track
-  // position:fixed elements once they've been pushed thousands of pixels
-  // off-screen: it can lose the element entirely and rasterize empty space,
-  // producing a "successful" but 100% blank PDF with no thrown error.
-  // position:absolute doesn't have this problem and is just as invisible.
-  wrap.style.cssText = 'position:absolute;left:-9999px;top:0;width:' + captureW + 'px;background:#fff;';
+  wrap.style.cssText = 'width:' + captureW + 'px;max-width:' + captureW + 'px;margin:0 auto;padding:16px 20px 20px;background:#ffffff;box-sizing:border-box;overflow:visible;';
 
   const header = document.createElement('div');
   header.className = 'pdf-generic-header';
+  header.style.cssText = 'display:flex;align-items:flex-start;gap:12px;border-bottom:3px solid #0f1f3d;padding:0 0 12px 0;margin:0 0 14px 0;width:100%;box-sizing:border-box;';
   header.innerHTML = `
-    <img src="${SCHOOL_LOGO_SRC}" alt="">
-    <div>
-      <div class="pgh-school">${esc(schoolName())}</div>
-      <div class="pgh-title">${esc(reportTitle)} — ${ACTIVE_YEAR.replace('_','/')} · Generated ${new Date().toLocaleDateString('en-GH', {day:'numeric', month:'long', year:'numeric'})}</div>
+    <img src="${SCHOOL_LOGO_SRC}" alt="" style="width:48px;height:48px;object-fit:contain;flex-shrink:0">
+    <div style="min-width:0;flex:1">
+      <div class="pgh-school" style="font-size:17px;font-weight:700;color:#0f1f3d;line-height:1.25">${esc(schoolName())}</div>
+      <div class="pgh-title" style="font-size:12px;color:#666;margin-top:3px;line-height:1.35">${esc(reportTitle)} — ${ACTIVE_YEAR.replace('_','/')} · Generated ${new Date().toLocaleDateString('en-GH', {day:'numeric', month:'long', year:'numeric'})}</div>
     </div>`;
   wrap.appendChild(header);
   const clone = source.cloneNode(true);
   clone.querySelectorAll('button, input, select, .toolbar, .no-print').forEach(n => {
-    // Keep date labels visible; remove only interactive controls
     if (n.tagName === 'BUTTON' || n.classList.contains('toolbar') || n.classList.contains('no-print') ||
         (n.tagName === 'INPUT' && n.type !== 'hidden') || n.tagName === 'SELECT') {
       n.remove();
     }
   });
+  // Hide on-page section-header action buttons that may remain
+  clone.querySelectorAll('.section-header .btn, .btn-gold, .btn-outline').forEach(n => { try { n.remove(); } catch (e) {} });
   await _swapLiveContentForExport(source, clone);
   wrap.appendChild(clone);
-  document.body.appendChild(wrap);
+  overlay.appendChild(wrap);
+  document.body.appendChild(overlay);
+
+  await new Promise(r => setTimeout(r, 350));
+  try {
+    const imgs = wrap.querySelectorAll('img');
+    await Promise.all(Array.from(imgs).map(img => {
+      if (img.complete && img.naturalWidth) return Promise.resolve();
+      return new Promise(res => { img.onload = res; img.onerror = res; setTimeout(res, 1200); });
+    }));
+  } catch (e) {}
 
   try {
+    const w = Math.max(wrap.scrollWidth, wrap.offsetWidth, captureW);
+    const h = Math.max(wrap.scrollHeight, wrap.offsetHeight, 400);
     await html2pdf().set({
-      margin: landscape ? 8 : 10,
+      margin: [8, 8, 8, 8],
       filename,
-      image: { type: 'jpeg', quality: 0.95 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0, windowWidth: captureW },
+      image: { type: 'jpeg', quality: 0.96 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        x: 0,
+        y: 0,
+        width: w,
+        height: h,
+        windowWidth: w,
+        windowHeight: h
+      },
       jsPDF: { unit: 'mm', format: 'a4', orientation: orientation },
       pagebreak: { mode: ['css', 'legacy'], avoid: ['.card', 'tr'] }
     }).from(wrap).save();
@@ -26997,7 +27279,7 @@ async function exportPageToPDF(containerId, filename, reportTitle, options) {
     console.error('PDF export failed:', err);
     toast('⚠ Could not generate PDF — try Print instead', 'error');
   } finally {
-    if (wrap.parentNode) document.body.removeChild(wrap);
+    try { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch (e) {}
     if (typeof clearReportPrintHideClasses === 'function') clearReportPrintHideClasses();
   }
 }
@@ -45812,10 +46094,9 @@ function renderBalanceSheet() {
         <div class="section-title">⚖️ Statement of Financial Position</div>
         <div class="section-sub">(Balance Sheet) — As at ${dateStr}${bsPeriodLabel!=='All Periods' ? ' · '+bsPeriodLabel : ''}</div>
       </div>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-outline btn-sm" onclick="openAddAccountModal()">➕ Add Account</button>
-        <button class="btn btn-outline btn-sm" onclick="exportPageToPDF('bs-inner', 'Statement of Financial Position - ' + ACTIVE_YEAR.replace('_','-') + '.pdf', 'Statement of Financial Position')">📄 PDF</button>
-        <button class="btn btn-outline btn-sm" onclick="printReportSmart('bs-inner')">🖨️ Print</button>
+        <button class="btn btn-outline btn-sm" onclick="openReportPrintSettings('balancesheet')">🖨️ Print / PDF</button>
       </div>
     </div>
 
@@ -47127,8 +47408,7 @@ function renderCashFlow() {
         <div class="section-sub">Prepared under the indirect method (IAS 7) &nbsp;·&nbsp; ${ACTIVE_YEAR} Academic Year &nbsp;·&nbsp; For the period ended ${new Date().toLocaleDateString('en-GH',{day:'numeric',month:'long',year:'numeric'})}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-outline btn-sm" onclick="exportPageToPDF('cf-inner', 'Statement of Cash Flows - ' + ACTIVE_YEAR.replace('_','-') + '.pdf', 'Statement of Cash Flows')">📄 PDF</button>
-        <button class="btn btn-outline btn-sm" onclick="printReportSmart('cf-inner')">🖨️ Print</button>
+        <button class="btn btn-outline btn-sm" onclick="openReportPrintSettings('cashflow')">🖨️ Print / PDF</button>
       </div>
     </div>
 
