@@ -6186,7 +6186,7 @@
       <div class="form-group"><label>📱 Mobile Phone</label><input id="pr-emp-phone" placeholder="e.g. 0241234567" maxlength="15"></div>
       <div class="form-group"><label>📧 Email Address</label><input id="pr-emp-email" type="email" placeholder="e.g. name@example.com"></div>
       <div class="form-group"><label>🔗 System Login Username</label><input id="pr-emp-username" placeholder="Matches their Ecole Systems login — enables automatic usage scoring"></div>
-      <!-- Annual leave entitlement is now a school-wide setting in Settings → Approval Workflow → Staff Leave -->
+      <div class="form-group"><label>🏖️ Annual Leave Entitlement (days/year)</label><input type="number" id="pr-emp-leave-entitlement" placeholder="15" min="0" step="1"></div>
       <div class="form-group"><label>Tier 2 Scheme</label><input id="pr-emp-tier2" placeholder="e.g. Enterprise Trustees"></div>
       <div class="form-group full"><label>Notes</label><input id="pr-emp-notes" placeholder="Optional remarks"></div>
     </div>
@@ -7306,27 +7306,12 @@
 
     <div style="padding:16px 20px 4px;border-top:1px solid var(--border);margin-top:10px">
       <div style="font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">🏖️ Staff Leave</div>
-      <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px">Staff submit a leave request; roles allowed to approve or reject it:</div>
+      <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">Staff submit a leave request; roles allowed to approve or reject it:</div>
       <div id="awf-leave-approvers" class="awf-role-checks"></div>
-      <div style="margin-top:14px;padding:14px 16px;background:var(--cream);border-radius:10px;border:1px solid var(--border)">
-        <div style="font-size:11.5px;font-weight:700;color:var(--navy);margin-bottom:6px">📅 Annual Leave Entitlement</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
-          The number of paid annual leave days every full-time staff member is entitled to per calendar year.
-          This applies school-wide. Ghana Labour Act minimum is <b>15 working days</b>; most schools grant 21.
-        </div>
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <div style="display:flex;align-items:center;gap:8px">
-            <input type="number" id="awf-annual-leave-days" min="1" max="365" step="1"
-              style="width:80px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-weight:700;text-align:center">
-            <span style="font-size:13px;color:var(--navy);font-weight:500">days / year</span>
-          </div>
-          <span style="font-size:11px;color:var(--muted)">Applies to all staff. Balance shown on each teacher's Leave page.</span>
-        </div>
-      </div>
     </div>
 
     <div style="padding:16px 20px 4px;border-top:1px solid var(--border);margin-top:10px">
-      <div style="font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">🍽️ Monthly Feeding Expenditure Budget</div>
+      <div style="font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">🍽️ Feeding Expenditure Budget</div>
       <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">A monthly feeding budget is requested; once approved it's automatically posted as a real Feeding Expense. Roles allowed to approve or reject it:</div>
       <div id="awf-feedingbudget-approvers" class="awf-role-checks"></div>
     </div>
@@ -8289,13 +8274,15 @@ const DB_SEED = {
   // ── STAFF LEAVE — [{id, empId, type, startDate, endDate, days, reason, status:'Pending'|'Approved'|'Rejected', requestedBy, requestedAt, decidedBy, decidedAt, decisionNote}] ──
   staffLeave: [],
   nextLeaveId: 1,
-  // ── MONTHLY FEEDING EXPENDITURE BUDGET — standalone request-then-approve
+  // ── FEEDING EXPENDITURE BUDGET — standalone request-then-approve
   // workflow. Once approved, it automatically creates a real posted Expense
   // (cat: 'Feeding Expenses') and journal entry — the approval itself is the
   // authorization to spend, so it doesn't go through the separate generic
-  // Finance approval queue too. [{id, month, monthLabel, amount, mode,
-  // bankAccountId, notes, requestedBy, requestedAt, status, decidedBy,
-  // decidedAt, decisionNote, expenseId}]
+  // Finance approval queue too. [{id, date, dateFrom, month, monthLabel,
+  // amount, mode, bankAccountId, notes, requestedBy, requestedAt, status,
+  // decidedBy, decidedAt, decisionNote, expenseId}]
+  // date is the single budget date; dateFrom is a legacy alias; month (YYYY-MM)
+  // is derived from date for monthly views. Older records may only have month.
   feedingBudgetRequests: [],
   nextFeedingBudgetId: 1,
   // ── STUDENT SKILLS ASSESSMENT — keyed studentId|term, each a {skillKey: 1-5} rating ──
@@ -8355,7 +8342,7 @@ const DB_SEED = {
     promotion: { approverRoles: ['Admin', 'Headteacher'] },
     skillsAssessment: { approverRoles: ['Admin', 'Headteacher'] },
     smsFeeAlerts: { approverRoles: ['Admin'] },
-    staffLeave: { approverRoles: ['Admin', 'Headteacher'], annualLeaveDays: 21 },
+    staffLeave: { approverRoles: ['Admin', 'Headteacher'] },
     feedingBudget: { approverRoles: ['Admin', 'Headteacher'] }
   },
   // ── CUSTOM CHART OF ACCOUNTS — user-added Revenue/Expense categories, on top of the
@@ -11060,7 +11047,6 @@ function initDb(callback) {
       if (!db.approvalConfig.smsFeeAlerts) db.approvalConfig.smsFeeAlerts = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.smsFeeAlerts));
       if (!db.approvalConfig.skillsAssessment) db.approvalConfig.skillsAssessment = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.skillsAssessment));
       if (!db.approvalConfig.staffLeave) db.approvalConfig.staffLeave = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.staffLeave));
-      if (db.approvalConfig.staffLeave.annualLeaveDays == null) db.approvalConfig.staffLeave.annualLeaveDays = 21;
       if (!db.approvalConfig.feedingBudget) db.approvalConfig.feedingBudget = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.feedingBudget));
       db.customRevCats = data.customRevCats || [];
       db.customExpCats = data.customExpCats || [];
@@ -12570,7 +12556,7 @@ function calcStudentStatus(studentId) {
 const pageTitles = {
   dashboard:'Dashboard', admission:'Admission Registration',
   payment:'Payment Tracker', revenue:'Revenue Tracker',
-  expenses:'Expense Tracker', pettycash:'Petty Cash', feedingbudget:'Monthly Feeding Expenditure Budget', bankaccount:'Bank Account', groupaccounts:'Group Accounts', income:'Statement of Comprehensive Income', weeklyreport:'Weekly Report',
+  expenses:'Expense Tracker', pettycash:'Petty Cash', feedingbudget:'Feeding Expenditure Budget', bankaccount:'Bank Account', groupaccounts:'Group Accounts', income:'Statement of Comprehensive Income', weeklyreport:'Weekly Report',
   chartofaccounts:'Chart of Accounts', generalledger:'General Ledger', trialbalance:'Trial Balance', budgeting:'Budgeting', schoolshop:'School Shop', compliance:'Compliance',
   expenseledgers:'Expense Ledgers',
   schoolstructure:'School Structure', staffdatabase:'Teachers & Staff Database', parentdatabase:'Parent Database', appraisals:'Performance Appraisal', staffperformance:'Staff Performance Report', teacherexternal:'Teachers External Assessments', training:'Training & Development',
@@ -14515,14 +14501,6 @@ function mobileHomeKpis() {
   }
 }
 
-// The "Continue" quick-action tiles on phones (Payments / Approvals / Admissions / Academic Intel
-// for admins, Mark attendance / Enter grades / … for teachers) are switched OFF — they only
-// repeated what the bottom nav already gives. They come from roleHomeShortcuts() and were shown in
-// three places (home-shell "Continue" row, the "⚡ Continue" card, and the teacher dashboard); this
-// one flag controls all three. Set to true to bring them back. `var` on purpose: if anything
-// renders before this line runs it reads as undefined (= off) rather than throwing.
-var MOBILE_CONTINUE_SHORTCUTS = false;
-
 function renderMobileHomeShell() {
   if (!isMobileViewport()) {
     const old = document.getElementById('mobile-home-shell');
@@ -14582,7 +14560,6 @@ function renderMobileHomeShell() {
         <div class="k-hint">In queue</div>
       </div>
     </div>
-    ${MOBILE_CONTINUE_SHORTCUTS ? `
     <div class="mhs-section-label">Continue</div>
     <div class="mhs-actions">
       ${actions.map(a => `
@@ -14591,7 +14568,7 @@ function renderMobileHomeShell() {
           <span class="mhs-a-label">${esc(a.label)}</span>
           <span class="mhs-a-sub">${esc(a.sub || '')}</span>
         </button>`).join('')}
-    </div>` : ''}
+    </div>
   `;
 }
 
@@ -14643,7 +14620,6 @@ function roleHomeShortcuts() {
 }
 
 function renderHomeShortcutsHtml() {
-  if (!MOBILE_CONTINUE_SHORTCUTS) return '';
   const items = roleHomeShortcuts();
   return `
   <div class="home-shortcuts card" style="margin-bottom:16px;padding:14px 14px 10px">
@@ -14663,11 +14639,6 @@ function renderHomeShortcutsHtml() {
 }
 
 function injectHomeShortcuts(hostId) {
-  if (!MOBILE_CONTINUE_SHORTCUTS) {
-    const off = document.getElementById(hostId);
-    if (off) { off.innerHTML = ''; off.style.display = 'none'; }
-    return;
-  }
   // Desktop: hide / remove — Continue shortcuts are mobile-only
   if (typeof isMobileViewport === 'function' ? !isMobileViewport() : window.innerWidth > 768) {
     const existing = document.getElementById(hostId);
@@ -16786,7 +16757,9 @@ async function callAiAssist(mode, data, question, cacheKey) {
   if (cacheKey && _aiCache[cacheKey]) return { ok: true, text: _aiCache[cacheKey], cached: true };
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 20000);
+  // Chat mode carries a larger finance + performance snapshot — allow more time
+  const timeoutMs = mode === 'chat' ? 45000 : 20000;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch('/.netlify/functions/ai-assist', {
       method: 'POST',
@@ -18004,17 +17977,40 @@ function termForDate(dateStr) {
 }
 
 function monthLabelFor(monthStr) {
+  if (!monthStr) return '';
   const [y,m] = monthStr.split('-');
   const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   return `${months[parseInt(m)-1]} ${y}`;
+}
+
+// Human-readable date label for a feeding budget (single date, or legacy month-only)
+function feedingPeriodLabel(dateStr, monthFallback) {
+  // Backward-compatible: older calls used (dateFrom, dateTo, month)
+  if (arguments.length >= 3) {
+    dateStr = arguments[0] || arguments[1];
+    monthFallback = arguments[2];
+  }
+  const fmtD = (d) => {
+    if (!d) return '';
+    const parts = String(d).split('-');
+    if (parts.length < 3) return monthLabelFor(d);
+    const [y, m, day] = parts;
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${parseInt(day,10)} ${months[parseInt(m,10)-1]} ${y}`;
+  };
+  if (dateStr && String(dateStr).length >= 10) return fmtD(dateStr);
+  if (monthFallback) return monthLabelFor(monthFallback);
+  if (dateStr) return monthLabelFor(dateStr);
+  return '—';
 }
 
 // ── Itemized schedule (food items + other applicable expenditure items) ──
 // Kept as in-memory state rather than re-rendering the whole form on every
 // keystroke, so typing in a row doesn't lose focus/cursor position.
 let _fbItems = [];
+let _fbEditingId = null; // when set, submit updates this Returned request instead of creating a new one
 
-function fbResetItems() { _fbItems = [{ name:'', type:'Food Item', amount:'' }]; }
+function fbResetItems() { _fbItems = [{ name:'', type:'Food Item', amount:'' }]; _fbEditingId = null; }
 
 function fbAddItem() { _fbItems.push({ name:'', type:'Food Item', amount:'' }); fbRenderItemRows(); }
 
@@ -18058,21 +18054,56 @@ function fbRenderItemRows() {
 }
 
 function submitFeedingBudgetRequest() {
-  if (!canEditCurrentPage('feedingbudget')) { toast('⛔ You have view-only access to Monthly Feeding Expenditure Budget'); return; }
-  const month = document.getElementById('fb-req-month').value;
+  if (!canEditCurrentPage('feedingbudget')) { toast('⛔ You have view-only access to Feeding Expenditure Budget'); return; }
+  const date = document.getElementById('fb-req-date').value;
   const mode = document.getElementById('fb-req-mode').value;
   const bankAccountId = mode === 'Bank' ? document.getElementById('fb-req-bankacct').value : null;
   const notes = document.getElementById('fb-req-notes').value.trim();
   const items = _fbItems
     .map(it => ({ name: (it.name||'').trim(), type: it.type||'Food Item', amount: parseFloat(it.amount)||0 }))
     .filter(it => it.name && it.amount > 0);
-  if (!month) { toast('⚠ Pick a month'); return; }
+  if (!date) { toast('⚠ Pick a date'); return; }
   if (!items.length) { toast('⚠ Add at least one item with a name and an amount'); return; }
   const amount = items.reduce((a,it) => a + it.amount, 0);
+  // Keep month (YYYY-MM) for compatibility with monthly budget views
+  const month = date.slice(0, 7);
+  const monthLabel = feedingPeriodLabel(date, month);
   if (!db.feedingBudgetRequests) db.feedingBudgetRequests = [];
+
+  // Resubmit an existing request that was returned for editing
+  if (_fbEditingId) {
+    const rec = db.feedingBudgetRequests.find(r => r.id === _fbEditingId);
+    if (!rec || rec.status !== 'Returned') {
+      toast('⛔ That request is no longer available for editing');
+      _fbEditingId = null;
+      return;
+    }
+    rec.date = date;
+    rec.dateFrom = date; // legacy alias
+    delete rec.dateTo;
+    rec.month = month;
+    rec.monthLabel = monthLabel;
+    rec.items = items;
+    rec.amount = amount;
+    rec.mode = mode;
+    rec.bankAccountId = bankAccountId;
+    rec.notes = notes;
+    rec.status = 'Pending';
+    rec.requestedAt = Date.now();
+    rec.decidedBy = null;
+    rec.decidedAt = null;
+    rec.decisionNote = null;
+    rec.expenseId = null;
+    saveDb();
+    fbResetItems();
+    renderFeedingBudget();
+    toast('✅ Feeding budget updated and resubmitted — awaiting approval');
+    return;
+  }
+
   db.feedingBudgetRequests.push({
     id: 'FB' + (db.nextFeedingBudgetId++),
-    month, monthLabel: monthLabelFor(month),
+    date, dateFrom: date, month, monthLabel,
     items, amount, mode, bankAccountId, notes,
     status: 'Pending',
     requestedBy: currentUser.username || currentUser.role,
@@ -18082,19 +18113,48 @@ function submitFeedingBudgetRequest() {
   saveDb();
   fbResetItems();
   renderFeedingBudget();
-  toast('✅ Monthly Feeding Expenditure Budget submitted — awaiting approval');
+  toast('✅ Feeding Expenditure Budget submitted — awaiting approval');
 }
 
+// Return a pending request for editing (does not delete it)
 function cancelFeedingBudgetRequest(id) {
-  const idx = (db.feedingBudgetRequests||[]).findIndex(r => r.id === id);
-  if (idx === -1) return;
-  const rec = db.feedingBudgetRequests[idx];
+  const rec = (db.feedingBudgetRequests||[]).find(r => r.id === id);
+  if (!rec) return;
   const isOwner = rec.requestedBy === (currentUser.username || currentUser.role);
-  if (rec.status !== 'Pending' || !(isOwner || currentUser.role === 'Admin')) { toast('⛔ Can\'t withdraw this request'); return; }
-  db.feedingBudgetRequests.splice(idx, 1);
+  if (rec.status !== 'Pending' || !(isOwner || currentUser.role === 'Admin')) {
+    toast('⛔ Can\'t return this request for editing');
+    return;
+  }
+  rec.status = 'Returned';
+  rec.decidedBy = currentUser.username || currentUser.role;
+  rec.decidedAt = Date.now();
+  rec.decisionNote = 'Returned for editing';
   saveDb();
   renderFeedingBudget();
-  toast('🗑️ Request withdrawn');
+  toast('↩️ Request returned for editing');
+}
+
+// Load a Returned request back into the form so the user can edit and resubmit
+function editFeedingBudgetRequest(id) {
+  if (!canEditCurrentPage('feedingbudget')) { toast('⛔ You have view-only access to Feeding Expenditure Budget'); return; }
+  const rec = (db.feedingBudgetRequests||[]).find(r => r.id === id);
+  if (!rec || rec.status !== 'Returned') { toast('⛔ Only returned requests can be edited'); return; }
+  const isOwner = rec.requestedBy === (currentUser.username || currentUser.role);
+  if (!(isOwner || currentUser.role === 'Admin')) { toast('⛔ You can only edit your own requests'); return; }
+
+  _fbEditingId = rec.id;
+  _fbItems = (rec.items && rec.items.length)
+    ? rec.items.map(it => ({ name: it.name || '', type: it.type || 'Food Item', amount: it.amount || '' }))
+    : [{ name:'', type:'Food Item', amount:'' }];
+
+  renderFeedingBudget();
+
+  // Scroll form into view after re-render
+  setTimeout(() => {
+    const formCard = document.querySelector('#fbe-inner .card');
+    if (formCard) formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 50);
+  toast('✏️ Request loaded — edit the details and resubmit');
 }
 
 function approveFeedingBudgetRequest(id) {
@@ -18108,13 +18168,15 @@ function approveFeedingBudgetRequest(id) {
   // Post it as a real, already-approved Feeding Expense — this approval IS
   // the authorization to spend, so it's posted immediately (not routed
   // through the separate generic Finance approval queue again).
-  const date = today();
+  // Prefer the request's date; fall back to today for legacy records.
+  const date = rec.date || rec.dateFrom || today();
+  const periodLbl = feedingPeriodLabel(rec.date || rec.dateFrom, rec.month) || rec.monthLabel || '';
   const newId = db.nextExpId++;
   const itemsText = (rec.items||[]).map(it => `${it.name} (${it.type}) — GHS ${fmt(it.amount)}`).join('\n');
   const fullNotes = [itemsText, rec.notes].filter(Boolean).join('\n\n');
   db.expenses.push({
     id: newId,
-    date, desc: `Monthly Feeding Expenditure Budget — ${rec.monthLabel}`, ref: rec.id,
+    date, desc: `Feeding Expenditure Budget — ${periodLbl}`, ref: rec.id,
     term: termForDate(date),
     cat: 'Feeding Expenses', mode: rec.mode, bankAccountId: rec.bankAccountId || null,
     amount: rec.amount, notes: fullNotes,
@@ -18122,7 +18184,7 @@ function approveFeedingBudgetRequest(id) {
     submittedBy: rec.requestedBy
   });
   const expAcct = findAccountByCategory('Feeding Expenses', 'Expense');
-  postJournalEntry(date, 'Expense: Monthly Feeding Expenditure Budget — ' + rec.monthLabel, [
+  postJournalEntry(date, 'Expense: Feeding Expenditure Budget — ' + periodLbl, [
     { account: expAcct ? expAcct.code : '5300', debit: rec.amount, credit: 0 },
     { account: cashAccountForMode(rec.mode), debit: 0, credit: rec.amount }
   ], 'expense', newId);
@@ -18148,8 +18210,12 @@ function rejectFeedingBudgetRequest(id) {
 }
 
 function fbStatusBadge(status) {
-  const cls = status === 'Approved' ? 'badge-paid' : status === 'Rejected' ? 'badge-unpaid' : 'badge-partial';
-  return `<span class="badge ${cls}">${status}</span>`;
+  const cls = status === 'Approved' ? 'badge-paid'
+    : status === 'Rejected' ? 'badge-unpaid'
+    : status === 'Returned' ? 'badge-partial'
+    : 'badge-partial';
+  const label = status === 'Returned' ? 'Returned for Editing' : status;
+  return `<span class="badge ${cls}">${label}</span>`;
 }
 
 function fbItemsBreakdownHtml(items) {
@@ -18174,18 +18240,35 @@ function renderFeedingBudget() {
   const bankAccounts = db.bankAccounts || [];
   if (!_fbItems.length) fbResetItems();
 
+  // When editing a Returned request, pre-fill form defaults from that record
+  const editingRec = _fbEditingId ? all.find(r => r.id === _fbEditingId && r.status === 'Returned') : null;
+  if (_fbEditingId && !editingRec) { _fbEditingId = null; } // stale id
+  const isEditing = !!editingRec;
+  // Single date; legacy month-only → first day of that month; legacy range → dateFrom or date
+  let formDate = today();
+  if (isEditing) {
+    formDate = editingRec.date || editingRec.dateFrom ||
+      (editingRec.month ? editingRec.month + '-01' : today());
+  }
+  const formMode = isEditing ? (editingRec.mode || 'Cash') : 'Cash';
+  const formNotes = isEditing ? (editingRec.notes || '') : '';
+  const formBankId = isEditing ? (editingRec.bankAccountId || '') : '';
+  const showBank = formMode === 'Bank';
+
   const requestForm = canEdit ? `
     <div class="card" style="margin-bottom:16px">
-      <div class="card-header"><span class="card-title">➕ Request a Monthly Feeding Expenditure Budget</span></div>
+      <div class="card-header"><span class="card-title">${isEditing ? '✏️ Edit & Resubmit Feeding Budget' : '➕ Request a Feeding Expenditure Budget'}</span></div>
       <div style="padding:14px 20px;display:flex;gap:12px;flex-wrap:wrap">
-        <div class="form-group"><label>Month</label><input type="month" id="fb-req-month" value="${today().slice(0,7)}"></div>
+        <div class="form-group"><label>Date</label><input type="date" id="fb-req-date" value="${formDate}"></div>
         <div class="form-group"><label>Payment Mode</label>
           <select id="fb-req-mode" onchange="document.getElementById('fb-req-bankacct-wrap').style.display=this.value==='Bank'?'block':'none'">
-            <option>Cash</option><option>Bank</option><option>Mobile Money</option>
+            <option ${formMode==='Cash'?'selected':''}>Cash</option>
+            <option ${formMode==='Bank'?'selected':''}>Bank</option>
+            <option ${formMode==='Mobile Money'?'selected':''}>Mobile Money</option>
           </select>
         </div>
-        <div class="form-group" id="fb-req-bankacct-wrap" style="display:none"><label>Bank Account</label>
-          <select id="fb-req-bankacct">${bankAccounts.map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join('')}</select>
+        <div class="form-group" id="fb-req-bankacct-wrap" style="display:${showBank?'block':'none'}"><label>Bank Account</label>
+          <select id="fb-req-bankacct">${bankAccounts.map(b=>`<option value="${b.id}" ${formBankId==b.id?'selected':''}>${esc(b.name)}</option>`).join('')}</select>
         </div>
       </div>
 
@@ -18198,8 +18281,11 @@ function renderFeedingBudget() {
         </div>
       </div>
 
-      <div class="form-group full" style="padding:14px 20px 0"><label>Additional Notes</label><textarea id="fb-req-notes" rows="2" placeholder="e.g. supplier, occasion, anything else the approver should know"></textarea></div>
-      <div style="padding:12px 20px 18px"><button class="btn btn-primary btn-sm" onclick="submitFeedingBudgetRequest()">Submit for Approval</button></div>
+      <div class="form-group full" style="padding:14px 20px 0"><label>Additional Notes</label><textarea id="fb-req-notes" rows="2" placeholder="e.g. supplier, occasion, anything else the approver should know">${esc(formNotes)}</textarea></div>
+      <div style="padding:12px 20px 18px;display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary btn-sm" onclick="submitFeedingBudgetRequest()">${isEditing ? '💾 Update & Resubmit for Approval' : 'Submit for Approval'}</button>
+        ${isEditing ? `<button class="btn btn-outline btn-sm" onclick="fbResetItems(); renderFeedingBudget(); toast('Edit cancelled');">Cancel Edit</button>` : ''}
+      </div>
     </div>` : '';
 
   const pending = all.filter(r => r.status === 'Pending').sort((a,b) => a.requestedAt - b.requestedAt);
@@ -18207,9 +18293,9 @@ function renderFeedingBudget() {
     <div class="card" style="margin-bottom:16px">
       <div class="card-header"><span class="card-title">📥 Pending Approvals</span><span style="font-size:11px;color:var(--muted)">${pending.length} waiting</span></div>
       <div style="overflow-x:auto">
-        ${pending.length ? `<table><thead><tr><th>Month</th><th>Amount</th><th>Mode</th><th>Notes</th><th>Requested By</th><th></th></tr></thead><tbody>
+        ${pending.length ? `<table><thead><tr><th>Date</th><th>Amount</th><th>Mode</th><th>Notes</th><th>Requested By</th><th></th></tr></thead><tbody>
           ${pending.map(r => `<tr>
-            <td>${esc(r.monthLabel)}${fbItemsBreakdownHtml(r.items)}</td>
+            <td>${esc(feedingPeriodLabel(r.date || r.dateFrom, r.month) || r.monthLabel || '—')}${fbItemsBreakdownHtml(r.items)}</td>
             <td>GHS ${fmt(r.amount)}</td>
             <td>${esc(r.mode)}</td>
             <td style="max-width:220px">${esc(r.notes||'—')}</td>
@@ -18226,21 +18312,27 @@ function renderFeedingBudget() {
   const sorted = all.slice().sort((a,b) => b.requestedAt - a.requestedAt);
   el.innerHTML = `
     <div class="section-header">
-      <div><div class="section-title">🍽️ Monthly Feeding Expenditure Budget</div><div class="section-sub">Request a month's feeding budget — once approved, it's posted as a real Feeding Expense ready for payment</div></div>
+      <div><div class="section-title">🍽️ Feeding Expenditure Budget</div><div class="section-sub">Request a feeding budget for a specific date — once approved, it's posted as a real Feeding Expense ready for payment</div></div>
     </div>
     ${requestForm}
     ${approvalsCard}
     <div class="card">
       <div class="card-header"><span class="card-title">📋 All Requests</span><span style="font-size:11px;color:var(--muted)">${sorted.length} record${sorted.length!==1?'s':''}</span></div>
       <div style="overflow-x:auto">
-        ${sorted.length ? `<table><thead><tr><th>Month</th><th>Amount</th><th>Mode</th><th>Status</th><th>Decided By</th><th></th></tr></thead><tbody>
+        ${sorted.length ? `<table><thead><tr><th>Date</th><th>Amount</th><th>Mode</th><th>Status</th><th>Decided By</th><th></th></tr></thead><tbody>
           ${sorted.map(r => `<tr>
-            <td>${esc(r.monthLabel)}${fbItemsBreakdownHtml(r.items)}</td>
+            <td>${esc(feedingPeriodLabel(r.date || r.dateFrom, r.month) || r.monthLabel || '—')}${fbItemsBreakdownHtml(r.items)}</td>
             <td>GHS ${fmt(r.amount)}</td>
             <td>${esc(r.mode)}</td>
-            <td>${fbStatusBadge(r.status)}${r.status==='Rejected' && r.decisionNote ? `<div style="font-size:10px;color:var(--muted)">${esc(r.decisionNote)}</div>` : ''}${r.status==='Approved' ? `<div style="font-size:10px;color:var(--muted)">Posted as Expense #${r.expenseId}</div>` : ''}</td>
+            <td>${fbStatusBadge(r.status)}${(r.status==='Rejected' || r.status==='Returned') && r.decisionNote ? `<div style="font-size:10px;color:var(--muted)">${esc(r.decisionNote)}</div>` : ''}${r.status==='Approved' ? `<div style="font-size:10px;color:var(--muted)">Posted as Expense #${r.expenseId}</div>` : ''}</td>
             <td style="font-size:11px;color:var(--muted)">${r.decidedBy ? esc(r.decidedBy) : '—'}</td>
-            <td>${r.status==='Pending' && (r.requestedBy===(currentUser.username||currentUser.role) || currentUser.role==='Admin') ? `<button class="btn btn-sm btn-outline" onclick="cancelFeedingBudgetRequest('${r.id}')">Withdraw</button>` : ''}</td>
+            <td style="white-space:nowrap">${
+              r.status==='Pending' && (r.requestedBy===(currentUser.username||currentUser.role) || currentUser.role==='Admin')
+                ? `<button class="btn btn-sm btn-outline" onclick="cancelFeedingBudgetRequest('${r.id}')">Return for Editing</button>`
+                : r.status==='Returned' && canEdit && (r.requestedBy===(currentUser.username||currentUser.role) || currentUser.role==='Admin')
+                ? `<button class="btn btn-sm btn-gold" onclick="editFeedingBudgetRequest('${r.id}')">✏️ Edit & Resubmit</button>`
+                : ''
+            }</td>
           </tr>`).join('')}
         </tbody></table>` : `<div class="empty-state" style="padding:24px"><div class="icon">📭</div>No requests yet</div>`}
       </div>
@@ -21649,7 +21741,7 @@ function openEmployeeModal(id) {
     document.getElementById('pr-emp-phone').value       = e.phone || '';
     document.getElementById('pr-emp-email').value       = e.email || '';
     document.getElementById('pr-emp-username').value    = e.username || '';
-    // leaveEntitlement is now school-wide (Settings → Approval Workflow → Staff Leave)
+    document.getElementById('pr-emp-leave-entitlement').value = e.leaveEntitlement ?? 15;
     document.getElementById('pr-emp-tier2').value       = e.tier2Scheme || '';
     document.getElementById('pr-emp-notes').value       = e.notes || '';
     document.getElementById('pr-emp-exempt-ssnit').checked = !!e.exemptSsnit;
@@ -21664,7 +21756,7 @@ function openEmployeeModal(id) {
     });
     document.getElementById('pr-emp-dept').value   = 'Teaching Staff';
     document.getElementById('pr-emp-status').value = 'Active';
-    // leaveEntitlement moved to school-wide setting
+    document.getElementById('pr-emp-leave-entitlement').value = 15;
     document.getElementById('pr-emp-exempt-ssnit').checked = false;
     document.getElementById('pr-emp-exempt-tier2').checked = false;
     document.getElementById('pr-emp-exempt-paye').checked  = false;
@@ -21699,7 +21791,7 @@ async function saveEmployee() {
     phone:       document.getElementById('pr-emp-phone').value.trim(),
     email:       document.getElementById('pr-emp-email').value.trim(),
     username:    document.getElementById('pr-emp-username').value.trim(),
-    // leaveEntitlement no longer stored per-employee — use db.approvalConfig.staffLeave.annualLeaveDays
+    leaveEntitlement: parseFloat(document.getElementById('pr-emp-leave-entitlement').value) || 0,
     tier2Scheme: document.getElementById('pr-emp-tier2').value.trim(),
     notes:       document.getElementById('pr-emp-notes').value.trim(),
     exemptSsnit: document.getElementById('pr-emp-exempt-ssnit').checked,
@@ -25881,8 +25973,6 @@ function openApprovalWorkflowModal() {
   awfRenderRoleChecks('awf-sms-approvers', db.approvalConfig.smsFeeAlerts?.approverRoles || ['Admin']);
   awfRenderRoleChecks('awf-skills-approvers', db.approvalConfig.skillsAssessment?.approverRoles || ['Admin','Headteacher']);
   awfRenderRoleChecks('awf-leave-approvers', db.approvalConfig.staffLeave?.approverRoles || ['Admin','Headteacher']);
-  const _awfLeaveDaysEl = document.getElementById('awf-annual-leave-days');
-  if (_awfLeaveDaysEl) _awfLeaveDaysEl.value = db.approvalConfig?.staffLeave?.annualLeaveDays ?? 21;
   awfRenderRoleChecks('awf-feedingbudget-approvers', db.approvalConfig.feedingBudget?.approverRoles || ['Admin','Headteacher']);
   document.getElementById('approval-workflow-modal').classList.add('open');
 }
@@ -25904,7 +25994,7 @@ function saveApprovalWorkflow() {
   if (smsApprovers.length === 0) { toast('⚠ SMS Fee Alerts needs at least one approver role'); return; }
   if (skillsApprovers.length === 0) { toast('⚠ Skills Assessment needs at least one approver role'); return; }
   if (leaveApprovers.length === 0) { toast('⚠ Staff Leave needs at least one approver role'); return; }
-  if (feedingBudgetApprovers.length === 0) { toast('⚠ Monthly Feeding Expenditure Budget needs at least one approver role'); return; }
+  if (feedingBudgetApprovers.length === 0) { toast('⚠ Feeding Expenditure Budget needs at least one approver role'); return; }
 
   db.approvalConfig = {
     pettyCash: { needsApprovalRoles: needsApproval, approverRoles: pcApprovers },
@@ -25912,7 +26002,7 @@ function saveApprovalWorkflow() {
     promotion: { approverRoles: promoApprovers },
     smsFeeAlerts: { approverRoles: smsApprovers },
     skillsAssessment: { approverRoles: skillsApprovers },
-    staffLeave: { approverRoles: leaveApprovers, annualLeaveDays: parseInt(document.getElementById('awf-annual-leave-days')?.value) || 21 },
+    staffLeave: { approverRoles: leaveApprovers },
     feedingBudget: { approverRoles: feedingBudgetApprovers }
   };
   saveDb();
@@ -31003,39 +31093,8 @@ function welcomeInitials() {
   return name.slice(0, 2).toUpperCase();
 }
 
-// ── Leave-attendance integration helpers ──────────────────────────────────────
-
-/**
- * Returns the approved leave record for empId on dateStr, or null.
- * Used by clock-in guard, UI rendering, and payroll hints.
- */
-function getApprovedLeaveForDate(empId, dateStr) {
-  if (!empId || !dateStr) return null;
-  return (db.staffLeave || []).find(l =>
-    l.empId === empId &&
-    l.status === 'Approved' &&
-    dateStr >= l.startDate &&
-    dateStr <= l.endDate
-  ) || null;
-}
-
-/**
- * Returns true if the attendance record for empId on dateStr was written
- * automatically by the leave system (not a manual clock-in).
- */
-function isLeaveAttendanceRecord(empId, dateStr) {
-  const rec = ((db.staffAttendance || {})[dateStr] || {})[empId];
-  return rec && rec.status === 'On Leave' && !rec.in;
-}
-
 function staffClockIn(empId, dateStr) {
   const date = dateStr || today();
-  // Block clock-in when the employee has approved leave for this date
-  const leave = getApprovedLeaveForDate(empId, date);
-  if (leave) {
-    toast(`🏖 You are on approved ${leave.type || 'Leave'} — no clock-in required`, 'info');
-    return;
-  }
   // Respect the Academic Calendar — no self clock-in on a Holiday/Vacation or
   // Mid-Term Break day (same rule student Attendance already follows).
   const nsd = getNonSchoolDayEvent(date);
@@ -31064,13 +31123,6 @@ function staffClockOut(empId, dateStr) {
 function staffMarkAbsent(empId, dateStr) {
   if (!requireRole('Admin', 'Bursar', 'Headteacher')) return;
   const date = dateStr || today();
-  // Don't overwrite an approved leave record with Absent
-  if (isLeaveAttendanceRecord(empId, date)) {
-    const leave = getApprovedLeaveForDate(empId, date);
-    const lType = leave ? leave.type : 'Leave';
-    toast(`⚠ ${esc(((db.employees||[]).find(e=>e.id===empId)||{}).name||'Staff')} has approved ${lType} on this date — cannot mark Absent`, 'error');
-    return;
-  }
   if (!db.staffAttendance) db.staffAttendance = {};
   if (!db.staffAttendance[date]) db.staffAttendance[date] = {};
   db.staffAttendance[date][empId] = { in: null, out: null, status: 'Absent' };
@@ -31143,25 +31195,14 @@ function renderStaffAttendance() {
           <div class="sr-stat-card" style="min-width:110px"><div class="sr-stat-value">${mine.in || '—'}</div><div class="sr-stat-label">Clock In</div></div>
           <div class="sr-stat-card" style="min-width:110px"><div class="sr-stat-value">${mine.out || '—'}</div><div class="sr-stat-label">Clock Out</div></div>
           <div class="sr-stat-card" style="min-width:110px"><div class="sr-stat-value" style="${mine.status==='Late'?'color:var(--amber)':mine.status==='Absent'?'color:var(--red)':''}">${mine.status || '—'}</div><div class="sr-stat-label">Status</div></div>
-          ${(() => {
-            const myLeave = getApprovedLeaveForDate(myEmp.id, _satDate);
-            if (myLeave) return `
-              <div style="margin-left:auto;background:#e8f5ee;border:1px solid #b7dfc9;border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:10px">
-                <span style="font-size:20px">🏖</span>
-                <div>
-                  <div style="font-size:13px;font-weight:700;color:#2e7d52">You are on approved ${esc(myLeave.type || 'Leave')}</div>
-                  <div style="font-size:11px;color:var(--muted)">${esc(myLeave.startDate)} – ${esc(myLeave.endDate)} · No clock-in required</div>
-                </div>
-              </div>`;
-            if (nsd) return `<div style="margin-left:auto;font-size:11px;color:var(--red)">🚫 ${esc(CAL_CAT_LABELS[nsd.category])}: ${esc(nsd.title)} — no clock-in on this date</div>`;
-            if (canClockForDate) return `
-              <div style="margin-left:auto;display:flex;gap:8px">
-                ${!mine.in ? `<button class="btn btn-gold" onclick="staffClockIn('${myEmp.id}','${_satDate}'); renderStaffAttendance();">🕘 Clock In${!isToday ? ' — ' + esc(_satDate) : ''}</button>` : ''}
-                ${mine.in && !mine.out ? `<button class="btn btn-outline" onclick="staffClockOut('${myEmp.id}','${_satDate}'); renderStaffAttendance();">🚪 Clock Out</button>` : ''}
-                ${mine.in && mine.out ? `<span style="font-size:12px;color:var(--green);font-weight:600">✔ Done for ${isToday ? 'today' : esc(_satDate)}</span>` : ''}
-              </div>`;
-            return `<div style="margin-left:auto;font-size:11px;color:var(--muted)">Viewing a past date — clock in/out only works for today</div>`;
-          })()}
+          ${nsd
+            ? `<div style="margin-left:auto;font-size:11px;color:var(--red)">🚫 ${esc(CAL_CAT_LABELS[nsd.category])}: ${esc(nsd.title)} — no clock-in on this date</div>`
+            : canClockForDate ? `
+            <div style="margin-left:auto;display:flex;gap:8px">
+              ${!mine.in ? `<button class="btn btn-gold" onclick="staffClockIn('${myEmp.id}','${_satDate}'); renderStaffAttendance();">🕘 Clock In${!isToday ? ' — ' + esc(_satDate) : ''}</button>` : ''}
+              ${mine.in && !mine.out ? `<button class="btn btn-outline" onclick="staffClockOut('${myEmp.id}','${_satDate}'); renderStaffAttendance();">🚪 Clock Out</button>` : ''}
+              ${mine.in && mine.out ? `<span style="font-size:12px;color:var(--green);font-weight:600">✔ Done for ${isToday ? 'today' : esc(_satDate)}</span>` : ''}
+            </div>` : `<div style="margin-left:auto;font-size:11px;color:var(--muted)">Viewing a past date — clock in/out only works for today</div>`}
         </div>
       </div>`;
   } else if (currentUser && !isBackOffice) {
@@ -31186,11 +31227,10 @@ function renderStaffAttendance() {
 
   // ── Back-office overview: full staff table for the selected date ──
   const staff = (db.employees || []).filter(e => e.status === 'Active').sort((a,b) => a.name.localeCompare(b.name));
-  const presentCount  = staff.filter(e => (dayRecords[e.id]||{}).status === 'Present').length;
-  const lateCount     = staff.filter(e => (dayRecords[e.id]||{}).status === 'Late').length;
-  const absentCount   = staff.filter(e => (dayRecords[e.id]||{}).status === 'Absent').length;
-  const onLeaveCount  = staff.filter(e => (dayRecords[e.id]||{}).status === 'On Leave').length;
-  const notYetCount   = staff.length - presentCount - lateCount - absentCount - onLeaveCount;
+  const presentCount = staff.filter(e => (dayRecords[e.id]||{}).status === 'Present').length;
+  const lateCount = staff.filter(e => (dayRecords[e.id]||{}).status === 'Late').length;
+  const absentCount = staff.filter(e => (dayRecords[e.id]||{}).status === 'Absent').length;
+  const notYetCount = staff.length - presentCount - lateCount - absentCount;
   const isToday = _satDate === today();
 
   el.innerHTML = `
@@ -31202,11 +31242,10 @@ function renderStaffAttendance() {
     ${selfCard}
 
     <div class="sr-stat-row" style="margin-bottom:16px">
-      <div class="sr-stat-card"><div class="sr-stat-value" style="color:var(--green)">${presentCount}</div><div class="sr-stat-label">Present</div></div>
+      <div class="sr-stat-card"><div class="sr-stat-value">${presentCount}</div><div class="sr-stat-label">Present</div></div>
       <div class="sr-stat-card"><div class="sr-stat-value" style="color:var(--amber)">${lateCount}</div><div class="sr-stat-label">Late</div></div>
       <div class="sr-stat-card"><div class="sr-stat-value" style="color:var(--red)">${absentCount}</div><div class="sr-stat-label">Absent</div></div>
-      <div class="sr-stat-card"><div class="sr-stat-value" style="color:#7c3aed">${onLeaveCount}</div><div class="sr-stat-label">On Leave</div></div>
-      <div class="sr-stat-card"><div class="sr-stat-value" style="color:var(--muted)">${notYetCount}</div><div class="sr-stat-label">${isToday ? 'Not Clocked In' : 'No Record'}</div></div>
+      <div class="sr-stat-card"><div class="sr-stat-value">${notYetCount}</div><div class="sr-stat-label">${isToday ? 'Not Clocked In Yet' : 'No Record'}</div></div>
     </div>
 
     <div class="card">
@@ -31216,22 +31255,17 @@ function renderStaffAttendance() {
         <tbody>
           ${staff.map(e => {
             const r = dayRecords[e.id] || {};
-            const isOnLeave = r.status === 'On Leave';
-            const activeLeave = isOnLeave ? getApprovedLeaveForDate(e.id, _satDate) : null;
-            const statusColor = r.status === 'Late' ? 'var(--amber)' : r.status === 'Absent' ? 'var(--red)' : r.status === 'Present' ? 'var(--green)' : isOnLeave ? '#7c3aed' : 'var(--muted)';
-            const rowBg = isOnLeave ? 'background:#f9f5ff' : '';
-            const leaveTypeBit = isOnLeave ? `<div style="font-size:10px;color:#7c3aed;font-weight:500">${esc(r.leaveType || activeLeave?.type || 'Leave')}</div>` : '';
-            const leaveDateBit = activeLeave ? `<div style="font-size:10px;color:var(--muted)">${esc(activeLeave.startDate)} – ${esc(activeLeave.endDate)}</div>` : '';
+            const statusColor = r.status === 'Late' ? 'var(--amber)' : r.status === 'Absent' ? 'var(--red)' : r.status === 'Present' ? 'var(--green)' : 'var(--muted)';
             return `
-            <tr style="${rowBg}">
+            <tr>
               <td>${esc(e.name)}</td>
               <td style="font-size:11px;color:var(--muted)">${esc(e.role || '—')}</td>
-              <td>${isOnLeave ? '<span style="color:var(--muted);font-size:11px">—</span>' : r.in || '—'} ${!isOnLeave ? `<a href="#" onclick="staffEditTime('${e.id}','${_satDate}','in'); return false;" style="font-size:10px;margin-left:4px">✏️</a>` : ''}</td>
-              <td>${isOnLeave ? '<span style="color:var(--muted);font-size:11px">—</span>' : r.out || '—'} ${!isOnLeave ? `<a href="#" onclick="staffEditTime('${e.id}','${_satDate}','out'); return false;" style="font-size:10px;margin-left:4px">✏️</a>` : ''}</td>
-              <td style="color:${statusColor};font-weight:600">${r.status || '—'}${leaveTypeBit}${leaveDateBit}</td>
+              <td>${r.in || '—'} <a href="#" onclick="staffEditTime('${e.id}','${_satDate}','in'); return false;" style="font-size:10px;margin-left:4px">✏️</a></td>
+              <td>${r.out || '—'} <a href="#" onclick="staffEditTime('${e.id}','${_satDate}','out'); return false;" style="font-size:10px;margin-left:4px">✏️</a></td>
+              <td style="color:${statusColor};font-weight:600">${r.status || '—'}</td>
               <td style="white-space:nowrap">
-                ${!isOnLeave ? `<button class="btn btn-sm btn-outline" onclick="staffMarkAbsent('${e.id}','${_satDate}')">Mark Absent</button>` : `<span style="font-size:11px;color:#7c3aed">🏖 Approved leave</span>`}
-                ${r.status && !isOnLeave ? `<button class="btn btn-sm btn-outline" onclick="staffClearRecord('${e.id}','${_satDate}')" style="margin-left:4px">Clear</button>` : ''}
+                <button class="btn btn-sm btn-outline" onclick="staffMarkAbsent('${e.id}','${_satDate}')">Mark Absent</button>
+                ${r.status ? `<button class="btn btn-sm btn-outline" onclick="staffClearRecord('${e.id}','${_satDate}')" style="margin-left:4px">Clear</button>` : ''}
               </td>
             </tr>`;
           }).join('')}
@@ -31327,17 +31361,11 @@ function approveLeaveRequest(id) {
     const dateStr = d.toISOString().slice(0,10);
     if (!db.staffAttendance[dateStr]) db.staffAttendance[dateStr] = {};
     const existing = db.staffAttendance[dateStr][rec.empId];
-    if (!existing || !existing.in) db.staffAttendance[dateStr][rec.empId] = { status: 'On Leave', leaveType: rec.type, leaveId: rec.id };
+    if (!existing || !existing.in) db.staffAttendance[dateStr][rec.empId] = { status: 'On Leave', leaveType: rec.type };
   }
   saveDb();
   renderStaffLeave();
-  // Notify if the leave period overlaps today — so back-office knows the clock-in is blocked
-  const todayStr = today();
-  if (todayStr >= rec.startDate && todayStr <= rec.endDate) {
-    toast(`✅ Leave approved — ${rec.empName || 'Staff'} is on leave today. Clock-in is blocked for this period.`, 'success');
-  } else {
-    toast(`✅ Leave approved — attendance auto-filled for ${rec.days || slWorkdays(rec.startDate, rec.endDate)} working day(s)`);
-  }
+  toast('✅ Leave approved');
 }
 
 function rejectLeaveRequest(id) {
@@ -31349,23 +31377,9 @@ function rejectLeaveRequest(id) {
   rec.decidedBy = currentUser.username || currentUser.role;
   rec.decidedAt = Date.now();
   rec.decisionNote = note;
-  // ── Clean up auto-written On Leave attendance records for this leave ──────
-  // Only removes records that were written by this leave approval (leaveId matches)
-  // and have no actual clock-in — never removes a real clock-in.
-  if (db.staffAttendance) {
-    for (let d = new Date(rec.startDate+'T00:00:00'); d <= new Date(rec.endDate+'T00:00:00'); d.setDate(d.getDate()+1)) {
-      const dow = d.getDay();
-      if (dow === 0 || dow === 6) continue;
-      const dateStr = d.toISOString().slice(0, 10);
-      const dayRec = (db.staffAttendance[dateStr] || {})[rec.empId];
-      if (dayRec && dayRec.leaveId === rec.id && !dayRec.in) {
-        delete db.staffAttendance[dateStr][rec.empId];
-      }
-    }
-  }
   saveDb();
   renderStaffLeave();
-  toast('❌ Leave request rejected and attendance records cleared');
+  toast('❌ Leave request rejected');
 }
 
 function slStatusBadge(status) {
@@ -31386,7 +31400,7 @@ function renderStaffLeave() {
   // ── Self card ──
   let selfCard = '';
   if (myEmp) {
-    const entitlement = db.approvalConfig?.staffLeave?.annualLeaveDays ?? 21;
+    const entitlement = myEmp.leaveEntitlement ?? 15;
     const used = leaveUsedInYear(myEmp.id, year);
     const balance = Math.max(0, entitlement - used);
     const mine = all.filter(l => l.empId === myEmp.id).sort((a,b) => b.requestedAt - a.requestedAt);
@@ -33844,53 +33858,312 @@ let _srPerfTerm = null;
 let _srRcTerm = null;
 
 // ══════════════ AI ASSISTANT (chat over an aggregated data snapshot) ══════════════
-// Deliberately does NOT give the model the raw database — it gets a small,
-// bounded summary (enrollment/fee/attendance/payroll totals + a capped list
-// of top-owing students), the same aggregation pattern as the AI Insight
-// button above. This keeps per-message cost and latency low and avoids
-// sending the full student roster's PII to a third party on every question.
-// The trade-off, stated in the UI itself: it can only answer questions the
-// snapshot covers — anything needing one student's full history should go
-// to Student Records instead.
+// Deliberately does NOT give the model the raw database — it gets a bounded
+// summary of finances + student performance (totals, category breakdowns,
+// class averages, capped top/bottom lists). Same safety pattern as the AI
+// Insight button: no phones, addresses, parent details, or full grade sheets.
+// Trade-off (stated in the UI): it answers from this snapshot only — dig into
+// one student's full history via Student Records.
 let _aicTerm = null;
 let _aicHistory = [];
 
+function _aicFirstName(name) {
+  return (name || '').trim().split(/\s+/)[0] || 'Student';
+}
+
+function _aicRound(n, d) {
+  if (n == null || isNaN(n)) return null;
+  const f = Math.pow(10, d == null ? 1 : d);
+  return Math.round(n * f) / f;
+}
+
 function buildAiAssistantSnapshot(term) {
   const students = db.admissions || [];
-  const activeStudents = students.filter(s => s.status === 'Active' || !s.status);
+  const enrolled = students.filter(s =>
+    s.status === 'Admitted' || s.status === 'Continuing' || s.status === 'Scholarship' ||
+    s.status === 'Active' || !s.status
+  );
+  const withdrawn = students.filter(s => s.status === 'Withdrawn').length;
+  const pendingAdm = students.filter(s => s.status === 'Pending').length;
 
+  // ── Enrollment by class & status ──
+  const byClass = {};
+  const byStatus = {};
+  enrolled.forEach(s => {
+    const cls = s.cls || 'Unassigned';
+    byClass[cls] = (byClass[cls] || 0) + 1;
+    const st = s.status || 'Active';
+    byStatus[st] = (byStatus[st] || 0) + 1;
+  });
+
+  // ── Fees for selected term ──
   let totalBilled = 0, totalPaid = 0;
   const owing = [];
-  activeStudents.forEach(s => {
-    const billed = getStudentFee(s.id, term);
-    const paid = (db.payments[s.id + '|' + term] || { paid: 0 }).paid;
-    totalBilled += billed; totalPaid += paid;
+  const feeByClass = {};
+  enrolled.forEach(s => {
+    const billed = (typeof getStudentFee === 'function') ? getStudentFee(s.id, term) : 0;
+    const paid = ((db.payments || {})[s.id + '|' + term] || { paid: 0 }).paid || 0;
+    totalBilled += billed;
+    totalPaid += paid;
     const bal = billed - paid;
-    if (bal > 0) owing.push({ name: s.name, cls: s.cls, balance: bal });
+    const cls = s.cls || 'Unassigned';
+    if (!feeByClass[cls]) feeByClass[cls] = { billed: 0, paid: 0, outstanding: 0, students: 0 };
+    feeByClass[cls].billed += billed;
+    feeByClass[cls].paid += paid;
+    feeByClass[cls].outstanding += Math.max(0, bal);
+    feeByClass[cls].students += 1;
+    if (bal > 0.5) owing.push({ firstName: _aicFirstName(s.name), class: cls, balance: _aicRound(bal, 2) });
   });
   owing.sort((a, b) => b.balance - a.balance);
+  const feeByClassList = Object.keys(feeByClass).sort().map(cls => ({
+    class: cls,
+    students: feeByClass[cls].students,
+    billed: _aicRound(feeByClass[cls].billed, 2),
+    paid: _aicRound(feeByClass[cls].paid, 2),
+    outstanding: _aicRound(feeByClass[cls].outstanding, 2),
+    collectionRatePct: feeByClass[cls].billed > 0
+      ? _aicRound((feeByClass[cls].paid / feeByClass[cls].billed) * 100, 1) : null
+  }));
 
-  const termExpenses = (db.expenses || []).filter(e => e.term === term && isPostedFin(e));
-  const termRevenue = (db.revenue || []).filter(r => r.term === term && isPostedFin(r));
+  // ── All-terms fee rollup (year-to-date style) ──
+  let ytdBilled = 0, ytdPaid = 0;
+  (TERMS || []).forEach(t => {
+    enrolled.forEach(s => {
+      ytdBilled += (typeof getStudentFee === 'function') ? getStudentFee(s.id, t) : 0;
+      ytdPaid += ((db.payments || {})[s.id + '|' + t] || { paid: 0 }).paid || 0;
+    });
+  });
+
+  // ── Revenue & expenses (posted only) ──
+  const termExpenses = (db.expenses || []).filter(e => e.term === term && (typeof isPostedFin !== 'function' || isPostedFin(e)));
+  const termRevenue = (db.revenue || []).filter(r => r.term === term && (typeof isPostedFin !== 'function' || isPostedFin(r)));
   const totalExpenses = termExpenses.reduce((a, e) => a + (e.amount || 0), 0);
   const totalRevenue = termRevenue.reduce((a, r) => a + (r.amount || 0), 0);
 
-  // School-wide attendance rate for the term isn't tracked with a term field
-  // directly (attendance is keyed by class+date), so this stays a fees/
-  // enrollment/expense snapshot — the chat prompt is instructed to say so
-  // if asked something attendance-specific it can't answer from this data.
+  const expByCat = {};
+  termExpenses.forEach(e => {
+    const cat = e.cat || 'Uncategorized';
+    expByCat[cat] = (expByCat[cat] || 0) + (e.amount || 0);
+  });
+  const expensesByCategory = Object.keys(expByCat)
+    .map(cat => ({ category: cat, amount: _aicRound(expByCat[cat], 2) }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 12);
+
+  const revByCat = {};
+  termRevenue.forEach(r => {
+    const cat = r.cat || 'Uncategorized';
+    revByCat[cat] = (revByCat[cat] || 0) + (r.amount || 0);
+  });
+  const revenueByCategory = Object.keys(revByCat)
+    .map(cat => ({ category: cat, amount: _aicRound(revByCat[cat], 2) }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 12);
+
+  // Largest recent expenses (anonymised descriptions only)
+  const largestExpenses = termExpenses
+    .slice()
+    .sort((a, b) => (b.amount || 0) - (a.amount || 0))
+    .slice(0, 8)
+    .map(e => ({
+      date: e.date || '',
+      category: e.cat || '',
+      description: (e.desc || '').slice(0, 60),
+      amount: _aicRound(e.amount || 0, 2),
+      mode: e.mode || ''
+    }));
+
+  // ── Feeding budget requests (current year snapshot) ──
+  const fbReqs = db.feedingBudgetRequests || [];
+  const feedingBudget = {
+    pending: fbReqs.filter(r => r.status === 'Pending').length,
+    returned: fbReqs.filter(r => r.status === 'Returned').length,
+    approved: fbReqs.filter(r => r.status === 'Approved').length,
+    rejected: fbReqs.filter(r => r.status === 'Rejected').length,
+    approvedTotal: _aicRound(fbReqs.filter(r => r.status === 'Approved').reduce((a, r) => a + (r.amount || 0), 0), 2),
+    pendingTotal: _aicRound(fbReqs.filter(r => r.status === 'Pending').reduce((a, r) => a + (r.amount || 0), 0), 2)
+  };
+
+  // ── Petty cash (approved) ──
+  const pc = (db.pettyCash || []).filter(r => (r.status || 'approved') === 'approved');
+  const pettyCashIn = pc.filter(r => r.type === 'receipt').reduce((a, r) => a + (r.amount || 0), 0);
+  const pettyCashOut = pc.filter(r => r.type === 'payment').reduce((a, r) => a + (r.amount || 0), 0);
+
+  // ── Staff ──
+  const employees = (db.employees || []).filter(e => e.status === 'Active' || !e.status);
+  const leavePending = (db.staffLeave || []).filter(l => l.status === 'Pending').length;
+
+  // ── Attendance by class (all recorded marks — attendance is date-keyed, not term-keyed) ──
+  const att = db.attendance || {};
+  const attByClass = {};
+  Object.keys(att).forEach(k => {
+    const parts = k.split('|');
+    if (parts.length < 2) return;
+    const cls = parts[0].replace(/_/g, ' ');
+    if (!attByClass[cls]) attByClass[cls] = { P: 0, A: 0, L: 0 };
+    const day = att[k] || {};
+    Object.keys(day).forEach(sid => {
+      const st = day[sid];
+      if (st === 'P') attByClass[cls].P++;
+      else if (st === 'A') attByClass[cls].A++;
+      else if (st === 'L') attByClass[cls].L++;
+    });
+  });
+  const attendanceByClass = Object.keys(attByClass).sort().map(cls => {
+    const x = attByClass[cls];
+    const total = x.P + x.A + x.L;
+    return {
+      class: cls,
+      present: x.P, absent: x.A, late: x.L,
+      marks: total,
+      ratePct: total > 0 ? Math.round((x.P / total) * 100) : null
+    };
+  });
+  let attP = 0, attA = 0, attL = 0;
+  attendanceByClass.forEach(r => { attP += r.present; attA += r.absent; attL += r.late; });
+  const attTotal = attP + attA + attL;
+  const overallAttendanceRatePct = attTotal > 0 ? Math.round((attP / attTotal) * 100) : null;
+
+  // ── Academic performance for selected term ──
+  const studentAverages = [];
+  const subjectAgg = {}; // subjectName -> { sum, n }
+  enrolled.forEach(s => {
+    let scores = [];
+    if (typeof subjectsForClass === 'function' && typeof getGrade === 'function') {
+      const subs = subjectsForClass(s.cls) || [];
+      subs.forEach(sub => {
+        const g = getGrade(s.id, sub.id, term);
+        const score = g && g.score != null ? Number(g.score) : null;
+        if (score == null || isNaN(score)) return;
+        scores.push(score);
+        const label = sub.name || sub.id || 'Subject';
+        if (!subjectAgg[label]) subjectAgg[label] = { sum: 0, n: 0 };
+        subjectAgg[label].sum += score;
+        subjectAgg[label].n += 1;
+      });
+    }
+    if (scores.length) {
+      const avg = scores.reduce((a, v) => a + v, 0) / scores.length;
+      studentAverages.push({
+        firstName: _aicFirstName(s.name),
+        class: s.cls || 'Unassigned',
+        average: Math.round(avg),
+        subjectsGraded: scores.length
+      });
+    }
+  });
+  studentAverages.sort((a, b) => b.average - a.average);
+  const classPerf = {};
+  studentAverages.forEach(r => {
+    if (!classPerf[r.class]) classPerf[r.class] = { sum: 0, n: 0 };
+    classPerf[r.class].sum += r.average;
+    classPerf[r.class].n += 1;
+  });
+  const performanceByClass = Object.keys(classPerf).sort().map(cls => ({
+    class: cls,
+    studentsWithGrades: classPerf[cls].n,
+    averagePct: classPerf[cls].n ? Math.round(classPerf[cls].sum / classPerf[cls].n) : null
+  }));
+  const subjectAverages = Object.keys(subjectAgg)
+    .map(name => ({
+      subject: name,
+      averagePct: Math.round(subjectAgg[name].sum / subjectAgg[name].n),
+      scoresCount: subjectAgg[name].n
+    }))
+    .sort((a, b) => a.averagePct - b.averagePct);
+  const schoolAvg = studentAverages.length
+    ? Math.round(studentAverages.reduce((a, r) => a + r.average, 0) / studentAverages.length)
+    : null;
+  const bandCounts = { excellent80plus: 0, good60to79: 0, fair40to59: 0, weakBelow40: 0 };
+  studentAverages.forEach(r => {
+    if (r.average >= 80) bandCounts.excellent80plus++;
+    else if (r.average >= 60) bandCounts.good60to79++;
+    else if (r.average >= 40) bandCounts.fair40to59++;
+    else bandCounts.weakBelow40++;
+  });
+
   return {
     term,
-    totalStudents: students.length,
-    activeStudents: activeStudents.length,
-    totalFeesBilled: totalBilled,
-    totalFeesPaid: totalPaid,
-    totalFeesOutstanding: totalBilled - totalPaid,
-    studentsWithBalance: owing.length,
-    topOwingStudents: owing.slice(0, 15),
-    totalExpenses,
-    totalRevenue,
-    employeeCount: (db.employees || []).filter(e => e.status === 'Active').length
+    academicYear: (typeof ACTIVE_YEAR !== 'undefined' ? ACTIVE_YEAR : null),
+    currency: 'GHS',
+
+    // Enrollment
+    enrollment: {
+      totalRecords: students.length,
+      enrolled: enrolled.length,
+      withdrawn,
+      pending: pendingAdm,
+      byStatus,
+      byClass
+    },
+
+    // Finances — selected term
+    fees: {
+      billed: _aicRound(totalBilled, 2),
+      paid: _aicRound(totalPaid, 2),
+      outstanding: _aicRound(totalBilled - totalPaid, 2),
+      collectionRatePct: totalBilled > 0 ? _aicRound((totalPaid / totalBilled) * 100, 1) : null,
+      studentsWithBalance: owing.length,
+      topOwing: owing.slice(0, 15),
+      byClass: feeByClassList
+    },
+    feesYearToDate: {
+      billed: _aicRound(ytdBilled, 2),
+      paid: _aicRound(ytdPaid, 2),
+      outstanding: _aicRound(ytdBilled - ytdPaid, 2),
+      collectionRatePct: ytdBilled > 0 ? _aicRound((ytdPaid / ytdBilled) * 100, 1) : null
+    },
+    revenue: {
+      total: _aicRound(totalRevenue, 2),
+      byCategory: revenueByCategory
+    },
+    expenses: {
+      total: _aicRound(totalExpenses, 2),
+      byCategory: expensesByCategory,
+      largest: largestExpenses,
+      surplusOrDeficit: _aicRound(totalRevenue - totalExpenses, 2)
+    },
+    feedingBudget,
+    pettyCash: {
+      receipts: _aicRound(pettyCashIn, 2),
+      payments: _aicRound(pettyCashOut, 2),
+      balance: _aicRound(pettyCashIn - pettyCashOut, 2)
+    },
+
+    // Staff
+    staff: {
+      activeEmployees: employees.length,
+      pendingLeaveRequests: leavePending
+    },
+
+    // Attendance (all recorded marks)
+    attendance: {
+      overallRatePct: overallAttendanceRatePct,
+      presentMarks: attP,
+      absentMarks: attA,
+      lateMarks: attL,
+      byClass: attendanceByClass
+    },
+
+    // Student performance — selected term
+    performance: {
+      studentsWithGrades: studentAverages.length,
+      schoolAveragePct: schoolAvg,
+      bands: bandCounts,
+      byClass: performanceByClass,
+      weakestSubjects: subjectAverages.slice(0, 8),
+      strongestSubjects: subjectAverages.slice().reverse().slice(0, 8),
+      topPerformers: studentAverages.slice(0, 10),
+      strugglingStudents: studentAverages.filter(r => r.average < 50).slice(-10).reverse()
+    },
+
+    guidance: [
+      'Use fees, revenue, expenses, feedingBudget, and pettyCash for financial questions.',
+      'Use performance and attendance for academic questions.',
+      'topOwing and topPerformers/strugglingStudents use first names only — do not invent surnames or contact details.',
+      'If a question needs one student\'s full history, say to open Student Records.',
+      'Amounts are in GHS. Percentages are already computed where provided.'
+    ]
   };
 }
 
@@ -33905,8 +34178,8 @@ function renderAiAssistant() {
       <div class="aic-layout">
         <div class="aic-header">
           <div>
-            <div style="font-weight:600;font-size:13px;color:var(--navy)">🤖 Ask about the school's finances &amp; enrollment</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">Answers come from a summary snapshot (totals, top balances) — not a full record search. For one student's detail, use Student Records instead.</div>
+            <div style="font-weight:600;font-size:13px;color:var(--navy)">🤖 Ask about finances &amp; student performance</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Uses a rich summary snapshot: fees by class, revenue &amp; expenses by category, feeding budget, attendance rates, class averages, top/struggling students, and subject strengths. Not a full record search — for one student's full history, use Student Records.</div>
           </div>
           <select onchange="aicTermChange(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px">
             ${TERMS.map(t => `<option value="${esc(t)}" ${t === _aicTerm ? 'selected' : ''}>${esc(t)}</option>`).join('')}
@@ -33914,14 +34187,23 @@ function renderAiAssistant() {
         </div>
         <div class="aic-thread" id="aic-thread">
           ${_aicHistory.length === 0
-            ? `<div class="aic-empty">Try: "How many students owe fees this term?" or "What's our total revenue vs expenses?"</div>`
+            ? `<div class="aic-empty">
+                <div style="margin-bottom:8px;font-weight:500;color:var(--navy)">Try asking:</div>
+                <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)">
+                  <button type="button" class="btn btn-outline btn-sm" style="text-align:left;justify-content:flex-start" onclick="document.getElementById('aic-input').value=this.textContent;aicSend();">How is fee collection by class this term?</button>
+                  <button type="button" class="btn btn-outline btn-sm" style="text-align:left;justify-content:flex-start" onclick="document.getElementById('aic-input').value=this.textContent;aicSend();">What are our biggest expense categories vs revenue?</button>
+                  <button type="button" class="btn btn-outline btn-sm" style="text-align:left;justify-content:flex-start" onclick="document.getElementById('aic-input').value=this.textContent;aicSend();">Which classes have the lowest attendance rates?</button>
+                  <button type="button" class="btn btn-outline btn-sm" style="text-align:left;justify-content:flex-start" onclick="document.getElementById('aic-input').value=this.textContent;aicSend();">Summarise student performance — school average, weak subjects, who is struggling</button>
+                  <button type="button" class="btn btn-outline btn-sm" style="text-align:left;justify-content:flex-start" onclick="document.getElementById('aic-input').value=this.textContent;aicSend();">How much feeding budget is pending or already approved?</button>
+                </div>
+              </div>`
             : _aicHistory.map(m => `
               <div class="aic-msg aic-msg-${m.role}">
                 <div class="aic-msg-bubble">${m.role === 'user' ? esc(m.text) : (m.error ? `⚠ ${esc(m.text)}` : esc(m.text))}</div>
               </div>`).join('')}
         </div>
         <div class="aic-input-row">
-          <input type="text" id="aic-input" placeholder="Ask a question…" onkeydown="if(event.key==='Enter')aicSend();">
+          <input type="text" id="aic-input" placeholder="Ask about fees, expenses, attendance, grades, feeding budget…" onkeydown="if(event.key==='Enter')aicSend();">
           <button class="btn btn-gold" id="aic-send-btn" onclick="aicSend()">Send</button>
         </div>
       </div>`;
@@ -42251,8 +42533,7 @@ function computePunctualityScore(emp) {
   const total = present + late + absent;
   if (total === 0) return { score: 1, days: 0, present, late, absent, linked: true };
 
-  const onLeave = Object.values(empRecs).filter(r => r.status === 'On Leave').length;
-  const attendanceRate = total > 0 ? (present + late + onLeave) / total : 0; // On Leave counts as excused attendance
+  const attendanceRate = (present + late) / total; // clocking in late still counts as showing up
   const lateRate = late / total;
 
   let score;
