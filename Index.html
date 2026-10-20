@@ -3453,6 +3453,8 @@
   @media (max-width: 600px) {
     .kpi-grid-4, .kpi-grid-3, .kpi-grid { grid-template-columns: 1fr !important; }
     .section-header { flex-direction: column; align-items: flex-start !important; gap: 10px; }
+    #page-admission .section-header { align-items: stretch !important; }
+    #page-admission .section-header .btn-primary { width: 100%; justify-content: center; min-height: 46px; font-size: 15px; }
     #wr-inner .sr-stat-card { min-width: 100% !important; }
   }
 
@@ -3982,68 +3984,217 @@
     }
 
     /* 3) Lists as cards; dense tables opt-in */
+    /* ── Mobile card list ─────────────────────────────── */
     .mobile-card-list {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      padding: 4px 0 12px;
+      padding: 4px 0 16px;
     }
+
+    /* ── Base card ────────────────────────────────────── */
     .mobile-data-card {
       background: var(--white);
       border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 14px 14px 12px;
-      box-shadow: 0 1px 4px rgba(15,31,61,0.04);
+      border-radius: 16px;
+      padding: 0;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(15,31,61,0.06);
+      transition: box-shadow 0.15s;
     }
+    .mobile-data-card:active {
+      box-shadow: 0 1px 3px rgba(15,31,61,0.08);
+    }
+
+    /* Status accent strip on the left edge */
+    .mobile-data-card.adm-card-admitted  { border-left: 4px solid #2e7d52; }
+    .mobile-data-card.adm-card-continuing{ border-left: 4px solid #1a4fa0; }
+    .mobile-data-card.adm-card-scholarship{ border-left: 4px solid #7c3aed; }
+    .mobile-data-card.adm-card-withdrawn { border-left: 4px solid #b84040; }
+    .mobile-data-card.adm-card-pending   { border-left: 4px solid #c9a84c; }
+
+    /* Inner wrapper keeps padding consistent */
+    .mobile-data-card .mdc-inner {
+      padding: 14px 14px 12px 12px;
+    }
+
+    /* ── Top row: avatar + name block + badge ─────────── */
     .mobile-data-card .mdc-top {
       display: flex;
-      justify-content: space-between;
       align-items: flex-start;
-      gap: 10px;
-      margin-bottom: 8px;
+      gap: 12px;
+      margin-bottom: 0;
     }
-    .mobile-data-card .mdc-name {
-      font-size: 15px;
+    .mdc-avatar {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      background: var(--cream2);
       font-weight: 700;
       color: var(--navy);
-      line-height: 1.3;
+      overflow: hidden;
+    }
+    .mdc-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+    }
+    .mdc-head {
+      flex: 1;
+      min-width: 0;
+    }
+    .mobile-data-card .mdc-name {
+      font-size: 15.5px;
+      font-weight: 700;
+      color: var(--navy);
+      line-height: 1.25;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .mobile-data-card .mdc-meta {
       font-size: 12px;
       color: var(--muted);
-      margin-top: 2px;
+      margin-top: 3px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
     }
+    .mdc-class-chip {
+      background: var(--cream2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 1px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--navy);
+      white-space: nowrap;
+    }
+    .mdc-id-chip {
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* ── Divider ──────────────────────────────────────── */
+    .mdc-divider {
+      height: 1px;
+      background: var(--border);
+      opacity: 0.6;
+      margin: 11px 0 10px;
+    }
+
+    /* ── Info grid ───────────────────────────────────── */
     .mobile-data-card .mdc-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px 12px;
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid rgba(224,216,200,0.7);
+      gap: 10px 16px;
     }
     .mobile-data-card .mdc-label {
       font-size: 10px;
       text-transform: uppercase;
-      letter-spacing: 0.4px;
+      letter-spacing: 0.5px;
       color: var(--muted);
       font-weight: 600;
+      margin-bottom: 2px;
     }
     .mobile-data-card .mdc-val {
-      font-size: 14px;
-      font-weight: 700;
+      font-size: 13.5px;
+      font-weight: 600;
       color: var(--navy);
-      margin-top: 2px;
+      line-height: 1.3;
+      word-break: break-word;
     }
+    .mdc-val a[href^="tel"] {
+      color: var(--navy);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .mdc-val a[href^="tel"]:active { opacity: 0.7; }
+
+    /* ── Withdrawn date strip ─────────────────────────── */
+    .mdc-withdrawn-strip {
+      margin-top: 10px;
+      padding: 6px 10px;
+      background: #fff2f2;
+      border-radius: 8px;
+      font-size: 11.5px;
+      color: #b84040;
+      font-weight: 500;
+    }
+
+    /* ── Action row ──────────────────────────────────── */
     .mobile-data-card .mdc-actions {
       display: flex;
       gap: 8px;
       margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
     }
     .mobile-data-card .mdc-actions .btn {
       flex: 1;
-      min-height: 42px;
+      min-height: 44px;
       justify-content: center;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
     }
+
+    /* ── Admission-specific toolbar on mobile ─────────── */
+    #page-admission .adm-mobile-toolbar {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px 0 2px;
+    }
+    #page-admission .adm-mobile-toolbar .adm-filter-row {
+      display: flex;
+      gap: 8px;
+    }
+    #page-admission .adm-mobile-toolbar select {
+      flex: 1;
+      min-width: 0;
+      font-size: 13px;
+      padding: 9px 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--white);
+      color: var(--navy);
+      font-weight: 500;
+    }
+    #page-admission .adm-stats-strip {
+      display: flex;
+      gap: 6px;
+      padding: 6px 0 4px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    #page-admission .adm-stats-strip::-webkit-scrollbar { display: none; }
+    .adm-stat-pill {
+      flex-shrink: 0;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11.5px;
+      font-weight: 600;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .adm-stat-pill.admitted   { background: #e8f5ee; color: #2e7d52; border-color: #b7dfc9; }
+    .adm-stat-pill.continuing { background: #e8effd; color: #1a4fa0; border-color: #b3c8f5; }
+    .adm-stat-pill.scholarship{ background: #f3eeff; color: #7c3aed; border-color: #d4b8fc; }
+    .adm-stat-pill.withdrawn  { background: #fdecea; color: #b84040; border-color: #f4b8b8; }
+    .adm-stat-pill.pending    { background: #fdf6e3; color: #8b6000; border-color: #e8c97a; }
     /* Desktop/table view hidden on mobile unless opted in (per page) */
     #page-payment .mobile-table-view { display: none !important; }
     #page-payment .mobile-card-list { display: flex !important; }
@@ -4051,6 +4202,8 @@
     body.pay-show-table #page-payment .mobile-card-list { display: none !important; }
     #page-admission .adm-table-wrap { display: none !important; }
     #page-admission #adm-cards-list { display: flex !important; }
+    #page-admission .toolbar { display: none !important; }
+    #page-admission .view-toggle-bar { display: none !important; }
     body.adm-show-table #page-admission .adm-table-wrap { display: block !important; }
     body.adm-show-table #page-admission #adm-cards-list { display: none !important; }
     .view-toggle-bar {
@@ -4070,6 +4223,7 @@
   @media (min-width: 769px) {
     .mobile-card-list { display: none !important; }
     .mobile-table-view { display: block !important; }
+    .adm-mobile-toolbar { display: none !important; }
     .view-toggle-bar .pay-view-toggle,
     .view-toggle-bar .adm-view-toggle,
     .view-toggle-bar .adm-view-hint { display: none !important; }
@@ -5433,10 +5587,30 @@
           <button type="button" class="btn btn-outline btn-sm" onclick="openAdmissionsPrintSettings()" title="Print settings">🖨 Print</button>
           <button type="button" class="btn btn-outline btn-sm" onclick="exportAdmissionsPDF()" title="Download PDF">📄 PDF</button>
         </div>
+        <!-- Mobile-only toolbar: search + stacked filters + stats pills -->
+        <div class="adm-mobile-toolbar">
+          <input type="text" id="adm-search-mobile" placeholder="🔍  Search by name or ID…"
+            oninput="document.getElementById('adm-search').value=this.value; renderAdmissions()"
+            style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;box-sizing:border-box">
+          <div class="adm-filter-row">
+            <select id="adm-class-filter-mobile" onchange="document.getElementById('adm-class-filter').value=this.value; renderAdmissions()" style="">
+              <option value="">All classes</option>
+            </select>
+            <select id="adm-status-filter-mobile" onchange="document.getElementById('adm-status-filter').value=this.value; renderAdmissions()">
+              <option value="">All statuses</option>
+              <option>Admitted</option>
+              <option>Continuing</option>
+              <option>Pending</option>
+              <option>Scholarship</option>
+              <option>Withdrawn</option>
+            </select>
+          </div>
+          <div class="adm-stats-strip" id="adm-stats-strip"></div>
+        </div>
         <div class="view-toggle-bar">
           <button type="button" class="btn btn-outline btn-sm adm-view-toggle" id="adm-view-cards-btn" onclick="setAdmissionsListView('cards')">📇 Cards</button>
           <button type="button" class="btn btn-outline btn-sm adm-view-toggle" id="adm-view-table-btn" onclick="setAdmissionsListView('table')">▦ Table</button>
-          <span style="font-size:11px;color:var(--muted);margin-left:4px" class="adm-view-hint">Cards work better on phones — switch to Table for the full grid.</span>
+          <span style="font-size:11px;color:var(--muted);margin-left:4px" class="adm-view-hint">Cards view — switch to Table for the full grid.</span>
         </div>
         <div id="adm-cards-list" class="mobile-card-list" aria-label="Student admission cards"></div>
         <div class="mobile-table-view table-scroll adm-table-wrap">
@@ -6012,7 +6186,7 @@
       <div class="form-group"><label>📱 Mobile Phone</label><input id="pr-emp-phone" placeholder="e.g. 0241234567" maxlength="15"></div>
       <div class="form-group"><label>📧 Email Address</label><input id="pr-emp-email" type="email" placeholder="e.g. name@example.com"></div>
       <div class="form-group"><label>🔗 System Login Username</label><input id="pr-emp-username" placeholder="Matches their Ecole Systems login — enables automatic usage scoring"></div>
-      <div class="form-group"><label>🏖️ Annual Leave Entitlement (days/year)</label><input type="number" id="pr-emp-leave-entitlement" placeholder="15" min="0" step="1"></div>
+      <!-- Annual leave entitlement is now a school-wide setting in Settings → Approval Workflow → Staff Leave -->
       <div class="form-group"><label>Tier 2 Scheme</label><input id="pr-emp-tier2" placeholder="e.g. Enterprise Trustees"></div>
       <div class="form-group full"><label>Notes</label><input id="pr-emp-notes" placeholder="Optional remarks"></div>
     </div>
@@ -7132,8 +7306,23 @@
 
     <div style="padding:16px 20px 4px;border-top:1px solid var(--border);margin-top:10px">
       <div style="font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">🏖️ Staff Leave</div>
-      <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">Staff submit a leave request; roles allowed to approve or reject it:</div>
+      <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px">Staff submit a leave request; roles allowed to approve or reject it:</div>
       <div id="awf-leave-approvers" class="awf-role-checks"></div>
+      <div style="margin-top:14px;padding:14px 16px;background:var(--cream);border-radius:10px;border:1px solid var(--border)">
+        <div style="font-size:11.5px;font-weight:700;color:var(--navy);margin-bottom:6px">📅 Annual Leave Entitlement</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
+          The number of paid annual leave days every full-time staff member is entitled to per calendar year.
+          This applies school-wide. Ghana Labour Act minimum is <b>15 working days</b>; most schools grant 21.
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="number" id="awf-annual-leave-days" min="1" max="365" step="1"
+              style="width:80px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-weight:700;text-align:center">
+            <span style="font-size:13px;color:var(--navy);font-weight:500">days / year</span>
+          </div>
+          <span style="font-size:11px;color:var(--muted)">Applies to all staff. Balance shown on each teacher's Leave page.</span>
+        </div>
+      </div>
     </div>
 
     <div style="padding:16px 20px 4px;border-top:1px solid var(--border);margin-top:10px">
@@ -8166,7 +8355,7 @@ const DB_SEED = {
     promotion: { approverRoles: ['Admin', 'Headteacher'] },
     skillsAssessment: { approverRoles: ['Admin', 'Headteacher'] },
     smsFeeAlerts: { approverRoles: ['Admin'] },
-    staffLeave: { approverRoles: ['Admin', 'Headteacher'] },
+    staffLeave: { approverRoles: ['Admin', 'Headteacher'], annualLeaveDays: 21 },
     feedingBudget: { approverRoles: ['Admin', 'Headteacher'] }
   },
   // ── CUSTOM CHART OF ACCOUNTS — user-added Revenue/Expense categories, on top of the
@@ -10871,6 +11060,7 @@ function initDb(callback) {
       if (!db.approvalConfig.smsFeeAlerts) db.approvalConfig.smsFeeAlerts = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.smsFeeAlerts));
       if (!db.approvalConfig.skillsAssessment) db.approvalConfig.skillsAssessment = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.skillsAssessment));
       if (!db.approvalConfig.staffLeave) db.approvalConfig.staffLeave = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.staffLeave));
+      if (db.approvalConfig.staffLeave.annualLeaveDays == null) db.approvalConfig.staffLeave.annualLeaveDays = 21;
       if (!db.approvalConfig.feedingBudget) db.approvalConfig.feedingBudget = JSON.parse(JSON.stringify(DB_SEED.approvalConfig.feedingBudget));
       db.customRevCats = data.customRevCats || [];
       db.customExpCats = data.customExpCats || [];
@@ -14325,6 +14515,14 @@ function mobileHomeKpis() {
   }
 }
 
+// The "Continue" quick-action tiles on phones (Payments / Approvals / Admissions / Academic Intel
+// for admins, Mark attendance / Enter grades / … for teachers) are switched OFF — they only
+// repeated what the bottom nav already gives. They come from roleHomeShortcuts() and were shown in
+// three places (home-shell "Continue" row, the "⚡ Continue" card, and the teacher dashboard); this
+// one flag controls all three. Set to true to bring them back. `var` on purpose: if anything
+// renders before this line runs it reads as undefined (= off) rather than throwing.
+var MOBILE_CONTINUE_SHORTCUTS = false;
+
 function renderMobileHomeShell() {
   if (!isMobileViewport()) {
     const old = document.getElementById('mobile-home-shell');
@@ -14384,6 +14582,7 @@ function renderMobileHomeShell() {
         <div class="k-hint">In queue</div>
       </div>
     </div>
+    ${MOBILE_CONTINUE_SHORTCUTS ? `
     <div class="mhs-section-label">Continue</div>
     <div class="mhs-actions">
       ${actions.map(a => `
@@ -14392,7 +14591,7 @@ function renderMobileHomeShell() {
           <span class="mhs-a-label">${esc(a.label)}</span>
           <span class="mhs-a-sub">${esc(a.sub || '')}</span>
         </button>`).join('')}
-    </div>
+    </div>` : ''}
   `;
 }
 
@@ -14444,6 +14643,7 @@ function roleHomeShortcuts() {
 }
 
 function renderHomeShortcutsHtml() {
+  if (!MOBILE_CONTINUE_SHORTCUTS) return '';
   const items = roleHomeShortcuts();
   return `
   <div class="home-shortcuts card" style="margin-bottom:16px;padding:14px 14px 10px">
@@ -14463,6 +14663,11 @@ function renderHomeShortcutsHtml() {
 }
 
 function injectHomeShortcuts(hostId) {
+  if (!MOBILE_CONTINUE_SHORTCUTS) {
+    const off = document.getElementById(hostId);
+    if (off) { off.innerHTML = ''; off.style.display = 'none'; }
+    return;
+  }
   // Desktop: hide / remove — Continue shortcuts are mobile-only
   if (typeof isMobileViewport === 'function' ? !isMobileViewport() : window.innerWidth > 768) {
     const existing = document.getElementById(hostId);
@@ -15692,46 +15897,91 @@ function renderAdmissions() {
     }).join('') || '<tr><td colspan="10" class="empty-state">No students found.</td></tr>';
   }
 
+    // ── Mobile stats pills ──────────────────────────────────────────────────────
+  const statsStrip = document.getElementById('adm-stats-strip');
+  if (statsStrip) {
+    const all = db.admissions || [];
+    const counts = { Admitted:0, Continuing:0, Scholarship:0, Withdrawn:0, Pending:0 };
+    all.forEach(a => { if (counts[a.status] !== undefined) counts[a.status]++; });
+    const pillClass = { Admitted:'admitted', Continuing:'continuing', Scholarship:'scholarship', Withdrawn:'withdrawn', Pending:'pending' };
+    statsStrip.innerHTML = Object.entries(counts)
+      .filter(([,n]) => n > 0)
+      .map(([s, n]) => '<span class="adm-stat-pill ' + pillClass[s] + '">' + n + ' ' + s + '</span>')
+      .join('');
+  }
+  // Sync mobile class filter options from desktop (populated by populateClassFilter)
+  const mCls = document.getElementById('adm-class-filter-mobile');
+  const dCls = document.getElementById('adm-class-filter');
+  if (mCls && dCls) {
+    Array.from(dCls.options).forEach(o => {
+      if (!mCls.querySelector('option[value="' + o.value + '"]')) {
+        const opt = document.createElement('option');
+        opt.value = o.value; opt.textContent = o.textContent; mCls.appendChild(opt);
+      }
+    });
+    mCls.value = dCls.value;
+  }
+
+  // ── Mobile student cards ─────────────────────────────────────────────────────
   const cardsEl = document.getElementById('adm-cards-list');
   if (cardsEl) {
     if (!rows.length) {
-      cardsEl.innerHTML = '<div class="empty-state" style="padding:28px;text-align:center;color:var(--muted)">No students found.</div>';
+      cardsEl.innerHTML = '<div class="empty-state" style="padding:40px 20px;text-align:center"><div style="font-size:36px;margin-bottom:12px">🔍</div><div style="font-weight:600;font-size:14px;color:var(--navy);margin-bottom:4px">No students found</div><div style="font-size:12px;color:var(--muted)">Try adjusting your search or filters</div></div>';
     } else {
+      const avatarColors = { admitted:'#2e7d52', continuing:'#1a4fa0', scholarship:'#7c3aed', withdrawn:'#b84040', pending:'#c9a84c' };
+      const avatarBg    = { admitted:'#e8f5ee', continuing:'#e8effd', scholarship:'#f3eeff', withdrawn:'#fdecea', pending:'#fdf6e3' };
       cardsEl.innerHTML = rows.map(a => {
-        const stCls = a.status === 'Admitted' ? 'admitted'
-          : a.status === 'Continuing' ? 'continuing'
+        const stCls = a.status === 'Admitted'   ? 'admitted'
+          : a.status === 'Continuing'  ? 'continuing'
           : a.status === 'Scholarship' ? 'scholarship'
-          : a.status === 'Withdrawn' ? 'withdrawn' : 'pending';
-        const photo = a.photo
-          ? '<img src="' + a.photo + '" alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:1px solid var(--border);flex-shrink:0">'
-          : '<div style="width:44px;height:44px;border-radius:50%;background:var(--cream2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px">&#128100;</div>';
-        const feeBit = (typeof admFeeCell === 'function') ? admFeeCell(a) : (a.fee != null ? 'GHS ' + a.fee : '—');
+          : a.status === 'Withdrawn'   ? 'withdrawn' : 'pending';
+
+        const initials = (a.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+        const avatar = a.photo
+          ? '<div class="mdc-avatar"><img src="' + a.photo + '" alt="' + esc(a.name) + '"></div>'
+          : '<div class="mdc-avatar" style="background:' + avatarBg[stCls] + ';color:' + avatarColors[stCls] + '">' + initials + '</div>';
+
+        const feeBit   = (typeof admFeeCell === 'function') ? admFeeCell(a) : (a.fee != null ? 'GHS ' + fmt(a.fee) : '—');
+        const phoneVal = a.phone1
+          ? '<a href="tel:' + esc(a.phone1) + '">📞 ' + esc(a.phone1) + '</a>'
+          : '<span style="color:var(--muted)">—</span>';
+        const houseVal = (typeof houseBadge === 'function') ? houseBadge(a.house) : esc(a.house || '—');
+        const genderBit = a.gender ? ' <span style="color:var(--muted);font-size:11px">· ' + esc(a.gender) + '</span>' : '';
+
         const editBtn = (canEdit && typeof gsAllow === 'function' && gsAllow('allowEditStudent'))
           ? '<button class="btn btn-sm btn-primary" onclick="openEditAdmissionModal(\'' + a.id + '\')">✏️ Edit</button>'
           : '';
         const delBtn = (canEdit && typeof gsAllow === 'function' && gsAllow('allowDeleteStudent'))
           ? '<button class="btn btn-sm btn-danger" onclick="deleteAdmission(\'' + a.id + '\')">✕ Delete</button>'
           : '';
-        const wd = (a.status === 'Withdrawn' && a.withdrawnDate)
-          ? '<div style="font-size:11px;color:var(--muted);margin-top:8px">Withdrawn ' + a.withdrawnDate + '</div>'
+        const wdStrip = (a.status === 'Withdrawn' && a.withdrawnDate)
+          ? '<div class="mdc-withdrawn-strip">⚠ Withdrawn on ' + esc(a.withdrawnDate) + '</div>'
           : '';
-        return '<div class="mobile-data-card">' +
-          '<div class="mdc-top">' +
-            '<div style="display:flex;gap:12px;align-items:center;min-width:0">' + photo +
-              '<div style="min-width:0">' +
-                '<div class="mdc-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(a.name) + '</div>' +
-                '<div class="mdc-meta">' + esc(a.id) + ' · ' + esc(a.cls) + (a.gender ? ' · ' + esc(a.gender) : '') + '</div>' +
+
+        return '<div class="mobile-data-card adm-card-' + stCls + '">' +
+          '<div class="mdc-inner">' +
+            '<div class="mdc-top">' +
+              avatar +
+              '<div class="mdc-head">' +
+                '<div class="mdc-name">' + esc(a.name) + '</div>' +
+                '<div class="mdc-meta">' +
+                  '<span class="mdc-class-chip">' + esc(a.cls) + '</span>' +
+                  '<span class="mdc-id-chip">' + esc(a.id) + '</span>' +
+                  genderBit +
+                '</div>' +
               '</div>' +
+              '<span class="badge badge-' + stCls + '" style="flex-shrink:0">' + (a.status || 'Pending') + '</span>' +
             '</div>' +
-            '<span class="badge badge-' + stCls + '">' + a.status + '</span>' +
+            '<div class="mdc-divider"></div>' +
+            '<div class="mdc-grid">' +
+              '<div style="grid-column:1/-1"><div class="mdc-label">Parent / Guardian</div><div class="mdc-val">' + (esc(a.parent) || '<span style="color:var(--muted)">—</span>') + '</div></div>' +
+              '<div><div class="mdc-label">Phone</div><div class="mdc-val">' + phoneVal + '</div></div>' +
+              '<div><div class="mdc-label">Adm. Fee</div><div class="mdc-val">' + feeBit + '</div></div>' +
+              '<div><div class="mdc-label">House / Section</div><div class="mdc-val">' + houseVal + '</div></div>' +
+            '</div>' +
+            wdStrip +
+            (editBtn || delBtn ? '<div class="mdc-actions">' + editBtn + delBtn + '</div>' : '') +
           '</div>' +
-          '<div class="mdc-grid">' +
-            '<div><div class="mdc-label">Parent</div><div class="mdc-val" style="font-size:13px;font-weight:600">' + (esc(a.parent) || '—') + '</div></div>' +
-            '<div><div class="mdc-label">Phone</div><div class="mdc-val" style="font-size:13px;font-weight:600">' + (esc(a.phone1) || '—') + '</div></div>' +
-            '<div><div class="mdc-label">Adm. fee</div><div class="mdc-val" style="font-size:13px">' + feeBit + '</div></div>' +
-            '<div><div class="mdc-label">House</div><div class="mdc-val" style="font-size:13px">' + (typeof houseBadge === 'function' ? houseBadge(a.house) : esc(a.house || '—')) + '</div></div>' +
-          '</div>' + wd +
-          '<div class="mdc-actions">' + editBtn + delBtn + '</div>' +
         '</div>';
       }).join('');
     }
@@ -21399,7 +21649,7 @@ function openEmployeeModal(id) {
     document.getElementById('pr-emp-phone').value       = e.phone || '';
     document.getElementById('pr-emp-email').value       = e.email || '';
     document.getElementById('pr-emp-username').value    = e.username || '';
-    document.getElementById('pr-emp-leave-entitlement').value = e.leaveEntitlement ?? 15;
+    // leaveEntitlement is now school-wide (Settings → Approval Workflow → Staff Leave)
     document.getElementById('pr-emp-tier2').value       = e.tier2Scheme || '';
     document.getElementById('pr-emp-notes').value       = e.notes || '';
     document.getElementById('pr-emp-exempt-ssnit').checked = !!e.exemptSsnit;
@@ -21414,7 +21664,7 @@ function openEmployeeModal(id) {
     });
     document.getElementById('pr-emp-dept').value   = 'Teaching Staff';
     document.getElementById('pr-emp-status').value = 'Active';
-    document.getElementById('pr-emp-leave-entitlement').value = 15;
+    // leaveEntitlement moved to school-wide setting
     document.getElementById('pr-emp-exempt-ssnit').checked = false;
     document.getElementById('pr-emp-exempt-tier2').checked = false;
     document.getElementById('pr-emp-exempt-paye').checked  = false;
@@ -21449,7 +21699,7 @@ async function saveEmployee() {
     phone:       document.getElementById('pr-emp-phone').value.trim(),
     email:       document.getElementById('pr-emp-email').value.trim(),
     username:    document.getElementById('pr-emp-username').value.trim(),
-    leaveEntitlement: parseFloat(document.getElementById('pr-emp-leave-entitlement').value) || 0,
+    // leaveEntitlement no longer stored per-employee — use db.approvalConfig.staffLeave.annualLeaveDays
     tier2Scheme: document.getElementById('pr-emp-tier2').value.trim(),
     notes:       document.getElementById('pr-emp-notes').value.trim(),
     exemptSsnit: document.getElementById('pr-emp-exempt-ssnit').checked,
@@ -25631,6 +25881,8 @@ function openApprovalWorkflowModal() {
   awfRenderRoleChecks('awf-sms-approvers', db.approvalConfig.smsFeeAlerts?.approverRoles || ['Admin']);
   awfRenderRoleChecks('awf-skills-approvers', db.approvalConfig.skillsAssessment?.approverRoles || ['Admin','Headteacher']);
   awfRenderRoleChecks('awf-leave-approvers', db.approvalConfig.staffLeave?.approverRoles || ['Admin','Headteacher']);
+  const _awfLeaveDaysEl = document.getElementById('awf-annual-leave-days');
+  if (_awfLeaveDaysEl) _awfLeaveDaysEl.value = db.approvalConfig?.staffLeave?.annualLeaveDays ?? 21;
   awfRenderRoleChecks('awf-feedingbudget-approvers', db.approvalConfig.feedingBudget?.approverRoles || ['Admin','Headteacher']);
   document.getElementById('approval-workflow-modal').classList.add('open');
 }
@@ -25660,7 +25912,7 @@ function saveApprovalWorkflow() {
     promotion: { approverRoles: promoApprovers },
     smsFeeAlerts: { approverRoles: smsApprovers },
     skillsAssessment: { approverRoles: skillsApprovers },
-    staffLeave: { approverRoles: leaveApprovers },
+    staffLeave: { approverRoles: leaveApprovers, annualLeaveDays: parseInt(document.getElementById('awf-annual-leave-days')?.value) || 21 },
     feedingBudget: { approverRoles: feedingBudgetApprovers }
   };
   saveDb();
@@ -30751,8 +31003,39 @@ function welcomeInitials() {
   return name.slice(0, 2).toUpperCase();
 }
 
+// ── Leave-attendance integration helpers ──────────────────────────────────────
+
+/**
+ * Returns the approved leave record for empId on dateStr, or null.
+ * Used by clock-in guard, UI rendering, and payroll hints.
+ */
+function getApprovedLeaveForDate(empId, dateStr) {
+  if (!empId || !dateStr) return null;
+  return (db.staffLeave || []).find(l =>
+    l.empId === empId &&
+    l.status === 'Approved' &&
+    dateStr >= l.startDate &&
+    dateStr <= l.endDate
+  ) || null;
+}
+
+/**
+ * Returns true if the attendance record for empId on dateStr was written
+ * automatically by the leave system (not a manual clock-in).
+ */
+function isLeaveAttendanceRecord(empId, dateStr) {
+  const rec = ((db.staffAttendance || {})[dateStr] || {})[empId];
+  return rec && rec.status === 'On Leave' && !rec.in;
+}
+
 function staffClockIn(empId, dateStr) {
   const date = dateStr || today();
+  // Block clock-in when the employee has approved leave for this date
+  const leave = getApprovedLeaveForDate(empId, date);
+  if (leave) {
+    toast(`🏖 You are on approved ${leave.type || 'Leave'} — no clock-in required`, 'info');
+    return;
+  }
   // Respect the Academic Calendar — no self clock-in on a Holiday/Vacation or
   // Mid-Term Break day (same rule student Attendance already follows).
   const nsd = getNonSchoolDayEvent(date);
@@ -30781,6 +31064,13 @@ function staffClockOut(empId, dateStr) {
 function staffMarkAbsent(empId, dateStr) {
   if (!requireRole('Admin', 'Bursar', 'Headteacher')) return;
   const date = dateStr || today();
+  // Don't overwrite an approved leave record with Absent
+  if (isLeaveAttendanceRecord(empId, date)) {
+    const leave = getApprovedLeaveForDate(empId, date);
+    const lType = leave ? leave.type : 'Leave';
+    toast(`⚠ ${esc(((db.employees||[]).find(e=>e.id===empId)||{}).name||'Staff')} has approved ${lType} on this date — cannot mark Absent`, 'error');
+    return;
+  }
   if (!db.staffAttendance) db.staffAttendance = {};
   if (!db.staffAttendance[date]) db.staffAttendance[date] = {};
   db.staffAttendance[date][empId] = { in: null, out: null, status: 'Absent' };
@@ -30853,14 +31143,25 @@ function renderStaffAttendance() {
           <div class="sr-stat-card" style="min-width:110px"><div class="sr-stat-value">${mine.in || '—'}</div><div class="sr-stat-label">Clock In</div></div>
           <div class="sr-stat-card" style="min-width:110px"><div class="sr-stat-value">${mine.out || '—'}</div><div class="sr-stat-label">Clock Out</div></div>
           <div class="sr-stat-card" style="min-width:110px"><div class="sr-stat-value" style="${mine.status==='Late'?'color:var(--amber)':mine.status==='Absent'?'color:var(--red)':''}">${mine.status || '—'}</div><div class="sr-stat-label">Status</div></div>
-          ${nsd
-            ? `<div style="margin-left:auto;font-size:11px;color:var(--red)">🚫 ${esc(CAL_CAT_LABELS[nsd.category])}: ${esc(nsd.title)} — no clock-in on this date</div>`
-            : canClockForDate ? `
-            <div style="margin-left:auto;display:flex;gap:8px">
-              ${!mine.in ? `<button class="btn btn-gold" onclick="staffClockIn('${myEmp.id}','${_satDate}'); renderStaffAttendance();">🕘 Clock In${!isToday ? ' — ' + esc(_satDate) : ''}</button>` : ''}
-              ${mine.in && !mine.out ? `<button class="btn btn-outline" onclick="staffClockOut('${myEmp.id}','${_satDate}'); renderStaffAttendance();">🚪 Clock Out</button>` : ''}
-              ${mine.in && mine.out ? `<span style="font-size:12px;color:var(--green);font-weight:600">✔ Done for ${isToday ? 'today' : esc(_satDate)}</span>` : ''}
-            </div>` : `<div style="margin-left:auto;font-size:11px;color:var(--muted)">Viewing a past date — clock in/out only works for today</div>`}
+          ${(() => {
+            const myLeave = getApprovedLeaveForDate(myEmp.id, _satDate);
+            if (myLeave) return `
+              <div style="margin-left:auto;background:#e8f5ee;border:1px solid #b7dfc9;border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:10px">
+                <span style="font-size:20px">🏖</span>
+                <div>
+                  <div style="font-size:13px;font-weight:700;color:#2e7d52">You are on approved ${esc(myLeave.type || 'Leave')}</div>
+                  <div style="font-size:11px;color:var(--muted)">${esc(myLeave.startDate)} – ${esc(myLeave.endDate)} · No clock-in required</div>
+                </div>
+              </div>`;
+            if (nsd) return `<div style="margin-left:auto;font-size:11px;color:var(--red)">🚫 ${esc(CAL_CAT_LABELS[nsd.category])}: ${esc(nsd.title)} — no clock-in on this date</div>`;
+            if (canClockForDate) return `
+              <div style="margin-left:auto;display:flex;gap:8px">
+                ${!mine.in ? `<button class="btn btn-gold" onclick="staffClockIn('${myEmp.id}','${_satDate}'); renderStaffAttendance();">🕘 Clock In${!isToday ? ' — ' + esc(_satDate) : ''}</button>` : ''}
+                ${mine.in && !mine.out ? `<button class="btn btn-outline" onclick="staffClockOut('${myEmp.id}','${_satDate}'); renderStaffAttendance();">🚪 Clock Out</button>` : ''}
+                ${mine.in && mine.out ? `<span style="font-size:12px;color:var(--green);font-weight:600">✔ Done for ${isToday ? 'today' : esc(_satDate)}</span>` : ''}
+              </div>`;
+            return `<div style="margin-left:auto;font-size:11px;color:var(--muted)">Viewing a past date — clock in/out only works for today</div>`;
+          })()}
         </div>
       </div>`;
   } else if (currentUser && !isBackOffice) {
@@ -30885,10 +31186,11 @@ function renderStaffAttendance() {
 
   // ── Back-office overview: full staff table for the selected date ──
   const staff = (db.employees || []).filter(e => e.status === 'Active').sort((a,b) => a.name.localeCompare(b.name));
-  const presentCount = staff.filter(e => (dayRecords[e.id]||{}).status === 'Present').length;
-  const lateCount = staff.filter(e => (dayRecords[e.id]||{}).status === 'Late').length;
-  const absentCount = staff.filter(e => (dayRecords[e.id]||{}).status === 'Absent').length;
-  const notYetCount = staff.length - presentCount - lateCount - absentCount;
+  const presentCount  = staff.filter(e => (dayRecords[e.id]||{}).status === 'Present').length;
+  const lateCount     = staff.filter(e => (dayRecords[e.id]||{}).status === 'Late').length;
+  const absentCount   = staff.filter(e => (dayRecords[e.id]||{}).status === 'Absent').length;
+  const onLeaveCount  = staff.filter(e => (dayRecords[e.id]||{}).status === 'On Leave').length;
+  const notYetCount   = staff.length - presentCount - lateCount - absentCount - onLeaveCount;
   const isToday = _satDate === today();
 
   el.innerHTML = `
@@ -30900,10 +31202,11 @@ function renderStaffAttendance() {
     ${selfCard}
 
     <div class="sr-stat-row" style="margin-bottom:16px">
-      <div class="sr-stat-card"><div class="sr-stat-value">${presentCount}</div><div class="sr-stat-label">Present</div></div>
+      <div class="sr-stat-card"><div class="sr-stat-value" style="color:var(--green)">${presentCount}</div><div class="sr-stat-label">Present</div></div>
       <div class="sr-stat-card"><div class="sr-stat-value" style="color:var(--amber)">${lateCount}</div><div class="sr-stat-label">Late</div></div>
       <div class="sr-stat-card"><div class="sr-stat-value" style="color:var(--red)">${absentCount}</div><div class="sr-stat-label">Absent</div></div>
-      <div class="sr-stat-card"><div class="sr-stat-value">${notYetCount}</div><div class="sr-stat-label">${isToday ? 'Not Clocked In Yet' : 'No Record'}</div></div>
+      <div class="sr-stat-card"><div class="sr-stat-value" style="color:#7c3aed">${onLeaveCount}</div><div class="sr-stat-label">On Leave</div></div>
+      <div class="sr-stat-card"><div class="sr-stat-value" style="color:var(--muted)">${notYetCount}</div><div class="sr-stat-label">${isToday ? 'Not Clocked In' : 'No Record'}</div></div>
     </div>
 
     <div class="card">
@@ -30913,17 +31216,22 @@ function renderStaffAttendance() {
         <tbody>
           ${staff.map(e => {
             const r = dayRecords[e.id] || {};
-            const statusColor = r.status === 'Late' ? 'var(--amber)' : r.status === 'Absent' ? 'var(--red)' : r.status === 'Present' ? 'var(--green)' : 'var(--muted)';
+            const isOnLeave = r.status === 'On Leave';
+            const activeLeave = isOnLeave ? getApprovedLeaveForDate(e.id, _satDate) : null;
+            const statusColor = r.status === 'Late' ? 'var(--amber)' : r.status === 'Absent' ? 'var(--red)' : r.status === 'Present' ? 'var(--green)' : isOnLeave ? '#7c3aed' : 'var(--muted)';
+            const rowBg = isOnLeave ? 'background:#f9f5ff' : '';
+            const leaveTypeBit = isOnLeave ? `<div style="font-size:10px;color:#7c3aed;font-weight:500">${esc(r.leaveType || activeLeave?.type || 'Leave')}</div>` : '';
+            const leaveDateBit = activeLeave ? `<div style="font-size:10px;color:var(--muted)">${esc(activeLeave.startDate)} – ${esc(activeLeave.endDate)}</div>` : '';
             return `
-            <tr>
+            <tr style="${rowBg}">
               <td>${esc(e.name)}</td>
               <td style="font-size:11px;color:var(--muted)">${esc(e.role || '—')}</td>
-              <td>${r.in || '—'} <a href="#" onclick="staffEditTime('${e.id}','${_satDate}','in'); return false;" style="font-size:10px;margin-left:4px">✏️</a></td>
-              <td>${r.out || '—'} <a href="#" onclick="staffEditTime('${e.id}','${_satDate}','out'); return false;" style="font-size:10px;margin-left:4px">✏️</a></td>
-              <td style="color:${statusColor};font-weight:600">${r.status || '—'}</td>
+              <td>${isOnLeave ? '<span style="color:var(--muted);font-size:11px">—</span>' : r.in || '—'} ${!isOnLeave ? `<a href="#" onclick="staffEditTime('${e.id}','${_satDate}','in'); return false;" style="font-size:10px;margin-left:4px">✏️</a>` : ''}</td>
+              <td>${isOnLeave ? '<span style="color:var(--muted);font-size:11px">—</span>' : r.out || '—'} ${!isOnLeave ? `<a href="#" onclick="staffEditTime('${e.id}','${_satDate}','out'); return false;" style="font-size:10px;margin-left:4px">✏️</a>` : ''}</td>
+              <td style="color:${statusColor};font-weight:600">${r.status || '—'}${leaveTypeBit}${leaveDateBit}</td>
               <td style="white-space:nowrap">
-                <button class="btn btn-sm btn-outline" onclick="staffMarkAbsent('${e.id}','${_satDate}')">Mark Absent</button>
-                ${r.status ? `<button class="btn btn-sm btn-outline" onclick="staffClearRecord('${e.id}','${_satDate}')" style="margin-left:4px">Clear</button>` : ''}
+                ${!isOnLeave ? `<button class="btn btn-sm btn-outline" onclick="staffMarkAbsent('${e.id}','${_satDate}')">Mark Absent</button>` : `<span style="font-size:11px;color:#7c3aed">🏖 Approved leave</span>`}
+                ${r.status && !isOnLeave ? `<button class="btn btn-sm btn-outline" onclick="staffClearRecord('${e.id}','${_satDate}')" style="margin-left:4px">Clear</button>` : ''}
               </td>
             </tr>`;
           }).join('')}
@@ -31019,11 +31327,17 @@ function approveLeaveRequest(id) {
     const dateStr = d.toISOString().slice(0,10);
     if (!db.staffAttendance[dateStr]) db.staffAttendance[dateStr] = {};
     const existing = db.staffAttendance[dateStr][rec.empId];
-    if (!existing || !existing.in) db.staffAttendance[dateStr][rec.empId] = { status: 'On Leave', leaveType: rec.type };
+    if (!existing || !existing.in) db.staffAttendance[dateStr][rec.empId] = { status: 'On Leave', leaveType: rec.type, leaveId: rec.id };
   }
   saveDb();
   renderStaffLeave();
-  toast('✅ Leave approved');
+  // Notify if the leave period overlaps today — so back-office knows the clock-in is blocked
+  const todayStr = today();
+  if (todayStr >= rec.startDate && todayStr <= rec.endDate) {
+    toast(`✅ Leave approved — ${rec.empName || 'Staff'} is on leave today. Clock-in is blocked for this period.`, 'success');
+  } else {
+    toast(`✅ Leave approved — attendance auto-filled for ${rec.days || slWorkdays(rec.startDate, rec.endDate)} working day(s)`);
+  }
 }
 
 function rejectLeaveRequest(id) {
@@ -31035,9 +31349,23 @@ function rejectLeaveRequest(id) {
   rec.decidedBy = currentUser.username || currentUser.role;
   rec.decidedAt = Date.now();
   rec.decisionNote = note;
+  // ── Clean up auto-written On Leave attendance records for this leave ──────
+  // Only removes records that were written by this leave approval (leaveId matches)
+  // and have no actual clock-in — never removes a real clock-in.
+  if (db.staffAttendance) {
+    for (let d = new Date(rec.startDate+'T00:00:00'); d <= new Date(rec.endDate+'T00:00:00'); d.setDate(d.getDate()+1)) {
+      const dow = d.getDay();
+      if (dow === 0 || dow === 6) continue;
+      const dateStr = d.toISOString().slice(0, 10);
+      const dayRec = (db.staffAttendance[dateStr] || {})[rec.empId];
+      if (dayRec && dayRec.leaveId === rec.id && !dayRec.in) {
+        delete db.staffAttendance[dateStr][rec.empId];
+      }
+    }
+  }
   saveDb();
   renderStaffLeave();
-  toast('❌ Leave request rejected');
+  toast('❌ Leave request rejected and attendance records cleared');
 }
 
 function slStatusBadge(status) {
@@ -31058,7 +31386,7 @@ function renderStaffLeave() {
   // ── Self card ──
   let selfCard = '';
   if (myEmp) {
-    const entitlement = myEmp.leaveEntitlement ?? 15;
+    const entitlement = db.approvalConfig?.staffLeave?.annualLeaveDays ?? 21;
     const used = leaveUsedInYear(myEmp.id, year);
     const balance = Math.max(0, entitlement - used);
     const mine = all.filter(l => l.empId === myEmp.id).sort((a,b) => b.requestedAt - a.requestedAt);
@@ -41923,7 +42251,8 @@ function computePunctualityScore(emp) {
   const total = present + late + absent;
   if (total === 0) return { score: 1, days: 0, present, late, absent, linked: true };
 
-  const attendanceRate = (present + late) / total; // clocking in late still counts as showing up
+  const onLeave = Object.values(empRecs).filter(r => r.status === 'On Leave').length;
+  const attendanceRate = total > 0 ? (present + late + onLeave) / total : 0; // On Leave counts as excused attendance
   const lateRate = late / total;
 
   let score;
