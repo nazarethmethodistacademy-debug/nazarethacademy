@@ -3402,6 +3402,39 @@
     #wr-inner table { font-size: 10.5px !important; width: 100% !important; }
     #wr-inner th, #wr-inner td { padding: 4px 6px !important; }
 
+    /* Trial Balance — same print pattern as Weekly Report, portrait */
+    #tb-inner .section-header .btn,
+    #tb-inner button,
+    #tb-inner input[type="date"],
+    #tb-inner label { display: none !important; }
+    #tb-inner .section-header { margin-bottom: 8px !important; }
+    #tb-inner .section-title { display: block !important; font-size: 16px !important; }
+    #tb-inner .section-sub { display: block !important; font-size: 11px !important; }
+    #tb-inner table { font-size: 11px !important; width: 100% !important; border-collapse: collapse !important; }
+    #tb-inner th, #tb-inner td { padding: 5px 8px !important; }
+    #tb-inner thead { display: table-header-group !important; }
+    #tb-inner tfoot { display: table-footer-group !important; }
+    #tb-inner .tb-total-row,
+    #tb-inner .tb-total-row td {
+      background: #0f1f3d !important;
+      color: #e8c97a !important;
+      font-weight: 700 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    #tb-inner .tb-totals-under {
+      display: flex !important;
+      gap: 16px !important;
+      margin-top: 12px !important;
+      page-break-inside: avoid !important;
+    }
+    #tb-inner .tb-totals-under .tb-total-box {
+      flex: 1 !important;
+      border: 1.5px solid #0f1f3d !important;
+      padding: 10px 14px !important;
+      border-radius: 8px !important;
+    }
+
     /* Colour accuracy for badges / KPI accents */
     .badge, .kpi-card, .sr-stat-card, .aid-callout {
       -webkit-print-color-adjust: exact !important;
@@ -18883,6 +18916,25 @@ function renderWeeklyReport() {
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-outline btn-sm" onclick="openReportPrintSettings('weekly')">🖨️ Print / PDF</button>
+        <button class="btn btn-gold btn-sm" id="wr-ai-btn" onclick="weeklyExplainWithAi()">🤖 AI Explain Report</button>
+      </div>
+    </div>
+
+    <!-- AI Explanation -->
+    <div class="card" style="margin-bottom:16px" id="wr-ai-card">
+      <div class="card-header" style="background:var(--navy);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <span class="card-title" style="color:var(--gold2)">🤖 AI Explanation — Weekly Finance Report</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-outline" style="border-color:rgba(255,255,255,0.35);color:var(--gold2)" onclick="weeklyExplainWithAi('Explain this week revenue mix: tuition, arrears, admission, feeding, and others.')">Revenue</button>
+          <button class="btn btn-sm btn-outline" style="border-color:rgba(255,255,255,0.35);color:var(--gold2)" onclick="weeklyExplainWithAi('Explain this week expenses and the largest cost categories.')">Expenses</button>
+          <button class="btn btn-sm btn-outline" style="border-color:rgba(255,255,255,0.35);color:var(--gold2)" onclick="weeklyExplainWithAi('Explain the net result for the week and what management should watch next.')">Net result</button>
+          <button class="btn btn-sm btn-outline" style="border-color:rgba(255,255,255,0.35);color:var(--gold2)" onclick="weeklyExplainWithAi('Summarise the daily breakdown for the week: which days were strong or weak.')">Daily</button>
+        </div>
+      </div>
+      <div id="wr-ai-narrative" style="min-height:48px">
+        <div style="padding:14px 18px;font-size:12.5px;color:var(--muted)">
+          Ask AI to explain this week’s finance report. Use <strong>AI Explain Report</strong> for a full brief, or the topic buttons. Answers use this week’s figures only.
+        </div>
       </div>
     </div>
 
@@ -27253,6 +27305,15 @@ const REPORT_PRINT_DEFS = {
     defaultOrientation: 'portrait',
     useIframePrint: true,
     sections: { kpis: true, tables: true, charts: false, banner: true, notes: false, toolbars: false }
+  },
+  trialbalance: {
+    title: 'Trial Balance',
+    containerId: 'tb-inner',
+    filename: () => 'Trial Balance - ' + ACTIVE_YEAR.replace('_','-') + '.pdf',
+    reportTitle: 'Trial Balance',
+    defaultOrientation: 'portrait',
+    useIframePrint: true,
+    sections: { kpis: true, tables: true, charts: false, banner: true, notes: true, toolbars: false }
   }
 };
 
@@ -27341,6 +27402,12 @@ function openReportPrintSettings(key) {
       if (!document.getElementById('cf-inner') || !document.getElementById('cf-inner').innerHTML.trim()) {
         if (typeof renderCashFlow === 'function') renderCashFlow();
       }
+    } catch (e) {}
+  }
+  // Trial Balance: ensure page is rendered
+  if (key === 'trialbalance') {
+    try {
+      if (typeof renderTrialBalance === 'function') renderTrialBalance();
     } catch (e) {}
   }
   window._rpsCurrentKey = key;
@@ -32792,8 +32859,27 @@ function renderBoardReport() {
         <div class="section-title">🏛️ Board Report</div>
         <div class="section-sub">Consolidated summary for Board review — ${ACTIVE_YEAR} Academic Year, as at ${dateStr}</div>
       </div>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-outline btn-sm" onclick="openReportPrintSettings('board')">🖨️ Print / PDF</button>
+        <button class="btn btn-gold btn-sm" id="board-ai-btn" onclick="boardExplainWithAi()">🤖 AI Explain Report</button>
+      </div>
+    </div>
+
+    <!-- AI Explanation -->
+    <div class="card" style="margin-bottom:16px" id="board-ai-card">
+      <div class="card-header" style="background:var(--navy);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <span class="card-title" style="color:var(--gold2)">🤖 AI Explanation — Board / Finance Report</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-outline" style="border-color:rgba(255,255,255,0.35);color:var(--gold2)" onclick="boardExplainWithAi('Summarise year-to-date financial performance: revenue, expenditure, and surplus or deficit.')">Performance</button>
+          <button class="btn btn-sm btn-outline" style="border-color:rgba(255,255,255,0.35);color:var(--gold2)" onclick="boardExplainWithAi('Explain fee collection rate and outstanding fees risk for the board.')">Fee Collection</button>
+          <button class="btn btn-sm btn-outline" style="border-color:rgba(255,255,255,0.35);color:var(--gold2)" onclick="boardExplainWithAi('Explain the financial position: assets, liabilities, and net assets.')">Position</button>
+          <button class="btn btn-sm btn-outline" style="border-color:rgba(255,255,255,0.35);color:var(--gold2)" onclick="boardExplainWithAi('Explain cash position and what it means for operations and the board.')">Cash</button>
+        </div>
+      </div>
+      <div id="board-ai-narrative" style="min-height:48px">
+        <div style="padding:14px 18px;font-size:12.5px;color:var(--muted)">
+          Ask AI to explain this finance report for the board. Use <strong>AI Explain Report</strong> for a full brief, or the topic buttons. Answers use the figures on this report only.
+        </div>
       </div>
     </div>
 
@@ -34157,15 +34243,388 @@ function buildAiAssistantSnapshot(term) {
       strugglingStudents: studentAverages.filter(r => r.average < 50).slice(-10).reverse()
     },
 
+    // Management Account Report snapshot (for explaining management accounts)
+    managementAccounts: (typeof buildManagementReportAiData === 'function')
+      ? buildManagementReportAiData(
+          (typeof window !== 'undefined' && window._mgmtLastDateFrom) || '',
+          (typeof window !== 'undefined' && window._mgmtLastDateTo) || ''
+        )
+      : null,
+
+    // Board / Finance Report snapshot
+    boardFinanceReport: (typeof buildBoardReportAiData === 'function')
+      ? buildBoardReportAiData()
+      : null,
+
+    // Current weekly report window (this week by default)
+    weeklyFinanceReport: (typeof buildWeeklyReportAiData === 'function' && typeof wrWeekDates === 'function')
+      ? (function () {
+          const days = wrWeekDates(typeof _wrWeekOffset !== 'undefined' ? _wrWeekOffset : 0);
+          return buildWeeklyReportAiData(days[0], days[6]);
+        })()
+      : null,
+
     guidance: [
       'Use fees, revenue, expenses, feedingBudget, and pettyCash for financial questions.',
+      'Use managementAccounts for Management Account Report explanations (income statement, financial position, cash, fee collection, ratios).',
+      'Use boardFinanceReport for Board Report / Finance Report explanations (YTD performance, position, cash, enrollment).',
+      'Use weeklyFinanceReport for the Weekly Report (this week revenue mix, expenses, net, daily breakdown).',
       'Use performance and attendance for academic questions.',
       'topOwing and topPerformers/strugglingStudents use first names only — do not invent surnames or contact details.',
       'If a question needs one student\'s full history, say to open Student Records.',
-      'Amounts are in GHS. Percentages are already computed where provided.'
+      'Amounts are in GHS. Percentages are already computed where provided.',
+      'When explaining the Management Account Report: state what the numbers mean, highlight risks (deficit, low collection, low cash, imbalance), and suggest practical next steps for management — do not invent figures not in the snapshot.'
     ]
   };
 }
+
+/**
+ * Bounded summary of the Management Account Report for AI explain / chat.
+ * No student PII — aggregates only.
+ */
+function buildManagementReportAiData(dateFrom, dateTo) {
+  try {
+    if (typeof ensureDbShape === 'function') { try { ensureDbShape(); } catch (e) {} }
+    const admitted = (db.admissions || []);
+    const inRange = (d) => {
+      if (!d) return true;
+      const x = String(d).substring(0, 10);
+      if (dateFrom && x < dateFrom) return false;
+      if (dateTo && x > dateTo) return false;
+      return true;
+    };
+    const revenues = (db.revenue || []).filter(r => (typeof isPostedFin !== 'function' || isPostedFin(r)) && inRange(r.date));
+    const expenses = (db.expenses || []).filter(e => (typeof isPostedFin !== 'function' || isPostedFin(e)) && inRange(e.date));
+    const pettyCash = (db.pettyCash || []).filter(p => inRange(p.date));
+
+    let totalBilled = 0, totalPaid = 0;
+    admitted.forEach(s => {
+      if (typeof calcStudentStatus === 'function') {
+        const c = calcStudentStatus(s.id);
+        totalBilled += c.totalBilled || 0;
+        totalPaid += c.totalPaid || 0;
+      }
+    });
+    const outstanding = totalBilled - totalPaid;
+    const totalRevenue = revenues.reduce((a, r) => a + (r.amount || 0), 0);
+    const totalExpenses = expenses.reduce((a, e) => a + (e.amount || 0), 0);
+    const totalPaidFees = totalPaid;
+    const totalIncome = totalPaidFees + totalRevenue;
+    const pcOut = pettyCash.filter(p => p.type === 'payment' && (p.status || 'approved') === 'approved').reduce((a, p) => a + (p.amount || 0), 0);
+    const netSurplus = totalIncome - totalExpenses;
+    const cashPos = typeof computeCashPosition === 'function' ? computeCashPosition(db) : { bank: 0, momo: 0, hand: 0, total: 0 };
+
+    const expByCategory = {};
+    expenses.forEach(e => { const c = e.cat || 'Other'; expByCategory[c] = (expByCategory[c] || 0) + (e.amount || 0); });
+    const revByCategory = {};
+    revenues.forEach(r => { const c = r.cat || 'Other'; revByCategory[c] = (revByCategory[c] || 0) + (r.amount || 0); });
+    const topExpenses = Object.keys(expByCategory).map(k => ({ category: k, amount: Math.round(expByCategory[k] * 100) / 100 }))
+      .sort((a, b) => b.amount - a.amount).slice(0, 8);
+    const topRevenue = Object.keys(revByCategory).map(k => ({ category: k, amount: Math.round(revByCategory[k] * 100) / 100 }))
+      .sort((a, b) => b.amount - a.amount).slice(0, 8);
+
+    const staffCost = expByCategory['Payroll Expenses'] || 0;
+    const sfp = typeof computeFinancialPositionSnapshot === 'function'
+      ? computeFinancialPositionSnapshot(dateFrom || '', dateTo || '')
+      : null;
+
+    return {
+      report: 'Management Account Report',
+      period: {
+        from: dateFrom || null,
+        to: dateTo || null,
+        label: (dateFrom || dateTo) ? `${dateFrom || 'Start'} to ${dateTo || 'Today'}` : 'All periods'
+      },
+      currency: 'GHS',
+      incomeStatement: {
+        schoolFeesCollected: Math.round(totalPaidFees * 100) / 100,
+        otherRevenue: Math.round(totalRevenue * 100) / 100,
+        totalIncome: Math.round(totalIncome * 100) / 100,
+        totalExpenditure: Math.round(totalExpenses * 100) / 100,
+        surplusOrDeficit: Math.round(netSurplus * 100) / 100,
+        topRevenueCategories: topRevenue,
+        topExpenseCategories: topExpenses
+      },
+      feeCollection: {
+        billed: Math.round(totalBilled * 100) / 100,
+        paid: Math.round(totalPaid * 100) / 100,
+        outstanding: Math.round(outstanding * 100) / 100,
+        collectionRatePct: totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 1000) / 10 : null
+      },
+      cashPosition: {
+        bank: Math.round((cashPos.bank || 0) * 100) / 100,
+        mobileMoney: Math.round((cashPos.momo || 0) * 100) / 100,
+        cashInHand: Math.round((cashPos.hand || 0) * 100) / 100,
+        total: Math.round((cashPos.total || 0) * 100) / 100,
+        pettyCashPaymentsInPeriod: Math.round(pcOut * 100) / 100
+      },
+      financialPosition: sfp ? {
+        totalAssets: Math.round(sfp.totalAssets * 100) / 100,
+        totalLiabilities: Math.round(sfp.totalLiabilities * 100) / 100,
+        netAssets: Math.round(sfp.netAssets * 100) / 100,
+        totalEquity: Math.round(sfp.totalEquity * 100) / 100,
+        feesReceivable: Math.round(sfp.feesReceivable * 100) / 100,
+        statementBalances: !!sfp.balanced
+      } : null,
+      ratios: {
+        feeCollectionRatePct: totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 1000) / 10 : null,
+        staffCostToIncomePct: totalIncome > 0 ? Math.round((staffCost / totalIncome) * 1000) / 10 : null,
+        expenditureToIncomePct: totalIncome > 0 ? Math.round((totalExpenses / totalIncome) * 1000) / 10 : null,
+        surplusMarginPct: totalIncome > 0 ? Math.round((netSurplus / totalIncome) * 1000) / 10 : null,
+        outstandingToBilledPct: totalBilled > 0 ? Math.round((outstanding / totalBilled) * 1000) / 10 : null
+      },
+      explainInstructions: [
+        'Explain the Management Account Report in plain language for school management.',
+        'Cover: surplus/deficit, fee collection strength, cash position, balance sheet health, and top cost drivers.',
+        'Highlight risks and recommend practical next steps. Do not invent numbers not listed here.'
+      ]
+    };
+  } catch (e) {
+    console.warn('buildManagementReportAiData', e);
+    return { report: 'Management Account Report', error: 'Could not build snapshot' };
+  }
+}
+
+async function mgmtExplainWithAi(question) {
+  const btn = document.getElementById('mgmt-ai-btn');
+  const out = document.getElementById('mgmt-ai-narrative');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  if (out) out.innerHTML = '<div class="sr-ai-loading" style="padding:14px;color:var(--muted)">Thinking…</div>';
+
+  const from = (typeof window !== 'undefined' && window._mgmtLastDateFrom) || '';
+  const to = (typeof window !== 'undefined' && window._mgmtLastDateTo) || '';
+  const data = buildManagementReportAiData(from, to);
+  const q = (question && String(question).trim())
+    || 'Explain this Management Account Report for school leadership: what the figures mean, main strengths and risks, and what management should focus on next.';
+  const result = await callAiAssist('chat', data, q);
+
+  if (btn) { btn.disabled = false; btn.textContent = '🤖 AI Explain Report'; }
+  if (out) {
+    out.innerHTML = result.ok
+      ? `<div class="sr-ai-text" style="padding:14px 18px;font-size:13px;line-height:1.55;white-space:pre-wrap">${esc(result.text)}</div>`
+      : `<div class="sr-ai-error" style="padding:14px 18px;color:var(--red)">⚠ ${esc(result.error || 'AI request failed')}${result.error && String(result.error).includes('not configured') ? ' — add the AI API key in Netlify environment variables.' : ''}</div>`;
+  }
+}
+
+/** Board Report snapshot for AI Explain (finance pack for the board). */
+function buildBoardReportAiData() {
+  try {
+    const admitted = (db.admissions || []).filter(s => ['Admitted','Continuing','Scholarship'].includes(s.status));
+    const bsTotals = typeof computeBalanceSheetTotalsFromSnapshot === 'function'
+      ? computeBalanceSheetTotalsFromSnapshot(db)
+      : (typeof computeFinancialPositionSnapshot === 'function' ? computeFinancialPositionSnapshot('', '') : {});
+    let totalFeesColl = 0, totalBilled = 0;
+    admitted.forEach(s => {
+      if (typeof calcStudentStatus !== 'function') return;
+      const c = calcStudentStatus(s.id);
+      totalFeesColl += c.totalPaid || 0;
+      totalBilled += c.totalBilled || 0;
+    });
+    const admFeesRev = typeof getAdmissionFeeTotal === 'function' ? getAdmissionFeeTotal(db) : 0;
+    const otherRev = typeof getOtherRevenueTotal === 'function' ? getOtherRevenueTotal(db) : 0;
+    const totalExp = (db.expenses || []).filter(e => typeof isPostedFin !== 'function' || isPostedFin(e)).reduce((a, e) => a + (e.amount || 0), 0);
+    const totalRevenue = totalFeesColl + admFeesRev + otherRev;
+    const netSurplus = totalRevenue - totalExp;
+    const collectionRate = totalBilled > 0 ? (totalFeesColl / totalBilled) * 100 : 0;
+    const outstanding = totalBilled - totalFeesColl;
+    const cashPos = typeof computeCashPosition === 'function' ? computeCashPosition(db) : { bank: 0, momo: 0, hand: 0, total: 0 };
+    const employees = db.employees || [];
+    const activeStaff = employees.filter(e => e.status !== 'Inactive');
+    return {
+      report: 'Board Report / Finance Report',
+      academicYear: typeof ACTIVE_YEAR !== 'undefined' ? ACTIVE_YEAR : null,
+      currency: 'GHS',
+      enrollment: admitted.length,
+      financialPerformance: {
+        totalRevenue: Math.round(totalRevenue * 100) / 100,
+        feesCollected: Math.round(totalFeesColl * 100) / 100,
+        admissionFees: Math.round(admFeesRev * 100) / 100,
+        otherRevenue: Math.round(otherRev * 100) / 100,
+        totalExpenditure: Math.round(totalExp * 100) / 100,
+        surplusOrDeficit: Math.round(netSurplus * 100) / 100
+      },
+      feeCollection: {
+        billed: Math.round(totalBilled * 100) / 100,
+        paid: Math.round(totalFeesColl * 100) / 100,
+        outstanding: Math.round(outstanding * 100) / 100,
+        collectionRatePct: Math.round(collectionRate * 10) / 10
+      },
+      financialPosition: {
+        totalAssets: Math.round((bsTotals.totalAssets || 0) * 100) / 100,
+        totalLiabilities: Math.round((bsTotals.totalLiabilities || 0) * 100) / 100,
+        netAssets: Math.round((bsTotals.netAssets || 0) * 100) / 100
+      },
+      cashPosition: {
+        bank: Math.round((cashPos.bank || 0) * 100) / 100,
+        mobileMoney: Math.round((cashPos.momo || 0) * 100) / 100,
+        cashInHand: Math.round((cashPos.hand || 0) * 100) / 100,
+        total: Math.round((cashPos.total || 0) * 100) / 100
+      },
+      staffing: { activeStaff: activeStaff.length },
+      explainInstructions: [
+        'Explain this Board/Finance Report for board members in plain language.',
+        'Cover financial performance, fee collection, cash, and financial position.',
+        'Highlight risks and practical recommendations. Do not invent numbers.'
+      ]
+    };
+  } catch (e) {
+    console.warn('buildBoardReportAiData', e);
+    return { report: 'Board Report', error: 'Could not build snapshot' };
+  }
+}
+
+async function boardExplainWithAi(question) {
+  const btn = document.getElementById('board-ai-btn');
+  const out = document.getElementById('board-ai-narrative');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  if (out) out.innerHTML = '<div class="sr-ai-loading" style="padding:14px;color:var(--muted)">Thinking…</div>';
+
+  const data = buildBoardReportAiData();
+  const q = (question && String(question).trim())
+    || 'Explain this Board Finance Report for the board: performance, fee collection, cash position, balance sheet health, main risks, and recommended focus areas.';
+  const result = await callAiAssist('chat', data, q);
+
+  if (btn) { btn.disabled = false; btn.textContent = '🤖 AI Explain Report'; }
+  if (out) {
+    out.innerHTML = result.ok
+      ? `<div class="sr-ai-text" style="padding:14px 18px;font-size:13px;line-height:1.55;white-space:pre-wrap">${esc(result.text)}</div>`
+      : `<div class="sr-ai-error" style="padding:14px 18px;color:var(--red)">⚠ ${esc(result.error || 'AI request failed')}${result.error && String(result.error).includes('not configured') ? ' — add the AI API key in Netlify environment variables.' : ''}</div>`;
+  }
+}
+
+/** Weekly Report snapshot for AI Explain — mirrors the on-page weekly totals. */
+function buildWeeklyReportAiData(wkStart, wkEnd) {
+  try {
+    const inWeek = d => d && d >= wkStart && d <= wkEnd;
+    const FEE_CASH_TYPES = { payment: 1, adjustment_add: 1, adjustment_sub: -1, clear: -1 };
+    const isApproved = t => (typeof isApprovedFeeTx !== 'function') || isApprovedFeeTx(t);
+    const isPosted = r => (typeof isPostedFin !== 'function') || isPostedFin(r);
+
+    const tuitionEntries = (db.txHistory || [])
+      .filter(t => FEE_CASH_TYPES[t.type] && isApproved(t) && inWeek(t.date))
+      .map(t => ({ ...t, amount: (t.amount || 0) * FEE_CASH_TYPES[t.type] }));
+    const otherRevEntries = (db.revenue || []).filter(r => isPosted(r) && inWeek(r.date) && r.cat !== 'Admission Fees');
+    const admRevEntries = (db.revenue || []).filter(r => isPosted(r) && inWeek(r.date) && r.cat === 'Admission Fees');
+    const expEntries = (db.expenses || []).filter(e => isPosted(e) && inWeek(e.date));
+
+    const tuitionTotal = tuitionEntries.reduce((a, t) => a + (t.amount || 0), 0);
+    const otherRevTotal = otherRevEntries.reduce((a, r) => a + (r.amount || 0), 0);
+
+    // Arrears portion of fee payments (same approach as renderWeeklyReport)
+    const _allPayments = (db.txHistory || [])
+      .filter(t => FEE_CASH_TYPES[t.type] && isApproved(t))
+      .map(t => ({ ...t, amount: (t.amount || 0) * FEE_CASH_TYPES[t.type] }))
+      .slice()
+      .sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.timestamp || 0) - (b.timestamp || 0));
+    const _paidSoFar = {};
+    let arrearsTotal = 0;
+    _allPayments.forEach(t => {
+      const sid = t.studentId;
+      const cf = (db.carryForwards && db.carryForwards[sid]) || 0;
+      const before = _paidSoFar[sid] || 0;
+      const after = before + (t.amount || 0);
+      if (cf > 0 && inWeek(t.date)) {
+        arrearsTotal += Math.max(0, Math.min(cf, after) - Math.min(cf, before));
+      }
+      _paidSoFar[sid] = after;
+    });
+    const tuitionOnlyTotal = Math.max(0, tuitionTotal - arrearsTotal);
+
+    const admittedForFee = (db.admissions || []).filter(a => inWeek(a.createdDate || a.appdate));
+    const admissionTotal = admittedForFee.reduce((a, s) => a + (s.fee || 0), 0)
+      + admRevEntries.reduce((a, r) => a + (r.amount || 0), 0);
+    const feedingTotal = otherRevEntries.filter(r => r.cat === 'Feeding Fees').reduce((a, r) => a + (r.amount || 0), 0);
+    const othersTotal = otherRevTotal - feedingTotal;
+    const totalRevenue = tuitionTotal + otherRevTotal + admissionTotal;
+    const totalExpenses = expEntries.reduce((a, e) => a + (e.amount || 0), 0);
+    const net = totalRevenue - totalExpenses;
+
+    const expByCat = {};
+    expEntries.forEach(e => { const c = e.cat || 'Other'; expByCat[c] = (expByCat[c] || 0) + (e.amount || 0); });
+    const topExpenses = Object.keys(expByCat).map(k => ({ category: k, amount: Math.round(expByCat[k] * 100) / 100 }))
+      .sort((a, b) => b.amount - a.amount).slice(0, 8);
+
+    // Daily net (Mon–Sun)
+    const days = [];
+    if (wkStart) {
+      const start = new Date(wkStart + 'T12:00:00');
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(start); d.setDate(start.getDate() + i);
+        days.push(d.toISOString().slice(0, 10));
+      }
+    }
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const daily = days.map((d, i) => {
+      const dayRev = tuitionEntries.filter(t => t.date === d).reduce((a, t) => a + t.amount, 0)
+        + otherRevEntries.filter(r => r.date === d).reduce((a, r) => a + (r.amount || 0), 0)
+        + admRevEntries.filter(r => r.date === d).reduce((a, r) => a + (r.amount || 0), 0)
+        + admittedForFee.filter(s => (s.createdDate || s.appdate) === d).reduce((a, s) => a + (s.fee || 0), 0);
+      const dayExp = expEntries.filter(r => r.date === d).reduce((a, r) => a + (r.amount || 0), 0);
+      return {
+        day: dayNames[i],
+        date: d,
+        revenue: Math.round(dayRev * 100) / 100,
+        expenses: Math.round(dayExp * 100) / 100,
+        net: Math.round((dayRev - dayExp) * 100) / 100
+      };
+    });
+
+    return {
+      report: 'Weekly Report',
+      weekOf: { from: wkStart, to: wkEnd },
+      currency: 'GHS',
+      revenue: {
+        total: Math.round(totalRevenue * 100) / 100,
+        tuitionCurrentYear: Math.round(tuitionOnlyTotal * 100) / 100,
+        feesInArrearsReceived: Math.round(arrearsTotal * 100) / 100,
+        admission: Math.round(admissionTotal * 100) / 100,
+        feeding: Math.round(feedingTotal * 100) / 100,
+        others: Math.round(othersTotal * 100) / 100,
+        paymentCount: tuitionEntries.length,
+        newAdmissionsCount: admittedForFee.length
+      },
+      expenses: {
+        total: Math.round(totalExpenses * 100) / 100,
+        entryCount: expEntries.length,
+        topCategories: topExpenses
+      },
+      netForWeek: Math.round(net * 100) / 100,
+      dailyBreakdown: daily,
+      explainInstructions: [
+        'Explain this Weekly Finance Report for school management in plain language.',
+        'Cover revenue mix (tuition, arrears, admission, feeding, others), expenses by category, net result, and any weak days.',
+        'Flag risks (deficit week, high costs, thin revenue) and suggest practical next steps. Do not invent numbers not listed here.'
+      ]
+    };
+  } catch (e) {
+    console.warn('buildWeeklyReportAiData', e);
+    return { report: 'Weekly Report', error: 'Could not build snapshot' };
+  }
+}
+
+async function weeklyExplainWithAi(question) {
+  const btn = document.getElementById('wr-ai-btn');
+  const out = document.getElementById('wr-ai-narrative');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  if (out) out.innerHTML = '<div class="sr-ai-loading" style="padding:14px;color:var(--muted)">Thinking…</div>';
+
+  const days = typeof wrWeekDates === 'function' ? wrWeekDates(typeof _wrWeekOffset !== 'undefined' ? _wrWeekOffset : 0) : null;
+  const wkStart = days ? days[0] : '';
+  const wkEnd = days ? days[6] : '';
+  const data = buildWeeklyReportAiData(wkStart, wkEnd);
+  const q = (question && String(question).trim())
+    || 'Explain this Weekly Report for management: revenue mix, expenses, net result for the week, and what to watch next week.';
+  const result = await callAiAssist('chat', data, q);
+
+  if (btn) { btn.disabled = false; btn.textContent = '🤖 AI Explain Report'; }
+  if (out) {
+    out.innerHTML = result.ok
+      ? `<div class="sr-ai-text" style="padding:14px 18px;font-size:13px;line-height:1.55;white-space:pre-wrap">${esc(result.text)}</div>`
+      : `<div class="sr-ai-error" style="padding:14px 18px;color:var(--red)">⚠ ${esc(result.error || 'AI request failed')}${result.error && String(result.error).includes('not configured') ? ' — add the AI API key in Netlify environment variables.' : ''}</div>`;
+  }
+}
+window.weeklyExplainWithAi = weeklyExplainWithAi;
+window.buildWeeklyReportAiData = buildWeeklyReportAiData;
 
 function renderAiAssistant() {
   ensurePage('aiassistant', 'aic-inner');
@@ -34178,8 +34637,8 @@ function renderAiAssistant() {
       <div class="aic-layout">
         <div class="aic-header">
           <div>
-            <div style="font-weight:600;font-size:13px;color:var(--navy)">🤖 Ask about finances &amp; student performance</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">Uses a rich summary snapshot: fees by class, revenue &amp; expenses by category, feeding budget, attendance rates, class averages, top/struggling students, and subject strengths. Not a full record search — for one student's full history, use Student Records.</div>
+            <div style="font-weight:600;font-size:13px;color:var(--navy)">🤖 Ask about finances, management accounts &amp; student performance</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Uses a rich summary: fees, revenue &amp; expenses, Management Account Report (income, financial position, cash, ratios), feeding budget, attendance, and academic performance. Not a full record search — for one student's full history, use Student Records.</div>
           </div>
           <select onchange="aicTermChange(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px">
             ${TERMS.map(t => `<option value="${esc(t)}" ${t === _aicTerm ? 'selected' : ''}>${esc(t)}</option>`).join('')}
@@ -34195,6 +34654,7 @@ function renderAiAssistant() {
                   <button type="button" class="btn btn-outline btn-sm" style="text-align:left;justify-content:flex-start" onclick="document.getElementById('aic-input').value=this.textContent;aicSend();">Which classes have the lowest attendance rates?</button>
                   <button type="button" class="btn btn-outline btn-sm" style="text-align:left;justify-content:flex-start" onclick="document.getElementById('aic-input').value=this.textContent;aicSend();">Summarise student performance — school average, weak subjects, who is struggling</button>
                   <button type="button" class="btn btn-outline btn-sm" style="text-align:left;justify-content:flex-start" onclick="document.getElementById('aic-input').value=this.textContent;aicSend();">How much feeding budget is pending or already approved?</button>
+                  <button type="button" class="btn btn-outline btn-sm" style="text-align:left;justify-content:flex-start" onclick="document.getElementById('aic-input').value=this.textContent;aicSend();">Explain the Management Account Report — surplus, fee collection, cash, and financial position</button>
                 </div>
               </div>`
             : _aicHistory.map(m => `
@@ -40551,7 +41011,7 @@ function renderTrialBalance() {
       const creditColFinal = net >= 0 ? (a.normal==='credit' ? net : 0) : (a.normal==='debit' ? Math.abs(net) : 0);
       grandDebit  += debitColFinal;
       grandCredit += creditColFinal;
-      return `<tr><td>${a.code}</td><td>${esc(a.name)}</td><td>${debitColFinal ? fmt(debitColFinal) : ''}</td><td>${creditColFinal ? fmt(creditColFinal) : ''}</td></tr>`;
+      return `<tr><td>${a.code}</td><td>${esc(a.name)}</td><td style="text-align:right">${debitColFinal ? fmt(debitColFinal) : ''}</td><td style="text-align:right">${creditColFinal ? fmt(creditColFinal) : ''}</td></tr>`;
     }).filter(Boolean).join('');
     if (!rows) return '';
     return `<tr><td colspan="4" style="background:var(--cream2);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.5px">${type}s</td></tr>${rows}`;
@@ -40574,7 +41034,7 @@ function renderTrialBalance() {
         ${asAtDate ? `<button class="btn btn-outline btn-sm" onclick="document.getElementById('tb-asat-date').value='';renderTrialBalance()">✕ Clear</button>` : ''}
         <button class="btn btn-outline" onclick="manualSyncLedger()">🔄 Sync Missing Postings</button>
         <button class="btn btn-outline" onclick="openInvariantReport()">🔍 Integrity</button>
-        <button class="btn btn-outline" onclick="printReportSmart()">🖨️ Print</button>
+        <button class="btn btn-outline" onclick="openReportPrintSettings('trialbalance')">🖨️ Print / PDF</button>
       </div>
     </div>
     ${typeof renderInvariantBanner === 'function' ? renderInvariantBanner({ details: true, showOk: true, alwaysShow: false }) : ''}
@@ -40592,11 +41052,34 @@ function renderTrialBalance() {
 
     <div class="card">
       <table>
-        <thead><tr><th>Code</th><th>Account</th><th>Debit</th><th>Credit</th></tr></thead>
+        <thead><tr><th>Code</th><th>Account</th><th style="text-align:right">Debit (GHS)</th><th style="text-align:right">Credit (GHS)</th></tr></thead>
         <tbody>${sections || '<tr><td colspan="4" class="empty-state">No journal entries posted yet — the Trial Balance will populate as transactions are recorded.</td></tr>'}</tbody>
-        <tfoot><tr style="font-weight:700;background:var(--navy);color:var(--gold2)"><td colspan="2">TOTAL</td><td>GHS ${fmt(grandDebit)}</td><td>GHS ${fmt(grandCredit)}</td></tr></tfoot>
+        <tfoot>
+          <tr class="tb-total-row" style="font-weight:700;background:var(--navy)!important;color:var(--gold2)!important;border-top:3px solid var(--gold)">
+            <td colspan="2" style="background:var(--navy)!important;color:var(--gold2)!important;padding:12px 14px;font-size:13px">TOTAL</td>
+            <td style="background:var(--navy)!important;color:var(--gold2)!important;padding:12px 14px;font-size:13px;text-align:right">${fmt(grandDebit)}</td>
+            <td style="background:var(--navy)!important;color:var(--gold2)!important;padding:12px 14px;font-size:13px;text-align:right">${fmt(grandCredit)}</td>
+          </tr>
+        </tfoot>
       </table>
     </div>
+
+    <!-- Totals under the table — always visible on screen and in print -->
+    <div class="tb-totals-under" style="display:flex;gap:14px;flex-wrap:wrap;margin:16px 0 8px">
+      <div class="tb-total-box" style="flex:1;min-width:180px;background:var(--cream);border:1.5px solid var(--border);border-radius:10px;padding:14px 18px">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Total Debits</div>
+        <div style="font-size:20px;font-weight:700;color:var(--navy);margin-top:4px">GHS ${fmt(grandDebit)}</div>
+      </div>
+      <div class="tb-total-box" style="flex:1;min-width:180px;background:var(--cream);border:1.5px solid var(--border);border-radius:10px;padding:14px 18px">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Total Credits</div>
+        <div style="font-size:20px;font-weight:700;color:var(--navy);margin-top:4px">GHS ${fmt(grandCredit)}</div>
+      </div>
+      <div class="tb-total-box" style="flex:1;min-width:180px;background:${balanced?'var(--green-light)':'var(--red-light)'};border:1.5px solid ${balanced?'rgba(46,125,82,0.35)':'rgba(184,64,64,0.35)'};border-radius:10px;padding:14px 18px">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Difference</div>
+        <div style="font-size:20px;font-weight:700;color:${balanced?'var(--green)':'var(--red)'};margin-top:4px">GHS ${fmt(Math.abs(grandDebit - grandCredit))}${balanced ? ' · Balanced' : ' · Out of balance'}</div>
+      </div>
+    </div>
+
     <div style="padding:10px 4px;font-size:11px;color:var(--muted)">
       ℹ This Trial Balance is generated purely from posted journal entries (General Ledger) — it is a separate, independent calculation from the Balance Sheet/Income Statement/Cash Flow Statement pages, which use their own direct calculations. The two should broadly agree; if they don't, it points to a transaction that was recorded in one of the trackers without a matching journal posting.
     </div>`;
@@ -46517,6 +47000,106 @@ function syncAssetsToBalanceSheet() {
   toast('✅ Balance Sheet fixed assets synced from register');
 }
 
+/**
+ * Shared Statement of Financial Position (Balance Sheet) figures.
+ * Used by the Balance Sheet page and the Management Account Report.
+ * dateFrom/dateTo optional — empty means all periods.
+ */
+function computeFinancialPositionSnapshot(dateFrom, dateTo) {
+  const inRange = d => {
+    if (!d) return true;
+    if (dateFrom && d < dateFrom) return false;
+    if (dateTo && d > dateTo) return false;
+    return true;
+  };
+  const admitted  = db.admissions || [];
+  const revenues  = (db.revenue   || []).filter(r => inRange(r.date) && (typeof isPostedFin !== 'function' || isPostedFin(r)));
+  const expenses  = (db.expenses  || []).filter(r => inRange(r.date) && (typeof isPostedFin !== 'function' || isPostedFin(r)));
+
+  // Non-current assets from Asset Management (or legacy fixedAssets)
+  const assetsList = db.assets || [];
+  const registerHasAssets = assetsList.length > 0;
+  const catTotals = { landBuilding: 0, furnitureFittings: 0, computerEquipment: 0, otherFixedAssets: 0 };
+  assetsList.forEach(a => {
+    const f = typeof computeAssetFinancials === 'function' ? computeAssetFinancials(a) : { currentValue: parseFloat(a.currentValue || a.cost || 0) };
+    if (catTotals[a.category] !== undefined) catTotals[a.category] += f.currentValue;
+  });
+  const legacyFixed = db.fixedAssets || {};
+  const landBuilding      = registerHasAssets ? catTotals.landBuilding      : parseFloat(legacyFixed.landBuilding      || 0);
+  const furnitureFittings = registerHasAssets ? catTotals.furnitureFittings : parseFloat(legacyFixed.furnitureFittings || 0);
+  const computerEquipment = registerHasAssets ? catTotals.computerEquipment : parseFloat(legacyFixed.computerEquipment || 0);
+  const otherFixedAssets  = registerHasAssets ? catTotals.otherFixedAssets  : parseFloat(legacyFixed.otherFixedAssets  || 0);
+  const customNonCurrentAssets = (db.customAssetLiabAccounts || []).filter(a => a.type === 'Asset' && a.classification === 'noncurrent');
+  const customNonCurrentAssetsTotal = customNonCurrentAssets.reduce((sum, a) => sum + (typeof getAccountLedgerBalance === 'function' ? getAccountLedgerBalance(a.code) : 0), 0);
+  const totalNonCurrent = landBuilding + furnitureFittings + computerEquipment + otherFixedAssets + customNonCurrentAssetsTotal;
+
+  const inventory   = parseFloat(db.inventory || 0);
+  const prepayments = parseFloat(db.bsPrepayments || 0);
+  const customCurrentAssets = (db.customAssetLiabAccounts || []).filter(a => a.type === 'Asset' && a.classification === 'current');
+  const customCurrentAssetsTotal = customCurrentAssets.reduce((sum, a) => sum + (typeof getAccountLedgerBalance === 'function' ? getAccountLedgerBalance(a.code) : 0), 0);
+
+  const cashPos = typeof computeCashPosition === 'function' ? computeCashPosition(db) : { bank: 0, momo: 0, hand: 0, total: 0 };
+  const cashAtBank = cashPos.bank, cashMoMo = cashPos.momo, cashInHand = cashPos.hand;
+
+  let feesReceivable = 0, overpayments = 0;
+  admitted.forEach(s => {
+    const st = typeof calcStudentStatus === 'function' ? calcStudentStatus(s.id) : { bal: 0 };
+    const bal = st.bal != null ? st.bal : ((st.totalBilled || 0) - (st.totalPaid || 0));
+    if (bal > 0) feesReceivable += bal;
+    else if (bal < 0) overpayments += Math.abs(bal);
+  });
+
+  const totalCurrent = inventory + cashAtBank + cashMoMo + cashInHand + feesReceivable + prepayments + customCurrentAssetsTotal;
+  const totalAssets  = totalNonCurrent + totalCurrent;
+
+  const ssnitPayable    = parseFloat(db.bsSsnitPayable || 0);
+  const payePayable     = parseFloat(db.bsPayePayable || 0);
+  const salariesPayable = parseFloat(db.bsSalariesPayable || 0);
+  const accountsPayable = parseFloat(db.bsAccountsPayable || 0);
+  const loansPayable    = parseFloat(db.bsLoansPayable || 0);
+  const otherPayables   = parseFloat(db.bsOtherPayables || 0);
+  const customCurrentLiabs = (db.customAssetLiabAccounts || []).filter(a => a.type === 'Liability' && a.classification === 'current');
+  const customCurrentLiabsTotal = customCurrentLiabs.reduce((sum, a) => sum + (typeof getAccountLedgerBalance === 'function' ? getAccountLedgerBalance(a.code) : 0), 0);
+  const customNonCurrentLiabs = (db.customAssetLiabAccounts || []).filter(a => a.type === 'Liability' && a.classification === 'noncurrent');
+  const customNonCurrentLiabsTotal = customNonCurrentLiabs.reduce((sum, a) => sum + (typeof getAccountLedgerBalance === 'function' ? getAccountLedgerBalance(a.code) : 0), 0);
+
+  const totalCurrentLiab    = overpayments + ssnitPayable + payePayable + salariesPayable + accountsPayable + otherPayables + customCurrentLiabsTotal;
+  const totalNonCurrentLiab = loansPayable + customNonCurrentLiabsTotal;
+  const totalLiabilities    = totalCurrentLiab + totalNonCurrentLiab;
+  const netAssets           = totalAssets - totalLiabilities;
+
+  const churchInvestment = parseFloat(db.churchInvestment || 0);
+  const retainedBF       = parseFloat(db.bsRetainedBF || 0);
+  let totalFeesColl = 0;
+  admitted.forEach(s => {
+    (typeof TERMS !== 'undefined' ? TERMS : ['Term 1','Term 2','Term 3']).forEach(t => {
+      totalFeesColl += ((db.payments || {})[s.id + '|' + t] || { paid: 0 }).paid || 0;
+    });
+  });
+  const admFees = admitted.filter(a => a.status !== 'Scholarship' && a.status !== 'Continuing').reduce((sum, a) => sum + (a.fee || 0), 0)
+    + revenues.filter(r => r.cat === 'Admission Fees').reduce((a, r) => a + (r.amount || 0), 0);
+  const otherRev = revenues.filter(r => r.cat !== 'Admission Fees').reduce((a, r) => a + (r.amount || 0), 0);
+  const totalIncome = totalFeesColl + admFees + otherRev;
+  const totalExp = expenses.reduce((a, e) => a + (e.amount || 0), 0);
+  const netSurplusCurrentYear = totalIncome - totalExp;
+  const totalEquity = churchInvestment + retainedBF + netSurplusCurrentYear;
+  const diff = Math.abs(netAssets - totalEquity);
+  const balanced = diff < 1;
+
+  return {
+    landBuilding, furnitureFittings, computerEquipment, otherFixedAssets,
+    customNonCurrentAssets, customNonCurrentAssetsTotal, totalNonCurrent,
+    inventory, prepayments, customCurrentAssets, customCurrentAssetsTotal,
+    cashAtBank, cashMoMo, cashInHand, feesReceivable, totalCurrent, totalAssets,
+    overpayments, ssnitPayable, payePayable, salariesPayable, accountsPayable,
+    loansPayable, otherPayables, customCurrentLiabs, customCurrentLiabsTotal,
+    customNonCurrentLiabs, customNonCurrentLiabsTotal,
+    totalCurrentLiab, totalNonCurrentLiab, totalLiabilities, netAssets,
+    churchInvestment, retainedBF, netSurplusCurrentYear, totalEquity,
+    balanced, diff
+  };
+}
+
 function renderBalanceSheet() {
   const el = document.getElementById('bs-inner');
   if (!el) return;
@@ -47351,7 +47934,7 @@ function renderReport(type, mgmtDateFrom, mgmtDateTo) {
     monthly:    { label:'Monthly Report',             icon:'📆', period:'This Month',     desc:'Monthly summary of income, expenses and student payments.' },
     termly:     { label:'Termly Report',              icon:'📋', period:'Current Term',   desc:'Full term breakdown of fees, revenue and expenditure.' },
     annual:     { label:'Academic Year Report',       icon:'🗂️', period:'Academic Year', desc:'Complete annual financial and academic performance overview.' },
-    management: { label:'Management Account Report',  icon:'📊', period:'All Periods',    desc:'Consolidated management accounts for board and administrative review.' }
+    management: { label:'Management Account Report',  icon:'📊', period:'All Periods',    desc:'Consolidated management accounts including Income Statement, Statement of Financial Position, cash flow and fee collection for board review.' }
   };
   const m = meta[type] || meta.management;
   if (!meta[type]) {
@@ -47366,6 +47949,12 @@ function renderReport(type, mgmtDateFrom, mgmtDateTo) {
   // ── Date filter (management report only) ──
   let dateFrom = mgmtDateFrom || '';
   let dateTo   = mgmtDateTo   || '';
+  if (type === 'management') {
+    try {
+      window._mgmtLastDateFrom = dateFrom;
+      window._mgmtLastDateTo = dateTo;
+    } catch (e) {}
+  }
 
   function inDateRange(rec) {
     if (type !== 'management') return true;
@@ -47483,8 +48072,27 @@ function renderReport(type, mgmtDateFrom, mgmtDateTo) {
       <div class="report-banner-meta">
         <div>Prepared: ${todayLabel}</div>
         <div style="margin-top:4px">All figures in GHS</div>
-        <div style="display:flex;gap:8px;margin-top:8px">
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
           <button class="btn btn-gold btn-sm" onclick="openReportPrintSettings('management')">🖨️ Print / PDF</button>
+          <button class="btn btn-outline btn-sm" id="mgmt-ai-btn" onclick="mgmtExplainWithAi()">🤖 AI Explain Report</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ AI EXPLANATION ══ -->
+    <div class="card" style="margin-bottom:14px" id="mgmt-ai-card">
+      <div class="card-header" style="background:var(--navy);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <span class="card-title" style="color:var(--gold2)">🤖 AI Explanation — Management Accounts</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-outline" style="border-color:rgba(255,255,255,0.35);color:var(--gold2)" onclick="mgmtExplainWithAi('Summarise the Statement of Comprehensive Income and whether the school is in surplus or deficit.')">Income</button>
+          <button class="btn btn-sm btn-outline" style="border-color:rgba(255,255,255,0.35);color:var(--gold2)" onclick="mgmtExplainWithAi('Explain the Statement of Financial Position: assets, liabilities, equity, and whether it balances.')">Financial Position</button>
+          <button class="btn btn-sm btn-outline" style="border-color:rgba(255,255,255,0.35);color:var(--gold2)" onclick="mgmtExplainWithAi('Explain fee collection performance and outstanding receivables risk.')">Fee Collection</button>
+          <button class="btn btn-sm btn-outline" style="border-color:rgba(255,255,255,0.35);color:var(--gold2)" onclick="mgmtExplainWithAi('Explain cash position and what it means for day-to-day operations.')">Cash</button>
+        </div>
+      </div>
+      <div id="mgmt-ai-narrative" style="min-height:48px">
+        <div style="padding:14px 18px;font-size:12.5px;color:var(--muted)">
+          Ask AI to explain this report in plain language for management. Use <strong>AI Explain Report</strong> for a full brief, or the topic buttons above. Answers use the figures on this report only — no invented numbers.
         </div>
       </div>
     </div>
@@ -47533,10 +48141,108 @@ function renderReport(type, mgmtDateFrom, mgmtDateTo) {
       </div>
     </div>
 
-    <!-- ══ 3. CASH FLOW SUMMARY ══ -->
+    <!-- ══ 3. STATEMENT OF FINANCIAL POSITION ══ -->
+    ${(() => {
+      const sfp = typeof computeFinancialPositionSnapshot === 'function'
+        ? computeFinancialPositionSnapshot(dateFrom || '', dateTo || '')
+        : null;
+      if (!sfp) return '';
+      const customAssetRows = (sfp.customNonCurrentAssets || []).map(a =>
+        `<tr><td style="padding-left:20px">${esc(a.name || a.code)}</td><td style="text-align:right;padding-right:20px">${fmt(typeof getAccountLedgerBalance === 'function' ? getAccountLedgerBalance(a.code) : 0)}</td></tr>`
+      ).join('');
+      const customCurAssetRows = (sfp.customCurrentAssets || []).map(a =>
+        `<tr><td style="padding-left:20px">${esc(a.name || a.code)}</td><td style="text-align:right;padding-right:20px">${fmt(typeof getAccountLedgerBalance === 'function' ? getAccountLedgerBalance(a.code) : 0)}</td></tr>`
+      ).join('');
+      const customCurLiabRows = (sfp.customCurrentLiabs || []).map(a =>
+        `<tr><td style="padding-left:20px">${esc(a.name || a.code)}</td><td style="text-align:right;padding-right:20px">${fmt(typeof getAccountLedgerBalance === 'function' ? getAccountLedgerBalance(a.code) : 0)}</td></tr>`
+      ).join('');
+      const customNcLiabRows = (sfp.customNonCurrentLiabs || []).map(a =>
+        `<tr><td style="padding-left:20px">${esc(a.name || a.code)}</td><td style="text-align:right;padding-right:20px">${fmt(typeof getAccountLedgerBalance === 'function' ? getAccountLedgerBalance(a.code) : 0)}</td></tr>`
+      ).join('');
+      return `
     <div class="card" style="margin-bottom:14px">
       <div class="card-header" style="background:var(--navy)">
-        <span class="card-title" style="color:var(--gold2)">3 · Cash Flow Summary</span>
+        <span class="card-title" style="color:var(--gold2)">3 · Statement of Financial Position</span>
+      </div>
+      <div style="padding:12px 20px 4px;font-size:11px;color:var(--muted)">
+        As at ${(dateTo || new Date().toISOString().slice(0,10))} · same figures as the Balance Sheet page${(dateFrom||dateTo) ? ' (respecting the date filter above where applicable)' : ''}
+      </div>
+
+      <table>
+        <thead><tr><th>ASSETS</th><th style="text-align:right;padding-right:20px">GHS</th></tr></thead>
+        <tbody>
+          <tr><td colspan="2" style="background:var(--cream2);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.4px">Non-Current Assets</td></tr>
+          <tr><td style="padding-left:20px">Land &amp; Buildings</td><td style="text-align:right;padding-right:20px">${fmt(sfp.landBuilding)}</td></tr>
+          <tr><td style="padding-left:20px">Furniture &amp; Fittings</td><td style="text-align:right;padding-right:20px">${fmt(sfp.furnitureFittings)}</td></tr>
+          <tr><td style="padding-left:20px">Computer Equipment</td><td style="text-align:right;padding-right:20px">${fmt(sfp.computerEquipment)}</td></tr>
+          <tr><td style="padding-left:20px">Other Fixed Assets</td><td style="text-align:right;padding-right:20px">${fmt(sfp.otherFixedAssets)}</td></tr>
+          ${customAssetRows}
+          <tr style="font-weight:600"><td>Total Non-Current Assets</td><td style="text-align:right;padding-right:20px">${fmt(sfp.totalNonCurrent)}</td></tr>
+          <tr><td colspan="2" style="background:var(--cream2);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.4px">Current Assets</td></tr>
+          <tr><td style="padding-left:20px">Inventory</td><td style="text-align:right;padding-right:20px">${fmt(sfp.inventory)}</td></tr>
+          <tr><td style="padding-left:20px">Fees Receivable (Debtors)</td><td style="text-align:right;padding-right:20px">${fmt(sfp.feesReceivable)}</td></tr>
+          <tr><td style="padding-left:20px">Prepayments</td><td style="text-align:right;padding-right:20px">${fmt(sfp.prepayments)}</td></tr>
+          <tr><td style="padding-left:20px">Cash at Bank</td><td style="text-align:right;padding-right:20px">${fmt(sfp.cashAtBank)}</td></tr>
+          <tr><td style="padding-left:20px">Mobile Money</td><td style="text-align:right;padding-right:20px">${fmt(sfp.cashMoMo)}</td></tr>
+          <tr><td style="padding-left:20px">Cash in Hand</td><td style="text-align:right;padding-right:20px">${fmt(sfp.cashInHand)}</td></tr>
+          ${customCurAssetRows}
+          <tr style="font-weight:600"><td>Total Current Assets</td><td style="text-align:right;padding-right:20px">${fmt(sfp.totalCurrent)}</td></tr>
+        </tbody>
+        <tfoot><tr style="font-weight:700;background:var(--navy);color:var(--gold2)">
+          <td style="background:var(--navy);color:var(--gold2)">TOTAL ASSETS</td>
+          <td style="text-align:right;padding-right:20px;background:var(--navy);color:var(--gold2)">GHS ${fmt(sfp.totalAssets)}</td>
+        </tr></tfoot>
+      </table>
+
+      <table style="margin-top:8px">
+        <thead><tr><th>LIABILITIES</th><th style="text-align:right;padding-right:20px">GHS</th></tr></thead>
+        <tbody>
+          <tr><td colspan="2" style="background:var(--cream2);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.4px">Current Liabilities</td></tr>
+          <tr><td style="padding-left:20px">Student Overpayments Payable</td><td style="text-align:right;padding-right:20px">${fmt(sfp.overpayments)}</td></tr>
+          <tr><td style="padding-left:20px">SSNIT Payable</td><td style="text-align:right;padding-right:20px">${fmt(sfp.ssnitPayable)}</td></tr>
+          <tr><td style="padding-left:20px">PAYE Payable</td><td style="text-align:right;padding-right:20px">${fmt(sfp.payePayable)}</td></tr>
+          <tr><td style="padding-left:20px">Salaries Payable</td><td style="text-align:right;padding-right:20px">${fmt(sfp.salariesPayable)}</td></tr>
+          <tr><td style="padding-left:20px">Accounts Payable</td><td style="text-align:right;padding-right:20px">${fmt(sfp.accountsPayable)}</td></tr>
+          <tr><td style="padding-left:20px">Other Payables</td><td style="text-align:right;padding-right:20px">${fmt(sfp.otherPayables)}</td></tr>
+          ${customCurLiabRows}
+          <tr style="font-weight:600"><td>Total Current Liabilities</td><td style="text-align:right;padding-right:20px">${fmt(sfp.totalCurrentLiab)}</td></tr>
+          <tr><td colspan="2" style="background:var(--cream2);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.4px">Non-Current Liabilities</td></tr>
+          <tr><td style="padding-left:20px">Loans / Bank Borrowings</td><td style="text-align:right;padding-right:20px">${fmt(sfp.loansPayable)}</td></tr>
+          ${customNcLiabRows}
+          <tr style="font-weight:600"><td>Total Non-Current Liabilities</td><td style="text-align:right;padding-right:20px">${fmt(sfp.totalNonCurrentLiab)}</td></tr>
+        </tbody>
+        <tfoot><tr style="font-weight:700">
+          <td>TOTAL LIABILITIES</td>
+          <td style="text-align:right;padding-right:20px">GHS ${fmt(sfp.totalLiabilities)}</td>
+        </tr></tfoot>
+      </table>
+
+      <table style="margin-top:8px">
+        <thead><tr><th>EQUITY</th><th style="text-align:right;padding-right:20px">GHS</th></tr></thead>
+        <tbody>
+          <tr><td style="padding-left:20px">Opening Fund / Capital</td><td style="text-align:right;padding-right:20px">${fmt(sfp.churchInvestment)}</td></tr>
+          <tr><td style="padding-left:20px">Accumulated Surplus / (Deficit) b/f</td><td style="text-align:right;padding-right:20px">${fmt(sfp.retainedBF)}</td></tr>
+          <tr><td style="padding-left:20px">Current Period Surplus / (Deficit)</td><td style="text-align:right;padding-right:20px;color:${sfp.netSurplusCurrentYear>=0?'var(--green)':'var(--red)'}">${fmt(sfp.netSurplusCurrentYear)}</td></tr>
+        </tbody>
+        <tfoot><tr style="font-weight:700;background:var(--navy);color:var(--gold2)">
+          <td style="background:var(--navy);color:var(--gold2)">TOTAL EQUITY</td>
+          <td style="text-align:right;padding-right:20px;background:var(--navy);color:var(--gold2)">GHS ${fmt(sfp.totalEquity)}</td>
+        </tr></tfoot>
+      </table>
+
+      <div style="padding:12px 20px;font-size:11px;color:var(--muted)">
+        ${sfp.balanced
+          ? '✅ Statement balances — Net Assets equal Total Equity (Assets − Liabilities = Equity).'
+          : '⚠ Statement does not balance — difference GHS ' + fmt(sfp.diff) + '. Review equity fields on the Balance Sheet page.'}
+        &nbsp;·&nbsp; Full editable Statement of Financial Position is under <strong>Balance Sheet</strong>.
+      </div>
+    </div>`;
+    })()}
+
+    <!-- ══ 4. CASH FLOW SUMMARY ══ -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-header" style="background:var(--navy)">
+        <span class="card-title" style="color:var(--gold2)">4 · Cash Flow Summary</span>
       </div>
       <table>
         <thead><tr><th>Description</th><th style="text-align:right;padding-right:20px">Amount (GHS)</th></tr></thead>
@@ -47572,7 +48278,7 @@ function renderReport(type, mgmtDateFrom, mgmtDateTo) {
     <!-- ══ 4. STUDENT FEE COLLECTION ══ -->
     <div class="card" style="margin-bottom:14px">
       <div class="card-header" style="background:var(--navy)">
-        <span class="card-title" style="color:var(--gold2)">4 · Student Fee Collection Report</span>
+        <span class="card-title" style="color:var(--gold2)">5 · Student Fee Collection Report</span>
       </div>
       <table style="margin-bottom:0">
         <thead><tr><th>Description</th><th style="text-align:right;padding-right:20px">Amount (GHS)</th></tr></thead>
@@ -47598,7 +48304,7 @@ function renderReport(type, mgmtDateFrom, mgmtDateTo) {
     <!-- ══ 5. ACCOUNTS RECEIVABLE ══ -->
     <div class="card" style="margin-bottom:14px">
       <div class="card-header" style="background:var(--navy)">
-        <span class="card-title" style="color:var(--gold2)">5 · Accounts Receivable</span>
+        <span class="card-title" style="color:var(--gold2)">6 · Accounts Receivable</span>
       </div>
       <table>
         <thead><tr><th>Student / Parent</th><th>Class</th><th>Amount Owing (GHS)</th><th>Status</th></tr></thead>
@@ -47618,7 +48324,7 @@ function renderReport(type, mgmtDateFrom, mgmtDateTo) {
     <!-- ══ 6. STUDENT PAYMENT RECORDS ══ -->
     <div class="card" style="margin-bottom:14px">
       <div class="card-header" style="background:var(--navy)">
-        <span class="card-title" style="color:var(--gold2)">6 · Student Payment Records</span>
+        <span class="card-title" style="color:var(--gold2)">7 · Student Payment Records</span>
       </div>
 
       <!-- Search + filter bar -->
@@ -47707,7 +48413,7 @@ function renderReport(type, mgmtDateFrom, mgmtDateTo) {
     <!-- ══ 7. ACCOUNTS PAYABLE ══ -->
     <div class="card" style="margin-bottom:14px">
       <div class="card-header" style="background:var(--navy)">
-        <span class="card-title" style="color:var(--gold2)">7 · Accounts Payable</span>
+        <span class="card-title" style="color:var(--gold2)">8 · Accounts Payable</span>
       </div>
       <table>
         <thead><tr><th>Supplier / Creditor</th><th>Description</th><th>Amount (GHS)</th><th>Term</th></tr></thead>
@@ -47727,7 +48433,7 @@ function renderReport(type, mgmtDateFrom, mgmtDateTo) {
     <!-- ══ 7. BUDGET PERFORMANCE ══ -->
     <div class="card" style="margin-bottom:14px">
       <div class="card-header" style="background:var(--navy)">
-        <span class="card-title" style="color:var(--gold2)">8 · Budget Performance Report</span>
+        <span class="card-title" style="color:var(--gold2)">9 · Budget Performance Report</span>
       </div>
       <table>
         <thead><tr><th>Description</th><th>Budget (GHS)</th><th>Actual (GHS)</th><th>Variance (GHS)</th></tr></thead>
@@ -47753,7 +48459,7 @@ function renderReport(type, mgmtDateFrom, mgmtDateTo) {
     <!-- ══ 8. PAYROLL SUMMARY ══ -->
     <div class="card" style="margin-bottom:14px">
       <div class="card-header" style="background:var(--navy)">
-        <span class="card-title" style="color:var(--gold2)">9 · Payroll Summary</span>
+        <span class="card-title" style="color:var(--gold2)">10 · Payroll Summary</span>
       </div>
       <table>
         <thead><tr><th>Description</th><th style="text-align:right;padding-right:20px">Amount (GHS)</th></tr></thead>
