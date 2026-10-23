@@ -3193,18 +3193,36 @@
   }
 
   /* ── AI ASSISTANT (chat) ── */
-  .aic-layout { display:flex;flex-direction:column;height:calc(100vh - 200px);min-height:420px;background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden; }
-  .aic-header { display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--cream); }
+  .aic-layout { display:flex;flex-direction:column;height:calc(100vh - 200px);min-height:480px;background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden; }
+  .aic-header { display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--cream);flex-wrap:wrap; }
+  .aic-modes { display:flex;gap:6px;flex-wrap:wrap;padding:10px 18px 0; }
+  .aic-mode-btn {
+    border:1.5px solid var(--border);background:var(--white);color:var(--navy);
+    border-radius:999px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;
+    font-family:inherit;
+  }
+  .aic-mode-btn.active {
+    background:linear-gradient(165deg, var(--navy2), var(--navy));
+    color:var(--gold2);border-color:transparent;
+  }
   .aic-thread { flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px; }
-  .aic-empty { text-align:center;color:var(--muted);font-size:12.5px;padding:40px 20px; }
+  .aic-empty { text-align:left;color:var(--muted);font-size:12.5px;padding:24px 8px; }
   .aic-msg { display:flex; }
   .aic-msg-user { justify-content:flex-end; }
   .aic-msg-assistant { justify-content:flex-start; }
-  .aic-msg-bubble { max-width:70%;padding:10px 14px;border-radius:14px;font-size:12.5px;line-height:1.5; }
-  .aic-msg-user .aic-msg-bubble { background:var(--navy);color:var(--white);border-bottom-right-radius:4px; }
+  .aic-msg-bubble { max-width:78%;padding:10px 14px;border-radius:14px;font-size:12.5px;line-height:1.55;white-space:pre-wrap; }
+  .aic-msg-user .aic-msg-bubble { background:var(--navy);color:var(--white);border-bottom-right-radius:4px;white-space:pre-wrap; }
   .aic-msg-assistant .aic-msg-bubble { background:var(--cream);color:var(--text);border-bottom-left-radius:4px; }
-  .aic-input-row { display:flex;gap:8px;padding:14px 18px;border-top:1px solid var(--border); }
-  .aic-input-row input { flex:1;padding:9px 14px;border:1px solid var(--border);border-radius:20px;font-size:12.5px; }
+  .aic-msg-report .aic-msg-bubble {
+    max-width:92%;background:linear-gradient(180deg,#fff,#fbf9f5);
+    border:1px solid var(--border);box-shadow:var(--shadow-soft);
+  }
+  .aic-msg-actions { display:flex;gap:6px;margin-top:6px;flex-wrap:wrap; }
+  .aic-input-row { display:flex;gap:8px;padding:14px 18px;border-top:1px solid var(--border);align-items:flex-end; }
+  .aic-input-row textarea, .aic-input-row input {
+    flex:1;padding:9px 14px;border:1px solid var(--border);border-radius:14px;font-size:12.5px;
+    font-family:inherit;resize:vertical;min-height:40px;max-height:120px;
+  }
 
   /* ── ANOMALY DETECTION ── */
   .anom-summary-row { display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:8px; }
@@ -19474,6 +19492,81 @@ function wrJumpToDate(dateStr) {
   renderWeeklyReport();
 }
 
+/** Local note for the week P&L statement — uses only figures available for the week. */
+function buildWeeklyPnlNote(ctx) {
+  const {
+    wkStart, wkEnd, fmtDisplay,
+    totalRevenue, totalExpenses, net, isProfit,
+    revBreakdown, expEntries
+  } = ctx || {};
+  const period = (fmtDisplay && wkStart && wkEnd)
+    ? (fmtDisplay(wkStart) + ' to ' + fmtDisplay(wkEnd))
+    : 'this week';
+  const lines = [];
+  lines.push('For the week ' + period + ', total income was GHS ' + fmt(totalRevenue || 0) +
+    ' and total expenditure was GHS ' + fmt(totalExpenses || 0) +
+    ', resulting in a ' + (isProfit ? 'net profit' : 'net loss') + ' of GHS ' + fmt(Math.abs(net || 0)) + '.');
+
+  const incomeLines = (revBreakdown || []).filter(r => (r.amount || 0) > 0)
+    .sort((a, b) => (b.amount || 0) - (a.amount || 0));
+  if (incomeLines.length) {
+    const top = incomeLines.slice(0, 3).map(r => r.label + ' (GHS ' + fmt(r.amount) + ')').join(', ');
+    lines.push('Main income sources: ' + top + '.');
+  } else {
+    lines.push('No income was recorded for this week.');
+  }
+
+  const byCat = {};
+  (expEntries || []).forEach(e => {
+    const c = e.cat || 'Uncategorized';
+    byCat[c] = (byCat[c] || 0) + (e.amount || 0);
+  });
+  const expCats = Object.keys(byCat).sort((a, b) => byCat[b] - byCat[a]);
+  if (expCats.length) {
+    const topE = expCats.slice(0, 3).map(c => c + ' (GHS ' + fmt(byCat[c]) + ')').join(', ');
+    lines.push('Largest expense areas: ' + topE + '.');
+  } else {
+    lines.push('No expenses were posted for this week.');
+  }
+
+  if ((totalRevenue || 0) === 0 && (totalExpenses || 0) === 0) {
+    lines.push('There is little or no financial activity on the system for this week yet.');
+  } else if (!isProfit) {
+    lines.push('Expenditure exceeded income this week — review cost drivers and fee collection before the next period.');
+  } else if ((totalRevenue || 0) > 0) {
+    lines.push('Income covered expenditure for the week. Maintain collection momentum and control on major cost lines.');
+  }
+  return lines.join(' ');
+}
+
+/** Optional AI refresh of the week P&L note (falls back to local note on failure). */
+async function wrRefreshPnlAiNote() {
+  const noteEl = document.getElementById('wr-pnl-note');
+  if (!noteEl) return;
+  noteEl.textContent = 'Generating AI note…';
+  try {
+    const days = wrWeekDates(_wrWeekOffset);
+    const wkStart = days[0], wkEnd = days[6];
+    const data = (typeof buildWeeklyReportAiData === 'function')
+      ? buildWeeklyReportAiData(wkStart, wkEnd)
+      : { weekFrom: wkStart, weekTo: wkEnd };
+    const q = 'Write a short professional note (4–6 sentences) for the Revenue and Expenditure Statement for the week '
+      + wkStart + ' to ' + wkEnd
+      + '. Cover total income, total expenditure, and whether the week ended in net profit or net loss. '
+      + 'Mention main income sources and largest expense areas if present. Use only the figures provided — do not invent numbers.';
+    const result = await callAiAssist('chat', data, q);
+    if (result && result.ok && result.text) {
+      noteEl.textContent = result.text.trim();
+    } else {
+      noteEl.textContent = (result && result.error)
+        ? ('⚠ ' + result.error + ' — showing system note instead.\n\n' + (noteEl.dataset.fallback || ''))
+        : (noteEl.dataset.fallback || 'Could not generate AI note.');
+    }
+  } catch (e) {
+    noteEl.textContent = noteEl.dataset.fallback || (e.message || 'Could not generate AI note.');
+  }
+}
+
 function renderWeeklyReport() {
   const el = document.getElementById('wr-inner');
   if (!el) return;
@@ -19620,15 +19713,15 @@ function renderWeeklyReport() {
   const admittedThisWeek  = (db.admissions || []).filter(a => inWeek(a.createdDate || a.appdate));
   const withdrawnThisWeek = (db.admissions || []).filter(a => a.status === 'Withdrawn' && inWeek(a.withdrawnDate));
 
-  // Teacher system-usage — among staff whose Role/Position mentions "Teacher"
-  // and who have a login username linked (Payroll → Employee → System Login
-  // Username), split by computeSystemUsageScore() (used identically in
-  // Performance Appraisal's auto-scored System Usage criterion).
-  const teacherEmployees = (db.employees || []).filter(e => (e.role||'').toLowerCase().includes('teacher') && e.username);
-  const teacherUsage = teacherEmployees.map(e => ({ emp: e, usage: computeSystemUsageScore(e.username) }));
-  const usingEffectively = teacherUsage.filter(t => t.usage.score >= 3);
-  const notUsing         = teacherUsage.filter(t => t.usage.score < 3);
-  const teachersNoAccount = (db.employees || []).filter(e => (e.role||'').toLowerCase().includes('teacher') && !e.username);
+  // Formal P&L-style statement for the week
+  const isProfit = net >= 0;
+  const netLabel = isProfit ? 'Net Profit' : 'Net Loss';
+  const netAbs = Math.abs(net);
+  const weeklyPnlNote = buildWeeklyPnlNote({
+    wkStart, wkEnd, fmtDisplay,
+    totalRevenue, totalExpenses, net, isProfit,
+    revBreakdown, expEntries
+  });
   const wkRanking = computeWeeklyTeacherRanking(wkStart, wkEnd);
 
   el.innerHTML = `
@@ -19708,19 +19801,71 @@ function renderWeeklyReport() {
       </div>` : ''}
     </div>` : ''}
 
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-header"><span class="card-title">💻 Teacher System Usage</span><span style="font-size:11px;color:var(--muted)">Based on grade/skills entries logged in the last 30 days</span></div>
-      <div style="display:flex;gap:16px;flex-wrap:wrap;padding:14px 20px">
-        <div style="flex:1;min-width:240px">
-          <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:8px">✅ Using Effectively (${usingEffectively.length})</div>
-          ${usingEffectively.length ? usingEffectively.map(t=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span>${esc(t.emp.name)}</span><span style="color:var(--muted)">${t.usage.entries} entr${t.usage.entries!==1?'ies':'y'}/30d · last ${t.usage.daysSinceLast===0?'today':t.usage.daysSinceLast+'d ago'}</span></div>`).join('') : '<div style="font-size:12px;color:var(--muted)">None yet</div>'}
-        </div>
-        <div style="flex:1;min-width:240px">
-          <div style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:8px">⚠ Not Using Effectively (${notUsing.length})</div>
-          ${notUsing.length ? notUsing.map(t=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span>${esc(t.emp.name)}</span><span style="color:var(--muted)">${t.usage.entries===0?'No entries yet':t.usage.entries+' entr'+(t.usage.entries!==1?'ies':'y')+'/30d · last '+(t.usage.daysSinceLast===0?'today':t.usage.daysSinceLast+'d ago')}</span></div>`).join('') : '<div style="font-size:12px;color:var(--muted)">None — everyone with an account is active</div>'}
+    <div class="card" style="margin-bottom:16px" id="wr-pnl-statement">
+      <div class="card-header">
+        <span class="card-title">📑 Revenue and Expenditure Statement for the Week</span>
+        <span style="font-size:11px;color:var(--muted)">Date: ${fmtDisplay(wkStart)} to ${fmtDisplay(wkEnd)}</span>
+      </div>
+      <div style="padding:8px 20px 16px">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border)">
+              <th style="text-align:left;padding:10px 4px;color:var(--navy)">Particulars</th>
+              <th style="text-align:right;padding:10px 4px;color:var(--navy)">Amount (GHS)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:12px 4px 4px;font-weight:700;color:var(--navy);text-transform:uppercase;font-size:11px;letter-spacing:0.04em">Income</td>
+              <td></td>
+            </tr>
+            ${revBreakdown.map(r => `
+            <tr>
+              <td style="padding:6px 4px 6px 16px;color:var(--text)">${esc(r.label)}</td>
+              <td style="padding:6px 4px;text-align:right;color:var(--green)">${r.amount ? fmt(r.amount) : '—'}</td>
+            </tr>`).join('')}
+            <tr style="border-top:1px solid var(--border);background:var(--green-light)">
+              <td style="padding:10px 4px;font-weight:700">Total Income for the Week</td>
+              <td style="padding:10px 4px;text-align:right;font-weight:700;color:var(--green)">${fmt(totalRevenue)}</td>
+            </tr>
+            <tr>
+              <td style="padding:16px 4px 4px;font-weight:700;color:var(--navy);text-transform:uppercase;font-size:11px;letter-spacing:0.04em">Expenditure</td>
+              <td></td>
+            </tr>
+            ${(() => {
+              const byCat = {};
+              expEntries.forEach(e => {
+                const c = e.cat || 'Uncategorized';
+                byCat[c] = (byCat[c] || 0) + (e.amount || 0);
+              });
+              const cats = Object.keys(byCat).sort((a,b) => byCat[b] - byCat[a]);
+              if (!cats.length) {
+                return `<tr><td style="padding:6px 4px 6px 16px;color:var(--muted)">No expenses posted this week</td><td style="padding:6px 4px;text-align:right;color:var(--muted)">—</td></tr>`;
+              }
+              return cats.map(c => `
+            <tr>
+              <td style="padding:6px 4px 6px 16px;color:var(--text)">${esc(c)}</td>
+              <td style="padding:6px 4px;text-align:right;color:var(--red)">${fmt(byCat[c])}</td>
+            </tr>`).join('');
+            })()}
+            <tr style="border-top:1px solid var(--border);background:var(--red-light)">
+              <td style="padding:10px 4px;font-weight:700">Total Expenditure for the Week</td>
+              <td style="padding:10px 4px;text-align:right;font-weight:700;color:var(--red)">${fmt(totalExpenses)}</td>
+            </tr>
+            <tr style="border-top:2px solid var(--border);background:${isProfit ? 'var(--green-light)' : 'var(--red-light)'}">
+              <td style="padding:14px 4px;font-weight:800;font-size:14px;color:${isProfit ? 'var(--green)' : 'var(--red)'}">${netLabel}</td>
+              <td style="padding:14px 4px;text-align:right;font-weight:800;font-size:14px;color:${isProfit ? 'var(--green)' : 'var(--red)'}">${fmt(netAbs)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:14px;padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--cream)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+            <div style="font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.04em">Note</div>
+            <button type="button" class="btn btn-outline btn-sm no-print" onclick="wrRefreshPnlAiNote()">🤖 Refresh AI note</button>
+          </div>
+          <div id="wr-pnl-note" data-fallback="${esc(weeklyPnlNote).replace(/"/g, '&quot;')}" style="font-size:12.5px;line-height:1.55;color:var(--text);white-space:pre-wrap">${esc(weeklyPnlNote)}</div>
         </div>
       </div>
-      ${teachersNoAccount.length ? `<div style="padding:0 20px 14px;font-size:11px;color:var(--muted)">🔗 ${teachersNoAccount.length} teacher${teachersNoAccount.length!==1?'s':''} have no login username linked yet (Payroll → Employee → System Login Username): ${teachersNoAccount.map(e=>esc(e.name)).join(', ')}</div>` : ''}
     </div>
 
     <div class="card" style="margin-bottom:16px">
@@ -19790,6 +19935,15 @@ function renderWeeklyReport() {
       <div class="card-header"><span class="card-title">📉 Expenses Recorded This Week</span><span style="font-size:11px;color:var(--muted)">${expRows.length} entr${expRows.length!==1?'ies':'y'}</span></div>
       <div style="overflow-x:auto">${txTable(expRows, 'var(--red)')}</div>
     </div>`;
+
+  // Soft-refresh AI note for this week's P&L (non-blocking; keeps local note if AI unavailable)
+  try {
+    setTimeout(function () {
+      if (document.getElementById('wr-pnl-note') && typeof wrRefreshPnlAiNote === 'function') {
+        wrRefreshPnlAiNote();
+      }
+    }, 400);
+  } catch (e) {}
 }
 
 function renderIncomeStatement() {
@@ -27960,7 +28114,9 @@ const REPORT_PRINT_DEFS = {
     filename: () => 'Weekly Report - ' + ACTIVE_YEAR.replace('_','-') + '.pdf',
     reportTitle: 'Weekly Report',
     useWeeklyPdf: true,
-    sections: { kpis: true, tables: true, charts: false, banner: false, notes: false, toolbars: false }
+    useIframePrint: true,
+    defaultOrientation: 'portrait',
+    sections: { kpis: true, tables: true, charts: false, banner: false, notes: true, toolbars: false }
   },
   board: {
     title: 'Board Report',
@@ -28136,6 +28292,12 @@ function openReportPrintSettings(key) {
       if (typeof renderTrialBalance === 'function') renderTrialBalance();
     } catch (e) {}
   }
+  // Weekly Report: ensure content is on the page before print/PDF
+  if (key === 'weekly') {
+    try {
+      if (typeof renderWeeklyReport === 'function') renderWeeklyReport();
+    } catch (e) {}
+  }
   window._rpsCurrentKey = key;
   const prefs = getReportPrintPrefs(key);
   const titleEl = document.getElementById('rps-title');
@@ -28209,8 +28371,11 @@ async function runReportPrintFromSettings(mode) {
   const opts = { orientation: prefs.orientation, sections: prefs.sections };
 
   if (mode === 'print') {
-    // Feeding-style iframe print for Stats, Management, Payment (and any flag)
-    if (def.useIframePrint || key === 'stats' || key === 'management' || key === 'payment') {
+    // Feeding-style iframe print for Stats, Management, Payment, Weekly (and any flag)
+    if (def.useIframePrint || key === 'stats' || key === 'management' || key === 'payment' || key === 'weekly') {
+      if (key === 'weekly' && typeof renderWeeklyReport === 'function') {
+        try { renderWeeklyReport(); } catch (e) {}
+      }
       await printReportViaIframe(containerId, opts, def.reportTitle || def.title);
     } else {
       printReportSmart(containerId, opts);
@@ -28246,11 +28411,19 @@ async function runReportPrintFromSettings(mode) {
 function printWeeklyReport() { printReportSmart('wr-inner'); }
 
 
-/** Export Weekly Report to PDF with automatic portrait/landscape. */
+/** Export Weekly Report to PDF — same full-screen visible overlay pattern as exportPageToPDF. */
 async function exportWeeklyReportToPDF(options) {
   const opts = options || {};
+  try {
+    if (typeof renderWeeklyReport === 'function') renderWeeklyReport();
+  } catch (e) {}
+  await new Promise(r => setTimeout(r, 80));
+
   const source = document.getElementById('wr-inner');
-  if (!source) { toast('⚠ Could not find the Weekly Report on the page'); return; }
+  if (!source || !source.innerHTML || source.innerHTML.trim().length < 40) {
+    toast('⚠ Could not find the Weekly Report on the page — open Weekly Report first', 'error');
+    return;
+  }
   if (typeof html2pdf === 'undefined') {
     toast('⚠ PDF export library failed to load — check your internet connection', 'error');
     return;
@@ -28262,52 +28435,89 @@ async function exportWeeklyReportToPDF(options) {
   else landscape = weeklyReportNeedsLandscape(source);
   const orientation = landscape ? 'landscape' : 'portrait';
   if (opts.sections) applyReportPrintHideClasses(opts);
+
+  const captureW = landscape ? 1100 : 760;
   toast('⏳ Generating PDF (' + orientation + ')…');
+
+  // Full-screen VISIBLE white overlay (opacity:0 caused blank PDFs — html2canvas respects opacity)
+  const overlay = document.createElement('div');
+  overlay.id = 'wr-pdf-export-root';
+  overlay.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;background:#ffffff;z-index:2147483646;overflow:auto;';
 
   const wrap = document.createElement('div');
   wrap.className = 'pdf-generic-mode';
-  // Wider capture width in landscape so tables stay readable
-  const captureW = landscape ? 1250 : 900;
-  wrap.style.cssText = 'position:absolute;left:-9999px;top:0;width:' + captureW + 'px;background:#fff;';
+  wrap.style.cssText = 'width:' + captureW + 'px;max-width:' + captureW + 'px;margin:0 auto;padding:16px 20px 20px;background:#ffffff;box-sizing:border-box;overflow:visible;color:#1a1a1a;';
 
+  const weekSub = (source.querySelector('.section-sub') || {}).textContent || '';
+  const logoSrc = (typeof SCHOOL_LOGO_SRC !== 'undefined' && SCHOOL_LOGO_SRC) ? SCHOOL_LOGO_SRC : '';
   const header = document.createElement('div');
   header.className = 'pdf-generic-header';
-  const weekSub = (source.querySelector('.section-sub') || {}).textContent || '';
+  header.style.cssText = 'display:flex;align-items:flex-start;gap:12px;border-bottom:3px solid #0f1f3d;padding:0 0 12px 0;margin:0 0 14px 0;width:100%;box-sizing:border-box;';
   header.innerHTML = `
-    <img src="${SCHOOL_LOGO_SRC}" alt="">
-    <div>
-      <div class="pgh-school">${esc(schoolName())}</div>
-      <div class="pgh-title">Weekly Report — ${ACTIVE_YEAR.replace('_','/')} · ${esc(weekSub)} · Generated ${new Date().toLocaleDateString('en-GH', {day:'numeric', month:'long', year:'numeric'})}</div>
+    ${logoSrc ? `<img src="${logoSrc}" alt="" style="width:48px;height:48px;object-fit:contain;flex-shrink:0">` : ''}
+    <div style="min-width:0;flex:1">
+      <div class="pgh-school" style="font-size:17px;font-weight:700;color:#0f1f3d;line-height:1.25">${esc(schoolName())}</div>
+      <div class="pgh-title" style="font-size:12px;color:#666;margin-top:3px;line-height:1.35">Weekly Report — ${ACTIVE_YEAR.replace('_','/')} · ${esc(weekSub)} · Generated ${new Date().toLocaleDateString('en-GH', {day:'numeric', month:'long', year:'numeric'})}</div>
     </div>`;
   wrap.appendChild(header);
 
   const clone = source.cloneNode(true);
-  // Strip interactive chrome from the export
-  clone.querySelectorAll('button, input, select, textarea, .no-print, .section-header button').forEach(n => n.remove());
-  const sh = clone.querySelector('.section-header');
-  if (sh) {
-    // Keep title/sub only
-    sh.querySelectorAll('button, .btn').forEach(n => n.remove());
-  }
+  clone.id = 'wr-inner-pdf-clone';
+  clone.style.cssText = 'display:block;width:100%;background:#ffffff;color:#1a1a1a;';
+  // Force readable print colours (avoid CSS variables that may not resolve in the overlay)
+  clone.querySelectorAll('*').forEach(el => {
+    try {
+      const cs = window.getComputedStyle(el);
+      // Keep structure; inline a safe text color if computed is near-white on white
+    } catch (e) {}
+  });
+  clone.querySelectorAll('button, input, select, textarea, .no-print, .toolbar, .aic-modes').forEach(n => {
+    try { n.remove(); } catch (e) {}
+  });
+  clone.querySelectorAll('.section-header .btn, .btn-gold, .btn-outline, .btn').forEach(n => {
+    try { n.remove(); } catch (e) {}
+  });
   await _swapLiveContentForExport(source, clone);
   wrap.appendChild(clone);
-  document.body.appendChild(wrap);
+  overlay.appendChild(wrap);
+  document.body.appendChild(overlay);
+
+  // Wait for layout + images (same timing as exportPageToPDF)
+  await new Promise(r => setTimeout(r, 350));
+  try {
+    const imgs = wrap.querySelectorAll('img');
+    await Promise.all(Array.from(imgs).map(img => {
+      if (img.complete && img.naturalWidth) return Promise.resolve();
+      return new Promise(res => { img.onload = res; img.onerror = res; setTimeout(res, 1200); });
+    }));
+  } catch (e) {}
 
   const stamp = (typeof today === 'function' ? today() : new Date().toISOString().slice(0, 10));
   const filename = 'weekly-report-' + stamp + '.pdf';
 
   try {
+    const w = Math.max(wrap.scrollWidth, wrap.offsetWidth, captureW);
+    const h = Math.max(wrap.scrollHeight, wrap.offsetHeight, clone.scrollHeight, 400);
+    if (h < 80) {
+      throw new Error('Weekly Report content height is too small to export');
+    }
     await html2pdf().set({
-      margin: landscape ? 8 : 10,
+      margin: [8, 8, 8, 8],
       filename,
-      image: { type: 'jpeg', quality: 0.95 },
+      image: { type: 'jpeg', quality: 0.96 },
       html2canvas: {
         scale: 2,
         useCORS: true,
+        allowTaint: true,
         backgroundColor: '#ffffff',
         scrollX: 0,
         scrollY: 0,
-        windowWidth: captureW
+        x: 0,
+        y: 0,
+        width: w,
+        height: h,
+        windowWidth: w,
+        windowHeight: h
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: orientation },
       pagebreak: { mode: ['css', 'legacy'], avoid: ['.card', 'tr'] }
@@ -28315,9 +28525,14 @@ async function exportWeeklyReportToPDF(options) {
     toast('✅ PDF downloaded (' + orientation + ')');
   } catch (err) {
     console.error('Weekly Report PDF export failed:', err);
-    toast('⚠ Could not generate PDF — try Print instead', 'error');
+    try {
+      toast('⚠ PDF failed — opening print dialog instead', 'error');
+      await printReportViaIframe('wr-inner', opts, 'Weekly Report');
+    } catch (e2) {
+      toast('⚠ Could not generate PDF or print', 'error');
+    }
   } finally {
-    if (wrap.parentNode) document.body.removeChild(wrap);
+    try { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch (e) {}
     if (typeof clearReportPrintHideClasses === 'function') clearReportPrintHideClasses();
   }
 }
@@ -34678,6 +34893,64 @@ let _srRcTerm = null;
 // one student's full history via Student Records.
 let _aicTerm = null;
 let _aicHistory = [];
+let _aicMode = 'explain'; // comment | explain | report
+
+/** Session / calendar term used across the app — AI Assistant defaults to this. */
+function getSessionTerm() {
+  try {
+    if (db && db.currentTerm && typeof TERMS !== 'undefined' && TERMS.includes(db.currentTerm)) {
+      return db.currentTerm;
+    }
+  } catch (e) {}
+  try {
+    if (typeof getCurrentTermStatus === 'function') {
+      const cts = getCurrentTermStatus();
+      if (cts && cts.term && typeof TERMS !== 'undefined' && TERMS.includes(cts.term)) return cts.term;
+    }
+  } catch (e) {}
+  if (typeof TERMS !== 'undefined' && TERMS.length) return TERMS[0];
+  return 'Term 1';
+}
+
+/** Academic calendar date range for a term (if configured). */
+function getTermDateRange(term) {
+  try {
+    const td = (db.academicCalendar && db.academicCalendar.terms && db.academicCalendar.terms[term]) || {};
+    return { start: td.start || '', end: td.end || '' };
+  } catch (e) {
+    return { start: '', end: '' };
+  }
+}
+
+function aicDateInTermRange(dateStr, term) {
+  if (!dateStr) return false;
+  const d = String(dateStr).substring(0, 10);
+  const { start, end } = getTermDateRange(term);
+  if (start && end) return d >= start && d <= end;
+  // Fallback: if calendar not set, cannot prove term — treat as not in term for date-only records
+  return false;
+}
+
+const AIC_MODE_META = {
+  comment: {
+    label: '💬 Comment',
+    hint: 'Short comments on the numbers — strengths, concerns, one-line takeaways.',
+    placeholder: 'e.g. Comment on fee collection this term…',
+    prefix: 'Write a brief professional comment (3–6 short sentences) for school management. Be concrete and use only the figures provided. Topic: '
+  },
+  explain: {
+    label: '📖 Explain',
+    hint: 'Plain-language explanation of figures, trends, and what they mean.',
+    placeholder: 'e.g. Explain fee collection by class this term…',
+    prefix: 'Explain clearly for school leadership using only the data provided. Cover meaning, drivers, risks, and practical next steps. Question: '
+  },
+  report: {
+    label: '📋 Make Report',
+    hint: 'Draft a structured narrative report you can copy into minutes or email.',
+    placeholder: 'e.g. Write a term finance & performance summary for the board…',
+    prefix: 'Draft a structured management report with clear headings (e.g. Overview, Finance, Fee Collection, Academics, Risks, Recommendations). Use only the data provided. Do not invent numbers. Request: '
+  }
+};
 
 function _aicFirstName(name) {
   return (name || '').trim().split(/\s+/)[0] || 'Student';
@@ -34690,6 +34963,13 @@ function _aicRound(n, d) {
 }
 
 function buildAiAssistantSnapshot(term) {
+  // Resolve to a real term key; never mix other terms into primary metrics
+  if (!term || (typeof TERMS !== 'undefined' && TERMS.length && !TERMS.includes(term))) {
+    term = getSessionTerm();
+  }
+  const termRange = getTermDateRange(term);
+  const sessionTerm = getSessionTerm();
+
   const students = db.admissions || [];
   const enrolled = students.filter(s =>
     s.status === 'Admitted' || s.status === 'Continuing' || s.status === 'Scholarship' ||
@@ -34708,7 +34988,7 @@ function buildAiAssistantSnapshot(term) {
     byStatus[st] = (byStatus[st] || 0) + 1;
   });
 
-  // ── Fees for selected term ──
+  // ── Fees for selected term only ──
   let totalBilled = 0, totalPaid = 0;
   const owing = [];
   const feeByClass = {};
@@ -34737,7 +35017,7 @@ function buildAiAssistantSnapshot(term) {
       ? _aicRound((feeByClass[cls].paid / feeByClass[cls].billed) * 100, 1) : null
   }));
 
-  // ── All-terms fee rollup (year-to-date style) ──
+  // ── All-terms fee rollup (year-to-date — clearly labelled, secondary) ──
   let ytdBilled = 0, ytdPaid = 0;
   (TERMS || []).forEach(t => {
     enrolled.forEach(s => {
@@ -34746,7 +35026,7 @@ function buildAiAssistantSnapshot(term) {
     });
   });
 
-  // ── Revenue & expenses (posted only) ──
+  // ── Revenue & expenses for THIS term only (posted) ──
   const termExpenses = (db.expenses || []).filter(e => e.term === term && (typeof isPostedFin !== 'function' || isPostedFin(e)));
   const termRevenue = (db.revenue || []).filter(r => r.term === term && (typeof isPostedFin !== 'function' || isPostedFin(r)));
   const totalExpenses = termExpenses.reduce((a, e) => a + (e.amount || 0), 0);
@@ -34785,9 +35065,14 @@ function buildAiAssistantSnapshot(term) {
       mode: e.mode || ''
     }));
 
-  // ── Feeding budget requests (current year snapshot) ──
-  const fbReqs = db.feedingBudgetRequests || [];
+  // ── Feeding budget requests for THIS term (by request date in term range; else all-year note) ──
+  const fbAll = db.feedingBudgetRequests || [];
+  const fbHasCalendar = !!(termRange.start && termRange.end);
+  const fbReqs = fbHasCalendar
+    ? fbAll.filter(r => aicDateInTermRange(r.date || r.dateFrom, term))
+    : fbAll.slice();
   const feedingBudget = {
+    scope: fbHasCalendar ? ('term:' + term) : 'year-all-calendar-not-set',
     pending: fbReqs.filter(r => r.status === 'Pending').length,
     returned: fbReqs.filter(r => r.status === 'Returned').length,
     approved: fbReqs.filter(r => r.status === 'Approved').length,
@@ -34796,8 +35081,9 @@ function buildAiAssistantSnapshot(term) {
     pendingTotal: _aicRound(fbReqs.filter(r => r.status === 'Pending').reduce((a, r) => a + (r.amount || 0), 0), 2)
   };
 
-  // ── Petty cash (approved) ──
-  const pc = (db.pettyCash || []).filter(r => (r.status || 'approved') === 'approved');
+  // ── Petty cash (approved) — term-scoped by date when calendar exists ──
+  let pc = (db.pettyCash || []).filter(r => (r.status || 'approved') === 'approved');
+  if (fbHasCalendar) pc = pc.filter(r => aicDateInTermRange(r.date, term));
   const pettyCashIn = pc.filter(r => r.type === 'receipt').reduce((a, r) => a + (r.amount || 0), 0);
   const pettyCashOut = pc.filter(r => r.type === 'payment').reduce((a, r) => a + (r.amount || 0), 0);
 
@@ -34805,10 +35091,16 @@ function buildAiAssistantSnapshot(term) {
   const employees = (db.employees || []).filter(e => e.status === 'Active' || !e.status);
   const leavePending = (db.staffLeave || []).filter(l => l.status === 'Pending').length;
 
-  // ── Attendance by class (all recorded marks — attendance is date-keyed, not term-keyed) ──
+  // ── Attendance by class for THIS term only (date-keyed keys filtered via calendar) ──
   const att = db.attendance || {};
   const attByClass = {};
   Object.keys(att).forEach(k => {
+    if (typeof aidAttendanceKeyInTerm === 'function') {
+      if (!aidAttendanceKeyInTerm(k, term)) return;
+    } else {
+      const d = (k.match && k.match(/(\d{4}-\d{2}-\d{2})/)) ? k.match(/(\d{4}-\d{2}-\d{2})/)[1] : null;
+      if (d && termRange.start && termRange.end && (d < termRange.start || d > termRange.end)) return;
+    }
     const parts = k.split('|');
     if (parts.length < 2) return;
     const cls = parts[0].replace(/_/g, ' ');
@@ -34836,7 +35128,7 @@ function buildAiAssistantSnapshot(term) {
   const attTotal = attP + attA + attL;
   const overallAttendanceRatePct = attTotal > 0 ? Math.round((attP / attTotal) * 100) : null;
 
-  // ── Academic performance for selected term ──
+  // ── Academic performance for selected term only ──
   const studentAverages = [];
   const subjectAgg = {}; // subjectName -> { sum, n }
   enrolled.forEach(s => {
@@ -34894,10 +35186,32 @@ function buildAiAssistantSnapshot(term) {
     else bandCounts.weakBelow40++;
   });
 
+  const hasFeeData = totalBilled > 0 || totalPaid > 0;
+  const hasFinData = termRevenue.length > 0 || termExpenses.length > 0;
+  const hasPerfData = studentAverages.length > 0;
+  const hasAttData = attTotal > 0;
+
   return {
     term,
+    termScope: {
+      selectedTerm: term,
+      sessionTerm,
+      isSessionTerm: term === sessionTerm,
+      dateFrom: termRange.start || null,
+      dateTo: termRange.end || null,
+      calendarConfigured: !!(termRange.start && termRange.end)
+    },
     academicYear: (typeof ACTIVE_YEAR !== 'undefined' ? ACTIVE_YEAR : null),
     currency: 'GHS',
+    dataAvailability: {
+      fees: hasFeeData,
+      revenueExpenses: hasFinData,
+      performance: hasPerfData,
+      attendance: hasAttData,
+      note: (!hasFeeData && !hasFinData && !hasPerfData && !hasAttData)
+        ? ('Little or no recorded data for ' + term + ' yet — say so clearly; do not invent figures or borrow other terms.')
+        : null
+    },
 
     // Enrollment
     enrollment: {
@@ -34909,8 +35223,9 @@ function buildAiAssistantSnapshot(term) {
       byClass
     },
 
-    // Finances — selected term
+    // Finances — THIS term only
     fees: {
+      term,
       billed: _aicRound(totalBilled, 2),
       paid: _aicRound(totalPaid, 2),
       outstanding: _aicRound(totalBilled - totalPaid, 2),
@@ -34920,23 +35235,30 @@ function buildAiAssistantSnapshot(term) {
       byClass: feeByClassList
     },
     feesYearToDate: {
+      note: 'Year-to-date across all terms — only use when user asks for YTD / whole year, not for term-specific answers.',
       billed: _aicRound(ytdBilled, 2),
       paid: _aicRound(ytdPaid, 2),
       outstanding: _aicRound(ytdBilled - ytdPaid, 2),
       collectionRatePct: ytdBilled > 0 ? _aicRound((ytdPaid / ytdBilled) * 100, 1) : null
     },
     revenue: {
+      term,
       total: _aicRound(totalRevenue, 2),
-      byCategory: revenueByCategory
+      byCategory: revenueByCategory,
+      recordCount: termRevenue.length
     },
     expenses: {
+      term,
       total: _aicRound(totalExpenses, 2),
       byCategory: expensesByCategory,
       largest: largestExpenses,
-      surplusOrDeficit: _aicRound(totalRevenue - totalExpenses, 2)
+      surplusOrDeficit: _aicRound(totalRevenue - totalExpenses, 2),
+      recordCount: termExpenses.length
     },
     feedingBudget,
     pettyCash: {
+      term,
+      scope: fbHasCalendar ? ('term:' + term) : 'year-all-calendar-not-set',
       receipts: _aicRound(pettyCashIn, 2),
       payments: _aicRound(pettyCashOut, 2),
       balance: _aicRound(pettyCashIn - pettyCashOut, 2)
@@ -34948,8 +35270,9 @@ function buildAiAssistantSnapshot(term) {
       pendingLeaveRequests: leavePending
     },
 
-    // Attendance (all recorded marks)
+    // Attendance — THIS term only
     attendance: {
+      term,
       overallRatePct: overallAttendanceRatePct,
       presentMarks: attP,
       absentMarks: attA,
@@ -34957,8 +35280,9 @@ function buildAiAssistantSnapshot(term) {
       byClass: attendanceByClass
     },
 
-    // Student performance — selected term
+    // Student performance — THIS term only
     performance: {
+      term,
       studentsWithGrades: studentAverages.length,
       schoolAveragePct: schoolAvg,
       bands: bandCounts,
@@ -34969,15 +35293,15 @@ function buildAiAssistantSnapshot(term) {
       strugglingStudents: studentAverages.filter(r => r.average < 50).slice(-10).reverse()
     },
 
-    // Management Account Report snapshot (for explaining management accounts)
+    // Management Account Report snapshot (date filter from that report UI if set)
     managementAccounts: (typeof buildManagementReportAiData === 'function')
       ? buildManagementReportAiData(
-          (typeof window !== 'undefined' && window._mgmtLastDateFrom) || '',
-          (typeof window !== 'undefined' && window._mgmtLastDateTo) || ''
+          (typeof window !== 'undefined' && window._mgmtLastDateFrom) || termRange.start || '',
+          (typeof window !== 'undefined' && window._mgmtLastDateTo) || termRange.end || ''
         )
       : null,
 
-    // Board / Finance Report snapshot
+    // Board / Finance Report snapshot (year-level pack — secondary)
     boardFinanceReport: (typeof buildBoardReportAiData === 'function')
       ? buildBoardReportAiData()
       : null,
@@ -34991,15 +35315,19 @@ function buildAiAssistantSnapshot(term) {
       : null,
 
     guidance: [
-      'Use fees, revenue, expenses, feedingBudget, and pettyCash for financial questions.',
-      'Use managementAccounts for Management Account Report explanations (income statement, financial position, cash, fee collection, ratios).',
-      'Use boardFinanceReport for Board Report / Finance Report explanations (YTD performance, position, cash, enrollment).',
-      'Use weeklyFinanceReport for the Weekly Report (this week revenue mix, expenses, net, daily breakdown).',
-      'Use performance and attendance for academic questions.',
+      'PRIMARY SCOPE: All primary metrics (fees, revenue, expenses, attendance, performance) are for term "' + term + '" only.',
+      'Do not mix in other terms unless the user explicitly asks to compare terms or asks for year-to-date.',
+      'feesYearToDate is whole-year only — use solely for YTD questions.',
+      'If dataAvailability shows missing data for this term, say there is little or no data for ' + term + ' yet — never invent numbers.',
+      'Use fees, revenue, expenses, feedingBudget, and pettyCash for financial questions about this term.',
+      'Use managementAccounts for Management Account Report explanations.',
+      'Use boardFinanceReport only for board / year-level questions.',
+      'Use weeklyFinanceReport for the Weekly Report (week window).',
+      'Use performance and attendance for academic questions for this term.',
       'topOwing and topPerformers/strugglingStudents use first names only — do not invent surnames or contact details.',
       'If a question needs one student\'s full history, say to open Student Records.',
       'Amounts are in GHS. Percentages are already computed where provided.',
-      'When explaining the Management Account Report: state what the numbers mean, highlight risks (deficit, low collection, low cash, imbalance), and suggest practical next steps for management — do not invent figures not in the snapshot.'
+      'Always name the term (' + term + ') in your answer so the reader knows the scope.'
     ]
   };
 }
@@ -35352,72 +35680,179 @@ async function weeklyExplainWithAi(question) {
 window.weeklyExplainWithAi = weeklyExplainWithAi;
 window.buildWeeklyReportAiData = buildWeeklyReportAiData;
 
+function aicSetMode(mode) {
+  if (!AIC_MODE_META[mode]) return;
+  _aicMode = mode;
+  if (typeof renderAiAssistant === 'function') renderAiAssistant();
+}
+
+function aicCopyMsg(idx) {
+  const m = _aicHistory[idx];
+  if (!m || !m.text) return;
+  navigator.clipboard.writeText(m.text).then(() => toast('✅ Copied to clipboard')).catch(() => toast('⚠ Could not copy', 'error'));
+}
+
+function aicPrintMsg(idx) {
+  const m = _aicHistory[idx];
+  if (!m || !m.text) return;
+  const school = (typeof schoolName === 'function' ? schoolName() : (schoolInfo && schoolInfo.name)) || 'School';
+  const w = window.open('', '_blank', 'width=800,height=900');
+  if (!w) { toast('⚠ Allow pop-ups to print', 'error'); return; }
+  w.document.write(`<!DOCTYPE html><html><head><title>AI Report — ${esc(school)}</title>
+    <style>body{font-family:Georgia,serif;padding:28px;line-height:1.55;color:#122;max-width:720px;margin:0 auto}
+    h1{font-size:18px;margin:0 0 6px} .meta{color:#666;font-size:12px;margin-bottom:18px}
+    pre{white-space:pre-wrap;font-family:inherit;font-size:13.5px}</style></head><body>
+    <h1>${esc(school)} — AI ${esc((_aicMode === 'report' ? 'Report' : _aicMode === 'comment' ? 'Comment' : 'Explanation'))}</h1>
+    <div class="meta">${esc(_aicTerm || '')} · ${esc(ACTIVE_YEAR ? ACTIVE_YEAR.replace('_','/') : '')} · Generated ${new Date().toLocaleString()}</div>
+    <pre>${esc(m.text)}</pre>
+    <` + `script>window.onload=function(){window.print();}</` + `script>
+    </body></html>`);
+  w.document.close();
+}
+
+function aicPromptSuggestions() {
+  if (_aicMode === 'comment') {
+    return [
+      'Comment on overall fee collection this term',
+      'Brief comment on expense control vs revenue',
+      'Comment on attendance trends by class',
+      'Short comment on academic performance this term',
+      'Comment on feeding budget status and risks'
+    ];
+  }
+  if (_aicMode === 'report') {
+    return [
+      'Write a term finance summary for management',
+      'Draft a board briefing: revenue, expenses, surplus, cash',
+      'Prepare a fee collection & outstanding balances report',
+      'Write an academics & attendance performance report',
+      'Full term report: finance + academics + recommendations'
+    ];
+  }
+  return [
+    'How is fee collection by class this term?',
+    'What are our biggest expense categories vs revenue?',
+    'Which classes have the lowest attendance rates?',
+    'Summarise student performance — averages, weak subjects, struggling students',
+    'Explain the Management Account Report — surplus, fees, cash, position',
+    'How much feeding budget is pending or approved?'
+  ];
+}
+
 function renderAiAssistant() {
   ensurePage('aiassistant', 'aic-inner');
   const el = document.getElementById('aic-inner');
   if (!el) return;
-  if (!_aicTerm) _aicTerm = TERMS[TERMS.length - 1];
+  // Always default to the term in session (calendar active term or db.currentTerm)
+  const sessionTerm = getSessionTerm();
+  if (!_aicTerm || (typeof TERMS !== 'undefined' && TERMS.length && !TERMS.includes(_aicTerm))) {
+    _aicTerm = sessionTerm;
+  }
+  if (!AIC_MODE_META[_aicMode]) _aicMode = 'explain';
+  const meta = AIC_MODE_META[_aicMode];
+  const termRange = getTermDateRange(_aicTerm);
 
   function draw() {
+    const suggestions = aicPromptSuggestions();
+    const isSession = _aicTerm === sessionTerm;
     el.innerHTML = `
       <div class="aic-layout">
         <div class="aic-header">
           <div>
-            <div style="font-weight:600;font-size:13px;color:var(--navy)">🤖 Ask about finances, management accounts &amp; student performance</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">Uses a rich summary: fees, revenue &amp; expenses, Management Account Report (income, financial position, cash, ratios), feeding budget, attendance, and academic performance. Not a full record search — for one student's full history, use Student Records.</div>
+            <div style="font-weight:600;font-size:13px;color:var(--navy)">🤖 AI Assistant — comment, explain &amp; make reports</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(meta.hint)} Answers use <b>only data for the selected term</b> (${esc(_aicTerm)})${termRange.start && termRange.end ? ` · ${esc(termRange.start)} → ${esc(termRange.end)}` : ''}. Not a full student-record search.</div>
           </div>
-          <select onchange="aicTermChange(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px">
-            ${TERMS.map(t => `<option value="${esc(t)}" ${t === _aicTerm ? 'selected' : ''}>${esc(t)}</option>`).join('')}
-          </select>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:11px;color:var(--muted)">Term</span>
+            <select onchange="aicTermChange(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:600" title="Term context for AI data">
+              ${TERMS.map(t => `<option value="${esc(t)}" ${t === _aicTerm ? 'selected' : ''}>${esc(t)}${t === sessionTerm ? ' (session)' : ''}</option>`).join('')}
+            </select>
+            ${isSession ? `<span class="badge" style="background:var(--green-light);color:var(--green);font-size:10px">Session term</span>` : `<button type="button" class="btn btn-outline btn-sm" onclick="aicTermChange('${esc(sessionTerm)}')" title="Reset to session term">Use session: ${esc(sessionTerm)}</button>`}
+            ${_aicHistory.length ? `<button type="button" class="btn btn-outline btn-sm" onclick="aicClearChat()">Clear</button>` : ''}
+          </div>
+        </div>
+        <div class="aic-modes">
+          ${Object.keys(AIC_MODE_META).map(k => `
+            <button type="button" class="aic-mode-btn ${_aicMode === k ? 'active' : ''}" onclick="aicSetMode('${k}')">${AIC_MODE_META[k].label}</button>
+          `).join('')}
         </div>
         <div class="aic-thread" id="aic-thread">
           ${_aicHistory.length === 0
             ? `<div class="aic-empty">
-                <div style="margin-bottom:8px;font-weight:500;color:var(--navy)">Try asking:</div>
-                <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)">
-                  <button type="button" class="btn btn-outline btn-sm" style="text-align:left;justify-content:flex-start" onclick="document.getElementById('aic-input').value=this.textContent;aicSend();">How is fee collection by class this term?</button>
-                  <button type="button" class="btn btn-outline btn-sm" style="text-align:left;justify-content:flex-start" onclick="document.getElementById('aic-input').value=this.textContent;aicSend();">What are our biggest expense categories vs revenue?</button>
-                  <button type="button" class="btn btn-outline btn-sm" style="text-align:left;justify-content:flex-start" onclick="document.getElementById('aic-input').value=this.textContent;aicSend();">Which classes have the lowest attendance rates?</button>
-                  <button type="button" class="btn btn-outline btn-sm" style="text-align:left;justify-content:flex-start" onclick="document.getElementById('aic-input').value=this.textContent;aicSend();">Summarise student performance — school average, weak subjects, who is struggling</button>
-                  <button type="button" class="btn btn-outline btn-sm" style="text-align:left;justify-content:flex-start" onclick="document.getElementById('aic-input').value=this.textContent;aicSend();">How much feeding budget is pending or already approved?</button>
-                  <button type="button" class="btn btn-outline btn-sm" style="text-align:left;justify-content:flex-start" onclick="document.getElementById('aic-input').value=this.textContent;aicSend();">Explain the Management Account Report — surplus, fee collection, cash, and financial position</button>
+                <div style="margin-bottom:10px;font-weight:600;color:var(--navy)">Try these (${esc(meta.label)}):</div>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  ${suggestions.map(s => `
+                    <button type="button" class="btn btn-outline btn-sm" style="text-align:left;justify-content:flex-start"
+                      onclick="document.getElementById('aic-input').value=${JSON.stringify(s)};aicSend();">${esc(s)}</button>
+                  `).join('')}
                 </div>
               </div>`
-            : _aicHistory.map(m => `
-              <div class="aic-msg aic-msg-${m.role}">
-                <div class="aic-msg-bubble">${m.role === 'user' ? esc(m.text) : (m.error ? `⚠ ${esc(m.text)}` : esc(m.text))}</div>
+            : _aicHistory.map((m, idx) => `
+              <div class="aic-msg aic-msg-${m.role}${m.kind === 'report' ? ' aic-msg-report' : ''}">
+                <div>
+                  <div class="aic-msg-bubble">${m.role === 'user' ? esc(m.text) : (m.error ? `⚠ ${esc(m.text)}` : esc(m.text))}</div>
+                  ${m.role === 'assistant' && !m.pending && !m.error ? `
+                    <div class="aic-msg-actions">
+                      <button type="button" class="btn btn-outline btn-sm" onclick="aicCopyMsg(${idx})">📋 Copy</button>
+                      ${m.kind === 'report' || _aicMode === 'report' ? `<button type="button" class="btn btn-outline btn-sm" onclick="aicPrintMsg(${idx})">🖨 Print</button>` : ''}
+                    </div>` : ''}
+                </div>
               </div>`).join('')}
         </div>
         <div class="aic-input-row">
-          <input type="text" id="aic-input" placeholder="Ask about fees, expenses, attendance, grades, feeding budget…" onkeydown="if(event.key==='Enter')aicSend();">
-          <button class="btn btn-gold" id="aic-send-btn" onclick="aicSend()">Send</button>
+          <textarea id="aic-input" rows="2" placeholder="${esc(meta.placeholder)}"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aicSend();}"></textarea>
+          <button class="btn btn-gold" id="aic-send-btn" onclick="aicSend()">${_aicMode === 'report' ? 'Generate' : 'Send'}</button>
         </div>
       </div>`;
     const thread = document.getElementById('aic-thread');
     if (thread) thread.scrollTop = thread.scrollHeight;
   }
 
-  window.aicTermChange = t => { _aicTerm = t; draw(); };
+  window.aicTermChange = t => {
+    const next = t || getSessionTerm();
+    if (next !== _aicTerm) {
+      _aicTerm = next;
+      // Changing term changes the data scope — clear prior chat so answers aren't mixed
+      _aicHistory = [];
+    }
+    draw();
+  };
+  window.aicClearChat = () => { _aicHistory = []; draw(); };
 
   window.aicSend = async function() {
     const input = document.getElementById('aic-input');
     const question = (input?.value || '').trim();
     if (!question) return;
     input.value = '';
-    _aicHistory.push({ role: 'user', text: question });
+    const mode = _aicMode;
+    const modeMeta = AIC_MODE_META[mode] || AIC_MODE_META.explain;
+    if (!_aicTerm) _aicTerm = getSessionTerm();
+    _aicHistory.push({ role: 'user', text: question, mode, term: _aicTerm });
     draw();
 
     const btn = document.getElementById('aic-send-btn');
     if (btn) btn.disabled = true;
-    _aicHistory.push({ role: 'assistant', text: 'Thinking…', pending: true });
+    _aicHistory.push({ role: 'assistant', text: mode === 'report' ? 'Drafting report…' : 'Thinking…', pending: true });
     draw();
 
     const snapshot = buildAiAssistantSnapshot(_aicTerm);
-    const result = await callAiAssist('chat', snapshot, question);
+    // Frame the request so the model stays on this term's data only
+    const termLead = `You are answering strictly for academic term "${_aicTerm}"` +
+      (snapshot.termScope && snapshot.termScope.dateFrom ? ` (${snapshot.termScope.dateFrom} to ${snapshot.termScope.dateTo})` : '') +
+      `. Use only figures labelled for this term. Do not use other terms unless asked. `;
+    const framed = termLead + modeMeta.prefix + question;
+    const enriched = Object.assign({}, snapshot, {
+      assistantMode: mode,
+      modeInstructions: modeMeta.prefix.trim(),
+      userRequest: question,
+      activeTerm: _aicTerm
+    });
+    const result = await callAiAssist('chat', enriched, framed);
 
     _aicHistory = _aicHistory.filter(m => !m.pending);
     _aicHistory.push(result.ok
-      ? { role: 'assistant', text: result.text }
+      ? { role: 'assistant', text: result.text, kind: mode === 'report' ? 'report' : mode, mode }
       : { role: 'assistant', text: result.error, error: true });
     if (btn) btn.disabled = false;
     draw();
