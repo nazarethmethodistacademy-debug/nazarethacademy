@@ -7822,7 +7822,7 @@
 
 <!-- ══ APPRAISAL MODAL ══ -->
 <div class="modal-overlay" id="appraisal-modal">
-  <div class="modal" style="width:640px">
+  <div class="modal" style="width:720px;max-width:96vw;max-height:92vh;overflow-y:auto">
     <div class="modal-header">
       <span class="modal-title">⭐ New Performance Appraisal</span>
       <button class="modal-close" onclick="closeModal('appraisal-modal')">✕</button>
@@ -7833,7 +7833,8 @@
     </div>
     <div style="padding:8px 20px">
       <div style="font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Rate Each Criterion (1–5)</div>
-      <div id="apr-criteria-heading" style="font-size:11px;color:var(--muted);margin-bottom:8px"></div>
+      <div id="apr-criteria-heading" style="font-size:11px;color:var(--muted);margin-bottom:4px"></div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Optional comment under each parameter — shown on the appraisal detail and under My Appraisal.</div>
       <div id="apr-criteria-list"></div>
       <div id="apr-overall-preview" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;margin-top:4px;border-top:1px dashed var(--border);font-size:12.5px;font-weight:600">
         <span>Overall Score</span>
@@ -26119,10 +26120,9 @@ const TEACHER_DEFAULT_PAGES = [
   'attendance','attendancereport','staffattendance','staffleave','dutyroster','timetable','subjects','myappraisal','myworkspace','staffdirectory',
   'schoolstructure','staffdatabase','training','parentdatabase'
 ];
-// Pages the built-in role guard already fully blocks for non-Admins regardless of
-// Access Control (e.g. Settings, Backup & Restore) — kept off the configurable
-// matrix entirely so Admin can't accidentally open them up.
-const ACCESS_CONTROL_EXEMPT_PAGES = ['appraisals'];
+// Pages kept off the configurable matrix (always use defaultPagePermission only).
+// Empty: Performance Appraisal is now configurable under Access Control.
+const ACCESS_CONTROL_EXEMPT_PAGES = [];
 
 // Pages only Admin may open (not exposed on the Access Control matrix).
 const ADMIN_ONLY_PAGES = [
@@ -26135,6 +26135,10 @@ function defaultPagePermission(role, page) {
   if (ADMIN_ONLY_PAGES.includes(page)) return 'none';
   // Student Assessment Report — Headteacher by default; Admin always via getEffectivePermission
   if (page === 'skillsreport' || page === 'skillsdetailed') {
+    return role === 'Headteacher' ? 'edit' : 'none';
+  }
+  // Performance Appraisal — Headteacher can manage by default; others none until ACL grants it
+  if (page === 'appraisals') {
     return role === 'Headteacher' ? 'edit' : 'none';
   }
   if (role === 'Teacher' || role === 'Class Teacher') {
@@ -44967,6 +44971,10 @@ function renderStaffPerformanceReport() {
 function renderAppraisals() {
   const el = document.getElementById('ap-inner');
   if (!el) return;
+  if (!requirePageAccess('appraisals', { level: 'view', action: 'open Performance Appraisal' })) {
+    el.innerHTML = '<div class="empty-state" style="padding:50px 20px">⛔ You do not have access to Performance Appraisal. Ask an Admin to grant it under Access Control.</div>';
+    return;
+  }
 
   const staffFil = (document.getElementById('apr-staff-filter') || {value:''}).value;
   const termFil  = (document.getElementById('apr-term-filter')  || {value:''}).value;
@@ -44989,6 +44997,7 @@ function renderAppraisals() {
     !appraisals.some(a => a.employeeId == e.id && a.term === currentTerm && a.year === ACTIVE_YEAR)
   );
 
+  const canEditApr = canEditCurrentPage('appraisals');
   const rows = filtered.map(a => {
     const emp = employees.find(e => e.id == a.employeeId);
     const rating = aprOverallRating(a.criteria || {});
@@ -45006,8 +45015,8 @@ function renderAppraisals() {
       <td>${a.reviewer || '—'}</td>
       <td style="display:flex;gap:5px;padding:8px 10px">
         <button class="btn btn-sm btn-outline" onclick="viewAppraisal('${a.id}')" title="View">👁️</button>
-        ${!a.published ? `<button class="btn btn-sm btn-primary" onclick="sendAppraisalToTeacher('${a.id}')" title="Send to teacher">📤 Send</button>` : ''}
-        <button class="btn btn-sm btn-danger" onclick="deleteAppraisal('${a.id}')">✕</button>
+        ${canEditApr && !a.published ? `<button class="btn btn-sm btn-primary" onclick="sendAppraisalToTeacher('${a.id}')" title="Send to teacher">📤 Send</button>` : ''}
+        ${canEditApr ? `<button class="btn btn-sm btn-danger" onclick="deleteAppraisal('${a.id}')">✕</button>` : ''}
       </td>
     </tr>`;
   }).join('') || '<tr><td colspan="8" class="empty-state">No appraisals recorded yet.</td></tr>';
@@ -45016,9 +45025,9 @@ function renderAppraisals() {
     <div class="section-header">
       <div>
         <div class="section-title">⭐ Performance Appraisal</div>
-        <div class="section-sub">Rate and track staff performance over time</div>
+        <div class="section-sub">Rate and track staff performance over time${canEditApr ? '' : ' · view only'}</div>
       </div>
-      <button class="btn btn-primary" onclick="openAppraisalModal()">+ New Appraisal</button>
+      ${canEditApr ? `<button class="btn btn-primary" onclick="openAppraisalModal()">+ New Appraisal</button>` : ''}
     </div>
 
     <div class="kpi-grid kpi-grid-4" style="margin-bottom:16px">
@@ -45054,6 +45063,7 @@ function renderAppraisals() {
 }
 
 function openAppraisalModal() {
+  if (!requirePageAccess('appraisals', { level: 'edit', action: 'create appraisals' })) return;
   const employees = db.employees || [];
   document.getElementById('apr-employee').innerHTML = employees.map(e => `<option value="${e.id}">${esc(e.name)} — ${e.role||''}</option>`).join('') || '<option value="">No staff found — add staff in Payroll first</option>';
   const cts = (typeof getCurrentTermStatus === 'function') ? getCurrentTermStatus() : {};
@@ -45068,6 +45078,7 @@ function openAppraisalModal() {
   document.getElementById('appraisal-modal').classList.add('open');
 }
 let _aprCriteriaValues = {};
+let _aprCriteriaComments = {};
 let _aprActiveCriteria = APPRAISAL_CRITERIA;
 
 // Rebuilds the KPI list for whichever staff member is now selected — Teacher,
@@ -45079,6 +45090,7 @@ function aprEmployeeChanged() {
   const emp = (db.employees || []).find(e => e.id == empId);
   _aprActiveCriteria = getAppraisalCriteriaForEmployee(emp);
   _aprCriteriaValues = {};
+  _aprCriteriaComments = {};
   const heading = document.getElementById('apr-criteria-heading');
   if (heading) heading.textContent = emp ? `KPIs for: ${emp.role || 'General Staff'}` : '';
   renderAprCriteriaList();
@@ -45086,19 +45098,36 @@ function aprEmployeeChanged() {
   aprRecomputePunctuality();
 }
 
+function aprSetComment(key, val) {
+  const t = (val || '').trim();
+  if (t) _aprCriteriaComments[key] = t;
+  else delete _aprCriteriaComments[key];
+}
+
 function renderAprCriteriaList() {
-  document.getElementById('apr-criteria-list').innerHTML = _aprActiveCriteria.map(c => c.auto
-    ? `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <span style="font-size:12.5px">${c.label} <span style="color:var(--muted);font-size:10px">(auto)</span></span>
-        <div id="apr-rate-${c.key}" style="font-size:11px;color:var(--muted)">Select a staff member…</div>
-      </div>`
-    : `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <span style="font-size:12.5px">${c.label}</span>
+  document.getElementById('apr-criteria-list').innerHTML = _aprActiveCriteria.map(c => {
+    const commentBox = `<textarea id="apr-comment-${c.key}" rows="2" placeholder="Comment on this parameter (optional)…"
+      oninput="aprSetComment('${c.key}', this.value)"
+      style="width:100%;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;resize:vertical;font-family:inherit;background:var(--white);color:var(--text)">${esc(_aprCriteriaComments[c.key] || '')}</textarea>`;
+    if (c.auto) {
+      return `<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <span style="font-size:12.5px;font-weight:600;color:var(--navy)">${c.label} <span style="color:var(--muted);font-size:10px;font-weight:400">(auto)</span></span>
+          <div id="apr-rate-${c.key}" style="font-size:11px;color:var(--muted)">Select a staff member…</div>
+        </div>
+        ${commentBox}
+      </div>`;
+    }
+    return `<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <span style="font-size:12.5px;font-weight:600;color:var(--navy)">${c.label}</span>
         <div class="rating-input" id="apr-rate-${c.key}">
           ${[1,2,3,4,5].map(n => `<button type="button" onclick="aprSetRating('${c.key}',${n})">★</button>`).join('')}
         </div>
-      </div>`
-  ).join('');
+      </div>
+      ${commentBox}
+    </div>`;
+  }).join('');
   aprUpdateOverallPreview();
 }
 
@@ -45169,6 +45198,7 @@ function aprRecomputePunctuality() {
 }
 
 function saveAppraisal() {
+  if (!requirePageAccess('appraisals', { level: 'edit', action: 'save appraisals' })) return;
   if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_','/') + ' is locked — ask an admin to unlock it first', 'error'); return; }
   const employeeId = document.getElementById('apr-employee').value;
   const term = document.getElementById('apr-term').value;
@@ -45187,6 +45217,12 @@ function saveAppraisal() {
   if (!db.appraisals) db.appraisals = [];
   if (!db.nextAppraisalId) db.nextAppraisalId = 1;
 
+  // Capture any last keystrokes from comment boxes (in case oninput lagged)
+  (_aprActiveCriteria || []).forEach(c => {
+    const el = document.getElementById('apr-comment-' + c.key);
+    if (el) aprSetComment(c.key, el.value);
+  });
+
   db.appraisals.push({
     id: 'APR-' + String(db.nextAppraisalId++).padStart(4, '0'),
     employeeId,
@@ -45195,6 +45231,7 @@ function saveAppraisal() {
     period: term + ' — ' + ACTIVE_YEAR.replace('_','/'), // kept for print/legacy display
     date,
     criteria: { ..._aprCriteriaValues },
+    criteriaComments: { ..._aprCriteriaComments }, // per-parameter remarks (optional)
     criteriaSet: _aprActiveCriteria, // the specific KPI set (Teacher/Class Teacher/Headteacher/default) used for this record — kept so past appraisals still display correctly even if the KPI definitions change later
     strengths: document.getElementById('apr-strengths').value.trim(),
     improvements: document.getElementById('apr-improvements').value.trim(),
@@ -45219,7 +45256,7 @@ function saveAppraisal() {
 // own "My Appraisal" tile. Only Admin/Headteacher can trigger this — matches
 // who's expected to be finalizing and releasing appraisal results.
 function sendAppraisalToTeacher(id) {
-  if (!requireRole('Admin', 'Headteacher')) return;
+  if (!requirePageAccess('appraisals', { level: 'edit', action: 'send appraisals' })) return;
   if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_','/') + ' is locked — ask an admin to unlock it first', 'error'); return; }
   const a = (db.appraisals || []).find(x => x.id === id);
   if (!a) return;
@@ -45242,11 +45279,16 @@ function viewAppraisal(id) {
   if (!a) return;
   const emp = (db.employees || []).find(e => e.id == a.employeeId);
   const criteriaSet = a.criteriaSet || APPRAISAL_CRITERIA; // older appraisals predate role-specific KPI sets
+  const comments = a.criteriaComments || {};
   const criteriaRows = criteriaSet.map(c => {
     const val = a.criteria[c.key] || 0;
-    return `<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--border)">
-      <div>${c.label}</div>
-      <div style="font-weight:600;color:var(--navy);white-space:nowrap">${val ? val + '/5 (' + (val/5*100) + '%)' : '—'}</div>
+    const note = comments[c.key] || '';
+    return `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;gap:10px">
+        <div>${c.label}${c.auto ? ' <span style="font-size:10px;color:var(--muted)">(auto)</span>' : ''}</div>
+        <div style="font-weight:600;color:var(--navy);white-space:nowrap">${val ? val + '/5 (' + (val/5*100) + '%)' : '—'}</div>
+      </div>
+      ${note ? `<div style="margin-top:4px;font-size:12px;color:var(--muted);font-style:italic;line-height:1.4">💬 ${esc(note)}</div>` : ''}
     </div>`;
   }).join('');
   const textBlock = (label, value) => `<div style="margin-top:12px"><div style="font-weight:600;color:var(--navy);margin-bottom:2px">${esc(label)}</div><div style="color:var(--muted)">${esc(value || '—')}</div></div>`;
@@ -45298,11 +45340,16 @@ function renderMyAppraisal() {
     const pct = aprOverallPercent(a.criteria || {});
     const rating = aprOverallRating(a.criteria || {});
     const criteriaSet = a.criteriaSet || APPRAISAL_CRITERIA; // older appraisals predate role-specific KPI sets
+    const comments = a.criteriaComments || {};
     const criteriaRows = criteriaSet.map(c => {
       const val = a.criteria[c.key] || 0;
-      return `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px">
-        <span style="color:var(--muted)">${c.label}${c.auto ? ' <span style="font-size:9px">(auto)</span>' : ''}</span>
-        <span>${val ? renderStars(val) + ' <b>' + (val/5*100) + '%</b>' : '\u2014'}</span>
+      const note = comments[c.key] || '';
+      return `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+        <div style="display:flex;justify-content:space-between;gap:8px">
+          <span style="color:var(--muted)">${c.label}${c.auto ? ' <span style="font-size:9px">(auto)</span>' : ''}</span>
+          <span>${val ? renderStars(val) + ' <b>' + (val/5*100) + '%</b>' : '\u2014'}</span>
+        </div>
+        ${note ? `<div style="margin-top:3px;font-size:11.5px;color:var(--text);font-style:italic;line-height:1.35">💬 ${esc(note)}</div>` : ''}
       </div>`;
     }).join('');
     return `
@@ -45627,11 +45674,16 @@ function buildWorkspaceAppraisalTab(emp, appraisals) {
     const pct = aprOverallPercent(a.criteria || {});
     const rating = aprOverallRating(a.criteria || {});
     const criteriaSet = a.criteriaSet || APPRAISAL_CRITERIA; // older appraisals predate role-specific KPI sets
+    const comments = a.criteriaComments || {};
     const criteriaRows = criteriaSet.map(c => {
       const val = a.criteria[c.key] || 0;
-      return `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px">
-        <span style="color:var(--muted)">${c.label}${c.auto ? ' <span style="font-size:9px">(auto)</span>' : ''}</span>
-        <span>${val ? renderStars(val) + ' <b>' + (val/5*100) + '%</b>' : '\u2014'}</span>
+      const note = comments[c.key] || '';
+      return `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+        <div style="display:flex;justify-content:space-between;gap:8px">
+          <span style="color:var(--muted)">${c.label}${c.auto ? ' <span style="font-size:9px">(auto)</span>' : ''}</span>
+          <span>${val ? renderStars(val) + ' <b>' + (val/5*100) + '%</b>' : '\u2014'}</span>
+        </div>
+        ${note ? `<div style="margin-top:3px;font-size:11.5px;color:var(--text);font-style:italic;line-height:1.35">💬 ${esc(note)}</div>` : ''}
       </div>`;
     }).join('');
     return `
@@ -45705,12 +45757,11 @@ function buildWorkspaceTrainingTab(myTrainings) {
 
 // ══════════════ ACCESS CONTROL (Admin-only: configure who can view/edit what) ══════════════
 const ACL_ROLES = ['Bursar', 'Secretary', 'Headteacher', 'Teacher', 'Class Teacher'];
-// Pages excluded from the matrix entirely -- either always-personal views (nothing to
-// gate, everyone who's logged in sees only their own data there), Admin-only tooling,
-// or exempt pages handled separately (see ACCESS_CONTROL_EXEMPT_PAGES).
+// Pages excluded from the matrix entirely -- always-personal views (own data only)
+// or Admin-only tooling. Performance Appraisal is configurable on the matrix.
 const ACL_HIDDEN_PAGES = [
   'dashboard', 'myappraisal', 'myworkspace', 'staffdirectory', 'accesscontrol',
-  'appraisals', 'announce_pta', 'announce_graduation', 'announce_midterms', 'announce_events'
+  'announce_pta', 'announce_graduation', 'announce_midterms', 'announce_events'
 ];
 
 function renderAccessControl() {
@@ -45748,7 +45799,7 @@ function renderAccessControl() {
     </div>
 
     <div style="background:var(--cream2);border-radius:10px;padding:12px 18px;margin-bottom:16px;font-size:12px;color:var(--muted)">
-      \u26d4 <b>None</b> \u2014 the page is hidden entirely, they can't open it. \ud83d\udc41\ufe0f <b>View</b> \u2014 they can open and look, but every Add/Edit/Delete control is hidden. \u270f\ufe0f <b>Edit</b> \u2014 full access, same as today. Admin always has full Edit access everywhere and isn't shown here. Performance Appraisal is always Admin/Headteacher-only regardless of this table.
+      \u26d4 <b>None</b> \u2014 the page is hidden entirely, they can't open it. \ud83d\udc41\ufe0f <b>View</b> \u2014 they can open and look, but every Add/Edit/Delete control is hidden. \u270f\ufe0f <b>Edit</b> \u2014 full access, same as today. Admin always has full Edit access everywhere and isn't shown here. <b>Performance Appraisal</b> defaults to Edit for Headteacher and None for other roles — change it here per role.
     </div>
 
     <input type="text" id="ac-search" placeholder="\ud83d\udd0d Search a page\u2026" oninput="renderAccessControl()" style="margin-bottom:12px;max-width:280px">
@@ -45867,6 +45918,7 @@ function renderStaffDirectory() {
 }
 
 function deleteAppraisal(id) {
+  if (!requirePageAccess('appraisals', { level: 'edit', action: 'delete appraisals' })) return;
   if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_','/') + ' is locked — ask an admin to unlock it first', 'error'); return; }
   if (!confirm('Delete this appraisal record?')) return;
   db.appraisals = (db.appraisals || []).filter(a => a.id !== id);
