@@ -19633,15 +19633,20 @@ function renderWeeklyReport() {
   // Feeding money that reached the General Ledger (Revenue Tracker → 'Feeding Fees').
   const FEEDING_CATS = ['Feeding Fees'];
   const feedingEntries = otherRevEntries.filter(r => FEEDING_CATS.includes(r.cat));
-  const feedingTotal   = feedingEntries.reduce((a,r) => a + (r.amount||0), 0);
-  const othersTotal    = otherRevTotal - feedingTotal;
+  const feedingTrackerTotal = feedingEntries.reduce((a,r) => a + (r.amount||0), 0);
+  // Daily feeding collections recorded on the Feeding Revenue page (also posted
+  // to the GL: Dr Cash in Hand / Cr Feeding Fees (Revenue)).
+  const feedingCollected      = feedingLedgerEntries(wkStart, wkEnd);
+  const feedingCollectedTotal = feedingCollected.reduce((a,f) => a + f.amount, 0);
+  const feedingTotal   = feedingTrackerTotal + feedingCollectedTotal;
+  const othersTotal    = otherRevTotal - feedingTrackerTotal;
 
-  const totalRevenue = tuitionTotal + otherRevTotal + admissionTotal;
+  const totalRevenue = tuitionTotal + otherRevTotal + admissionTotal + feedingCollectedTotal;
 
   const revBreakdown = [
     { label: 'Tuition Fees',            amount: tuitionOnlyTotal, note: 'Current-year fee payments received' },
     { label: 'Admission Fees',          amount: admissionTotal,   note: 'One-time fees from students registered this week' },
-    { label: 'Feeding Fees',            amount: feedingTotal,     note: 'Posted to Revenue Tracker → Feeding Fees' },
+    { label: 'Feeding Fees',            amount: feedingTotal,     note: 'Daily collections (Feeding Revenue) + Revenue Tracker → Feeding Fees' },
     { label: 'Fees in Arrears Received',amount: arrearsTotal,     note: 'Payments clearing prior-year balances' },
     { label: 'Others',                  amount: othersTotal,      note: 'All other revenue categories' }
   ];
@@ -19660,7 +19665,8 @@ function renderWeeklyReport() {
   const dailyRows = days.map((d,i) => {
     const dayRev = tuitionEntries.filter(t=>t.date===d).reduce((a,t)=>a+t.amount,0)
                  + otherRevEntries.filter(r=>r.date===d).reduce((a,r)=>a+r.amount,0)
-                 + admittedForFee.filter(s=>(s.createdDate || s.appdate)===d).reduce((a,s)=>a+(s.fee||0),0);
+                 + admittedForFee.filter(s=>(s.createdDate || s.appdate)===d).reduce((a,s)=>a+(s.fee||0),0)
+                 + feedingCollected.filter(f=>f.date===d).reduce((a,f)=>a+f.amount,0);
     const dayExp = expEntries.filter(r=>r.date===d).reduce((a,r)=>a+r.amount,0);
     return `<tr>
       <td>${dayNames[i]} · ${fmtDisplay(d)}</td>
@@ -19683,6 +19689,7 @@ function renderWeeklyReport() {
       method: s.feeMode || 'Cash',
       amount: s.fee
     })),
+    ...feedingCollected.map(f => ({ date: f.date, desc: `Feeding Fees — ${f.cls} (${f.count} pupil${f.count!==1?'s':''})`, method: 'Cash', amount: f.amount })),
     ...otherRevEntries.map(r => ({ date: r.date, desc: `${r.cat}${r.notes ? ' — ' + r.notes : ''}`, method: r.mode||'—', amount: r.amount }))
   ].sort((a,b) => a.date.localeCompare(b.date));
 
@@ -20762,6 +20769,7 @@ function renderFeedingSchedule() {
     const eligible = studentsList.filter(s => !feedingDisabledByAbsence(cls, date, s.id));
     const skipped = studentsList.length - eligible.length;
     eligible.forEach(s => { db.feedingLedger[k][s.id] = rate; });
+    syncFeedingJournal(cls, date);
     saveDb();
     draw();
     toast(`✅ Marked ${eligible.length} student${eligible.length!==1?'s':''} fully paid (GHS ${rate.toFixed(2)} each)` +
@@ -20807,6 +20815,7 @@ function renderFeedingSchedule() {
       return;
     }
 
+    reconcileFeedingJournals();
     saveDb();
     showBulkPanel = false;
     draw();
@@ -20837,6 +20846,7 @@ function renderFeedingSchedule() {
     } else {
       db.feedingLedger[k][sid] = Math.round(amt * 100) / 100;
     }
+    syncFeedingJournal(cls, date);
     saveDb();
     draw();
   }
@@ -22291,6 +22301,83 @@ function feedingAmountFor(cls, date, sid) {
   if (typeof raw === 'number') return raw;
   if (raw === true) return feedingDailyRate(cls, fdrTermForDate(date));
   return 0;
+}
+
+// ── FEEDING COLLECTIONS → GENERAL LEDGER ─────────────────────────────────
+// Every day's feeding money recorded on the Feeding Revenue page is posted to
+// the General Ledger as one balanced entry per class/day:
+//   Dr 1010 Cash in Hand            (money received)
+//   Cr Feeding Fees (Revenue)       (income earned)
+// (a revenue account is increased by a CREDIT; the debit is the cash side).
+// Keyed by source 'feeding' + the ledger key, so editing an amount re-posts
+// cleanly and never leaves a duplicate or stale line behind.
+function feedingLedgerEntries(from, to) {
+  const out = [];
+  Object.keys(db.feedingLedger || {}).forEach(key => {
+    const sep = key.indexOf('|');
+    if (sep === -1) return;
+    const cls = key.slice(3, sep).replace(/_/g, ' ');
+    const date = key.slice(sep + 1);
+    if (from && date < from) return;
+    if (to && date > to) return;
+    let amount = 0, count = 0;
+    Object.keys(db.feedingLedger[key] || {}).forEach(sid => {
+      const a = feedingAmountFor(cls, date, sid);
+      if (a > 0) { amount += a; count++; }
+    });
+    amount = Math.round(amount * 100) / 100;
+    if (amount > 0) out.push({ key, cls, date, count, amount });
+  });
+  return out;
+}
+
+function _postFeedingJournal(cls, date, key, total) {
+  postJournalEntry(date, 'Feeding fees collected: ' + cls, [
+    { account: '1010', debit: total, credit: 0 },
+    { account: revenueAccountCode('Feeding Fees'), debit: 0, credit: total }
+  ], 'feeding', key);
+}
+
+function syncFeedingJournal(cls, date) {
+  const key = fdKeyGlobal(cls, date);
+  let total = 0;
+  Object.keys((db.feedingLedger || {})[key] || {}).forEach(sid => { total += feedingAmountFor(cls, date, sid); });
+  total = Math.round(total * 100) / 100;
+  const cur = (db.journalEntries || []).filter(je => je.source === 'feeding' && je.sourceId === key);
+  if (cur.length === 1 && total > 0) {
+    const dr = (cur[0].lines || []).reduce((a, l) => a + (l.debit || 0), 0);
+    if (Math.abs(dr - total) < 0.005 && cur[0].date === date) return;
+  }
+  removeJournalEntriesFor('feeding', key);
+  if (total > 0) _postFeedingJournal(cls, date, key, total);
+}
+
+// Brings the GL fully in line with the Feeding Revenue ledger (used by the
+// backfill, so historical collections are posted too). Returns # of changes.
+function reconcileFeedingJournals() {
+  let changes = 0;
+  const entries = feedingLedgerEntries();
+  const live = {};
+  entries.forEach(e => { live[e.key] = e; });
+  const byKey = {};
+  (db.journalEntries || []).forEach(je => {
+    if (je.source !== 'feeding') return;
+    (byKey[je.sourceId] = byKey[je.sourceId] || []).push(je);
+  });
+  Object.keys(byKey).forEach(k => {
+    if (!live[k]) { removeJournalEntriesFor('feeding', k); changes++; }
+  });
+  entries.forEach(e => {
+    const cur = byKey[e.key] || [];
+    if (cur.length === 1) {
+      const dr = (cur[0].lines || []).reduce((a, l) => a + (l.debit || 0), 0);
+      if (Math.abs(dr - e.amount) < 0.005 && cur[0].date === e.date) return;
+    }
+    removeJournalEntriesFor('feeding', e.key);
+    _postFeedingJournal(e.cls, e.date, e.key, e.amount);
+    changes++;
+  });
+  return changes;
 }
 
 // Cumulative feeding position for one student, from whichever is later of
@@ -35587,9 +35674,12 @@ function buildWeeklyReportAiData(wkStart, wkEnd) {
     const admittedForFee = (db.admissions || []).filter(a => inWeek(a.createdDate || a.appdate));
     const admissionTotal = admittedForFee.reduce((a, s) => a + (s.fee || 0), 0)
       + admRevEntries.reduce((a, r) => a + (r.amount || 0), 0);
-    const feedingTotal = otherRevEntries.filter(r => r.cat === 'Feeding Fees').reduce((a, r) => a + (r.amount || 0), 0);
-    const othersTotal = otherRevTotal - feedingTotal;
-    const totalRevenue = tuitionTotal + otherRevTotal + admissionTotal;
+    const feedingTrackerTotal = otherRevEntries.filter(r => r.cat === 'Feeding Fees').reduce((a, r) => a + (r.amount || 0), 0);
+    const feedingCollected = (typeof feedingLedgerEntries === 'function') ? feedingLedgerEntries(wkStart, wkEnd) : [];
+    const feedingCollectedTotal = feedingCollected.reduce((a, f) => a + f.amount, 0);
+    const feedingTotal = feedingTrackerTotal + feedingCollectedTotal;
+    const othersTotal = otherRevTotal - feedingTrackerTotal;
+    const totalRevenue = tuitionTotal + otherRevTotal + admissionTotal + feedingCollectedTotal;
     const totalExpenses = expEntries.reduce((a, e) => a + (e.amount || 0), 0);
     const net = totalRevenue - totalExpenses;
 
@@ -35612,7 +35702,8 @@ function buildWeeklyReportAiData(wkStart, wkEnd) {
       const dayRev = tuitionEntries.filter(t => t.date === d).reduce((a, t) => a + t.amount, 0)
         + otherRevEntries.filter(r => r.date === d).reduce((a, r) => a + (r.amount || 0), 0)
         + admRevEntries.filter(r => r.date === d).reduce((a, r) => a + (r.amount || 0), 0)
-        + admittedForFee.filter(s => (s.createdDate || s.appdate) === d).reduce((a, s) => a + (s.fee || 0), 0);
+        + admittedForFee.filter(s => (s.createdDate || s.appdate) === d).reduce((a, s) => a + (s.fee || 0), 0)
+        + feedingCollected.filter(f => f.date === d).reduce((a, f) => a + f.amount, 0);
       const dayExp = expEntries.filter(r => r.date === d).reduce((a, r) => a + (r.amount || 0), 0);
       return {
         day: dayNames[i],
@@ -41523,6 +41614,9 @@ function backfillJournalEntries() {
     ], 'admissionfee', s.id);
     mark('admissionfee', s.id); posted++;
   });
+
+  // Feeding collections (Feeding Revenue page) → Dr Cash in Hand / Cr Feeding Fees (Revenue)
+  posted += reconcileFeedingJournals();
 
   (db.pettyCash || []).forEach(p => {
     if (p.status !== 'approved' || has('pettycash', p.id)) return;
