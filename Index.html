@@ -8399,7 +8399,12 @@
       Configure a discount or full exemption for an individual student — applies automatically everywhere their fees are calculated (Payment Tracker, Balance Sheet, Income Statement, reports). Separate from the "Scholarship" admission status, which already fully waives fees.
     </div>
 
-    <div class="form-grid" style="padding:16px 20px 4px">
+    <div style="display:flex;gap:6px;padding:12px 20px 0">
+      <button class="btn btn-sm btn-primary" id="fd-kind-tuition" onclick="fdSetKind('tuition')">🎓 Tuition Fees</button>
+      <button class="btn btn-sm btn-outline" id="fd-kind-feeding" onclick="fdSetKind('feeding')">🍽️ Feeding Fees</button>
+    </div>
+    <div id="fd-kind-hint" style="padding:8px 20px 0;font-size:11.5px;color:var(--muted)"></div>
+    <div class="form-grid" style="padding:10px 20px 4px">
       <div class="form-group full"><label>Student *</label>
         <input id="fd-student-search" placeholder="🔍 Search by name or ID…" oninput="fdFilterStudents()" autocomplete="off">
         <select id="fd-student-select" size="5" style="margin-top:6px" onchange="fdStudentPicked()"></select>
@@ -8437,10 +8442,30 @@
       </div>
     </div>
 
-    <div style="padding:12px 20px 4px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);font-weight:600;border-top:1px solid var(--border);margin-top:8px">Students With a Discount Configured</div>
+    <div style="padding:12px 20px 4px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);font-weight:600;border-top:1px solid var(--border);margin-top:8px">Bulk Exemption — Whole Class</div>
+    <div class="form-grid" style="padding:4px 20px 4px">
+      <div class="form-group"><label>Class *</label><select id="fd-bulk-cls"></select></div>
+      <div class="form-group" id="fd-bulk-scope-row"><label>Exempt by *</label>
+        <select id="fd-bulk-scope" onchange="fdBulkInit()"><option value="month">Month</option><option value="term">Term</option></select></div>
+      <div class="form-group" id="fd-bulk-month-row"><label>Month *</label><input type="month" id="fd-bulk-month"></div>
+      <div class="form-group" id="fd-bulk-terms-row" style="display:none"><label>Terms *</label>
+        <div style="display:flex;gap:10px;padding-top:6px">
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:400"><input type="checkbox" id="fd-bulk-t1" checked style="width:auto">T1</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:400"><input type="checkbox" id="fd-bulk-t2" checked style="width:auto">T2</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:400"><input type="checkbox" id="fd-bulk-t3" checked style="width:auto">T3</label>
+        </div>
+      </div>
+      <div class="form-group full"><label>Reason</label><input id="fd-bulk-reason" placeholder="e.g. School feeding programme sponsored, class on excursion"></div>
+    </div>
+    <div style="padding:0 20px 8px;display:flex;gap:8px;align-items:center">
+      <span id="fd-bulk-hint" style="font-size:11px;color:var(--muted);flex:1"></span>
+      <button class="btn btn-primary btn-sm" onclick="fdApplyBulk()">✅ Apply to Class</button>
+    </div>
+    <div id="fd-bulk-list" style="padding:0 20px 8px"></div>
+    <div style="padding:12px 20px 4px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);font-weight:600;border-top:1px solid var(--border);margin-top:8px">Students With a Discount / Exemption Configured</div>
     <div style="max-height:220px;overflow-y:auto">
       <table>
-        <thead><tr><th>Student</th><th>Type</th><th>Terms</th><th>Reason</th><th></th></tr></thead>
+        <thead><tr><th>Student</th><th>Fee</th><th>Type</th><th>Terms</th><th>Reason</th><th></th></tr></thead>
         <tbody id="fd-list-body"></tbody>
       </table>
     </div>
@@ -9077,6 +9102,11 @@ const DB_SEED = {
   nextSmsQueueId: 1,
   // ── FEE DISCOUNTS & EXEMPTIONS — keyed by student id ──
   feeDiscounts: {}, // { studentId: {type:'percent'|'fixed'|'full', value, terms:[] (empty=all terms), reason, setBy, setAt} }
+  // Same shape, but for the daily FEEDING fee (Settings → Fee Discounts & Exemptions → Feeding Fees tab).
+  // 'percent' = % off the class daily rate · 'fixed' = GHS off the daily rate PER DAY · 'full' = exempt from feeding fee.
+  feedingDiscounts: {},
+  // Bulk feeding exemptions: [{id, cls:'All'|className, month:'YYYY-MM', reason, setBy, setAt}] — whole class free of feeding fee for that month.
+  feedingExemptions: [],
   // ── BOARD REPORT — narrative sections no report can auto-generate ──
   boardReportNotes: { strategicPriorities: '', keyDecisions: '', risksConcerns: '', updatedBy: '', updatedAt: '' },
   // ── ACADEMIC CALENDAR — term start/end dates + school events for this academic year ──
@@ -9721,6 +9751,7 @@ async function executeCloseYear() {
     newDb.nextPrId      = 1;
     newDb.carryForwards = optArrears ? carryForwards : {};
     newDb.bsRetainedBF  = Math.round(_cyNewRetainedBF * 100) / 100;
+    newDb.bsLedgerMigrated = false; // new year's ledger starts empty — carry the balance-sheet opening figures in again
     // Preserve fee schedules, subjects, timetable, employees, assets, fixedAssets, inventory,
     // churchInvestment (opening capital doesn't reset annually)
     delete newDb.__archived; // new year is not archived
@@ -11378,7 +11409,7 @@ function ensureDbShape() {
     'skillComments', 'attendance', 'staffAttendance', 'dutyRoster', 'feeding', 'feedingBudgetOverrides',
     'fixedAssets', 'approvalConfig', 'generalSettings', 'gradeCategories',
     'carryForwards', 'boardReportNotes', 'staffHrDetails', 'mgmtComments',
-    'grades', 'usageLog', 'fees', 'feedingFees', 'teacherExternalParamOverrides'
+    'grades', 'usageLog', 'fees', 'feedingFees', 'feedingDiscounts', 'teacherExternalParamOverrides'
   ];
   OBJ_KEYS.forEach(k => {
     try { db[k] = ensureObject(db[k]); } catch (e) { db[k] = {}; }
@@ -11754,6 +11785,7 @@ function initDb(callback) {
       // General Ledger + Budgeting
       db.journalEntries = data.journalEntries || [];
       db.nextJournalId  = data.nextJournalId  ?? 1;
+      db.bsLedgerMigrated = !!data.bsLedgerMigrated;
       db.budgets        = data.budgets        || {};
       db.feedingMonthlyBudget = data.feedingMonthlyBudget || 0;
       db.feedingBudgetOverrides = data.feedingBudgetOverrides || {};
@@ -11832,6 +11864,8 @@ function initDb(callback) {
       db.pendingSmsQueue = data.pendingSmsQueue || [];
       db.nextSmsQueueId = data.nextSmsQueueId ?? 1;
       db.feeDiscounts = data.feeDiscounts || {};
+      db.feedingDiscounts = data.feedingDiscounts || {};
+      db.feedingExemptions = Array.isArray(data.feedingExemptions) ? data.feedingExemptions : Object.values(data.feedingExemptions || {});
       db.boardReportNotes = data.boardReportNotes || { strategicPriorities:'', keyDecisions:'', risksConcerns:'', updatedBy:'', updatedAt:'' };
       db.academicCalendar = data.academicCalendar || { terms: { 'Term 1':{start:'',end:''}, 'Term 2':{start:'',end:''}, 'Term 3':{start:'',end:''} }, events: [] };
       db.nextCalEventId = data.nextCalEventId ?? 1;
@@ -20762,17 +20796,23 @@ function renderFeedingSchedule() {
     const nsd = getNonSchoolDayEvent(date);
     if (nsd) { toast(`🚫 No feeding — ${CAL_CAT_LABELS[nsd.category]}: ${nsd.title}`, 'error'); return; }
     if (!studentsList.length) return;
-    const rate = feedingDailyRate(cls, fdrTermForDate(date));
+    const classRate = feedingDailyRate(cls, fdrTermForDate(date));
     if (!db.feedingLedger) db.feedingLedger = {};
     const k = fdKey(cls, date);
     if (!db.feedingLedger[k]) db.feedingLedger[k] = {};
-    const eligible = studentsList.filter(s => !feedingDisabledByAbsence(cls, date, s.id));
-    const skipped = studentsList.length - eligible.length;
-    eligible.forEach(s => { db.feedingLedger[k][s.id] = rate; });
+    const present = studentsList.filter(s => !feedingDisabledByAbsence(cls, date, s.id));
+    const skipped = studentsList.length - present.length;
+    // Exempt students (full exemption / 100% discount) owe nothing — never charge them
+    const exempt = present.filter(s => feedingRateOnDate(cls, date, s.id) === 0 && classRate > 0);
+    const eligible = present.filter(s => !exempt.includes(s));
+    eligible.forEach(s => { db.feedingLedger[k][s.id] = feedingRateOnDate(cls, date, s.id); });
+    const discounted = eligible.filter(s => feedingRateOnDate(cls, date, s.id) !== classRate).length;
     syncFeedingJournal(cls, date);
     saveDb();
     draw();
-    toast(`✅ Marked ${eligible.length} student${eligible.length!==1?'s':''} fully paid (GHS ${rate.toFixed(2)} each)` +
+    toast(`✅ Marked ${eligible.length} student${eligible.length!==1?'s':''} fully paid (GHS ${classRate.toFixed(2)} each)` +
+      (discounted ? ` · 🎟️ ${discounted} at a discounted rate` : '') +
+      (exempt.length ? ` · 🎟️ ${exempt.length} exempt` : '') +
       (skipped ? ` · 🚫 ${skipped} skipped (marked Absent)` : ''));
   }
 
@@ -20801,9 +20841,10 @@ function renderFeedingSchedule() {
       } else {
         const k = fdKey(cls, dateStr);
         if (!db.feedingLedger[k]) db.feedingLedger[k] = {};
-        const rate = feedingDailyRate(cls, fdrTermForDate(dateStr));
         studentsList.forEach(s => {
-          if (!feedingDisabledByAbsence(cls, dateStr, s.id)) db.feedingLedger[k][s.id] = rate;
+          if (feedingDisabledByAbsence(cls, dateStr, s.id)) return;
+          if (feedingExemptOn(cls, dateStr, s.id)) return; // exempt from feeding fee — nothing to charge
+          db.feedingLedger[k][s.id] = feedingRateOnDate(cls, dateStr, s.id);
         });
         schoolDays++;
       }
@@ -20837,6 +20878,7 @@ function renderFeedingSchedule() {
     const nsd = getNonSchoolDayEvent(date);
     if (nsd) { toast(`🚫 No feeding — ${CAL_CAT_LABELS[nsd.category]}: ${nsd.title}`, 'error'); return; }
     if (feedingDisabledByAbsence(cls, date, sid)) { toast('🚫 Feeding fee disabled — student was marked Absent that day', 'error'); return; }
+    if (feedingExemptOn(cls, date, sid)) { toast('🎟️ This student is exempt from the feeding fee — nothing to record. (Change it in Settings → Fee Discounts & Exemptions)', 'error'); draw(); return; }
     const amt = parseFloat(value);
     if (!db.feedingLedger) db.feedingLedger = {};
     const k = fdKey(cls, date);
@@ -21105,18 +21147,24 @@ function renderFeedingSchedule() {
             <span class="fd-cell" style="cursor:not-allowed;opacity:0.55;background:transparent;width:36px;height:32px;display:inline-flex" title="Feeding fee disabled — ${esc(s.name)} was marked Absent on ${d}">🚫</span>
           </td>`;
         }
+        if (feedingExemptOn(selClass, d, s.id)) {
+          return `<td style="text-align:center;padding:5px 3px">
+            <span class="fd-cell" style="cursor:not-allowed;opacity:0.7;background:transparent;width:36px;height:32px;display:inline-flex" title="${esc(s.name)} is exempt from the feeding fee">🎟️</span>
+          </td>`;
+        }
         const amt = feedingAmountFor(selClass, d, s.id);
-        const stateClass = amt <= 0 ? 'fd-amt-empty' : (amt >= dailyRate ? 'fd-amt-full' : 'fd-amt-partial');
+        const stuRate = feedingRateOnDate(selClass, d, s.id);
+        const stateClass = amt <= 0 ? 'fd-amt-empty' : (amt >= stuRate ? 'fd-amt-full' : 'fd-amt-partial');
         return `<td style="text-align:center;padding:5px 3px">
           <input type="number" min="0" step="0.01" class="fd-amt-input ${stateClass}"
             value="${amt > 0 ? amt : ''}" placeholder=""
-            title="${amt > 0 ? 'GHS ' + amt.toFixed(2) + ' paid' : 'Click to enter amount paid'}"
+            title="${amt > 0 ? 'GHS ' + amt.toFixed(2) + ' paid' : 'Click to enter amount paid'}${stuRate !== dailyRate ? ' · discounted rate GHS ' + stuRate.toFixed(2) + '/day' : ''}"
             onchange="fdSetAmount('${selClass}','${d}','${s.id}',this.value)">
         </td>`;
       }).join('');
 
       const weekPaid     = dates.reduce((a,d) => a + feedingAmountFor(selClass, d, s.id), 0);
-      const weekExpected = weekSchoolDays.filter(d => !feedingDisabledByAbsence(selClass, d, s.id)).length * dailyRate;
+      const weekExpected = weekSchoolDays.filter(d => !feedingDisabledByAbsence(selClass, d, s.id)).reduce((a,d) => a + feedingRateOnDate(selClass, d, s.id), 0);
       const joinDate = s.date || s.admissionDate || '';
       const cum = feedingCumulativeForStudent(selClass, s.id, joinDate);
 
@@ -21156,7 +21204,7 @@ function renderFeedingSchedule() {
     let weekRevenue = 0, weekExpectedTotal = 0;
     students.forEach(s => {
       dates.forEach(d => { weekRevenue += feedingAmountFor(selClass, d, s.id); });
-      weekExpectedTotal += weekSchoolDays.filter(d => !feedingDisabledByAbsence(selClass, d, s.id)).length * dailyRate;
+      weekExpectedTotal += weekSchoolDays.filter(d => !feedingDisabledByAbsence(selClass, d, s.id)).reduce((a,d) => a + feedingRateOnDate(selClass, d, s.id), 0);
     });
 
     // Cumulative outstanding across every student currently in this class —
@@ -21214,7 +21262,7 @@ function renderFeedingSchedule() {
         const joinDate = s.date || s.admissionDate || '';
         const cum = feedingCumulativeForStudent(selClass, s.id, joinDate);
         const weekPaid = dates.reduce((a,d) => a + feedingAmountFor(selClass, d, s.id), 0);
-        const weekExpected = weekSchoolDays.filter(d => !feedingDisabledByAbsence(selClass, d, s.id)).length * dailyRate;
+        const weekExpected = weekSchoolDays.filter(d => !feedingDisabledByAbsence(selClass, d, s.id)).reduce((a,d) => a + feedingRateOnDate(selClass, d, s.id), 0);
         return {
           id: s.id,
           name: s.name,
@@ -21222,6 +21270,7 @@ function renderFeedingSchedule() {
           days: dates.map(d => {
             if (getNonSchoolDayEvent(d)) return { kind: 'noschool' };
             if (feedingDisabledByAbsence(selClass, d, s.id)) return { kind: 'absent' };
+            if (feedingExemptOn(selClass, d, s.id)) return { kind: 'exempt' };
             const amt = feedingAmountFor(selClass, d, s.id);
             return { kind: 'amt', amt };
           }),
@@ -21615,6 +21664,7 @@ function buildFeedingRevenuePrintHtml(prefs) {
       cells = r.days.map(day => {
         if (day.kind === 'noschool') return '<td class="c muted">—</td>';
         if (day.kind === 'absent') return '<td class="c muted">Abs</td>';
+        if (day.kind === 'exempt') return '<td class="c muted">Exempt</td>';
         const a = day.amt || 0;
         if (a <= 0) return emptyCell;
         return '<td class="c num">' + a.toFixed(2) + '</td>';
@@ -22290,6 +22340,36 @@ function feedingDailyRate(cls, term) {
   return parseFloat((FEEDING_FEE_BY_CLASS[cls] || {})[rateField]) || 0;
 }
 
+// This student's daily feeding rate after any discount/exemption configured in
+// Settings → Fee Discounts & Exemptions → Feeding Fees. Falls back to the plain
+// class rate when the student has none (or it doesn't cover this term).
+function feedingRateForStudent(cls, term, sid) {
+  const base = feedingDailyRate(cls, term);
+  const d = (db.feedingDiscounts || {})[sid];
+  if (!d || !base) return base;
+  const t = term || TERMS[0];
+  if (d.terms && d.terms.length && !d.terms.includes(t)) return base;
+  if (d.type === 'full') return 0;
+  if (d.type === 'percent') return Math.max(0, Math.round(base * (1 - (parseFloat(d.value) || 0) / 100) * 100) / 100);
+  if (d.type === 'fixed') return Math.max(0, Math.round((base - (parseFloat(d.value) || 0)) * 100) / 100);
+  return base;
+}
+function feedingBulkExemptOn(cls, date) {
+  const m = (date || '').slice(0, 7);
+  const t = fdrTermForDate(date);
+  return (db.feedingExemptions || []).some(e => (e.cls === 'All' || e.cls === cls) &&
+    ((e.month && e.month === m) || (e.term && e.term === t)));
+}
+function feedingRateOnDate(cls, date, sid) {
+  if (feedingBulkExemptOn(cls, date)) return 0;
+  return feedingRateForStudent(cls, fdrTermForDate(date), sid);
+}
+// True when the student owes NO feeding fee that day because of an exemption /
+// 100% discount (as opposed to simply not having paid yet).
+function feedingExemptOn(cls, date, sid) {
+  return feedingDailyRate(cls, fdrTermForDate(date)) > 0 && feedingRateOnDate(cls, date, sid) === 0;
+}
+
 // The amount a student paid for feeding on one day. Cells now store a real
 // number (this is what "Feeding Revenue" reads/writes) — but this app
 // previously stored a plain boolean `true` here (the old ✓/✗ Paid
@@ -22299,7 +22379,7 @@ function feedingDailyRate(cls, term) {
 function feedingAmountFor(cls, date, sid) {
   const raw = ((db.feedingLedger || {})[fdKeyGlobal(cls, date)] || {})[sid];
   if (typeof raw === 'number') return raw;
-  if (raw === true) return feedingDailyRate(cls, fdrTermForDate(date));
+  if (raw === true) return feedingRateOnDate(cls, date, sid);
   return 0;
 }
 
@@ -22395,14 +22475,14 @@ function feedingCumulativeForStudent(cls, sid, joinDate) {
     const start = (joinDate && joinDate > td.start) ? joinDate : td.start;
     const end   = td.end < todayStr ? td.end : todayStr;
     if (start > end) return;
-    const rate = feedingDailyRate(cls, t);
+    const rate = feedingRateForStudent(cls, t, sid);
     const cursor = new Date(start + 'T00:00:00');
     const endD   = new Date(end + 'T00:00:00');
     while (cursor <= endD) {
       const dow = cursor.getDay();
       const dateStr = cursor.toISOString().slice(0, 10);
       if (dow !== 0 && dow !== 6 && !getNonSchoolDayEvent(dateStr) && !feedingDisabledByAbsence(cls, dateStr, sid)) {
-        expected += rate;
+        expected += feedingBulkExemptOn(cls, dateStr) ? 0 : rate;
         paid += feedingAmountFor(cls, dateStr, sid);
       }
       cursor.setDate(cursor.getDate() + 1);
@@ -26854,13 +26934,114 @@ function awfGetChecked(containerId) {
 
 // ══════════════ FEE DISCOUNTS & EXEMPTIONS ══════════════
 let _fdSelectedStudentId = null;
+let _fdKind = 'tuition'; // 'tuition' → db.feeDiscounts · 'feeding' → db.feedingDiscounts
+function fdStore(kind) {
+  kind = kind || _fdKind;
+  const key = kind === 'feeding' ? 'feedingDiscounts' : 'feeDiscounts';
+  if (!db[key]) db[key] = {};
+  return db[key];
+}
+function fdRefreshViews() {
+  try { renderPayments(); } catch (e) {}
+  try { renderDashboard(); } catch (e) {}
+  try { if (document.getElementById('page-feedingschedule')?.classList.contains('active')) renderFeedingSchedule(); } catch (e) {}
+}
+function fdSetKind(kind) {
+  _fdKind = kind === 'feeding' ? 'feeding' : 'tuition';
+  _fdSelectedStudentId = null;
+  document.getElementById('fd-kind-tuition').className = 'btn btn-sm ' + (_fdKind === 'tuition' ? 'btn-primary' : 'btn-outline');
+  document.getElementById('fd-kind-feeding').className = 'btn btn-sm ' + (_fdKind === 'feeding' ? 'btn-primary' : 'btn-outline');
+  document.getElementById('fd-kind-hint').textContent = _fdKind === 'feeding'
+    ? 'Feeding: a percentage takes % off the class daily feeding rate, a fixed amount takes GHS off the rate per day, and a full exemption means the student owes no feeding fee (shown 🎟️ in the Feeding Fee register).'
+    : 'Tuition: applies automatically everywhere tuition is calculated (Payment Tracker, Balance Sheet, Income Statement, reports). Separate from the "Scholarship" admission status, which already fully waives fees.';
+  document.getElementById('fd-form-fields').style.display = 'none';
+  fdFilterStudents();
+  fdBulkInit();
+}
+
+function fdBulkInit() {
+  const sel = document.getElementById('fd-bulk-cls');
+  const keep = sel.value;
+  sel.innerHTML = '<option value="All">All classes</option>' + CLASSES.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if (keep) sel.value = keep;
+  const feeding = _fdKind === 'feeding';
+  const byTerm = !feeding || document.getElementById('fd-bulk-scope').value === 'term';
+  document.getElementById('fd-bulk-scope-row').style.display = feeding ? '' : 'none';
+  document.getElementById('fd-bulk-month-row').style.display = byTerm ? 'none' : '';
+  document.getElementById('fd-bulk-terms-row').style.display = byTerm ? '' : 'none';
+  document.getElementById('fd-bulk-hint').textContent = feeding
+    ? (byTerm ? 'Everyone in the class owes no feeding fee for every school day of the selected term(s).'
+              : 'Everyone in the class owes no feeding fee for the whole month (all school days).')
+    : 'Every student in the class gets a full tuition exemption for the selected terms (students who already have a tuition discount are left unchanged).';
+  fdBulkRenderList();
+}
+
+function fdBulkRenderList() {
+  const box = document.getElementById('fd-bulk-list');
+  if (_fdKind !== 'feeding') { box.innerHTML = ''; return; }
+  const list = (db.feedingExemptions || []);
+  box.innerHTML = list.length ? list.map(e => `<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)">
+      <span style="flex:1">🍽️ <b>${esc(e.cls === 'All' ? 'All classes' : e.cls)}</b> — ${esc(e.month || e.term)}${e.reason ? ' · <span style="color:var(--muted)">' + esc(e.reason) + '</span>' : ''}</span>
+      <button class="btn btn-sm btn-outline" onclick="fdBulkRemove('${e.id}')">🗑</button></div>`).join('')
+    : '<div style="font-size:11px;color:var(--muted)">No bulk feeding exemptions yet.</div>';
+}
+
+function fdApplyBulk() {
+  if (!requireRole('Admin')) return;
+  const cls = document.getElementById('fd-bulk-cls').value;
+  const reason = document.getElementById('fd-bulk-reason').value.trim();
+  const by = currentUser ? currentUser.username : 'system';
+  if (_fdKind === 'feeding') {
+    if (!Array.isArray(db.feedingExemptions)) db.feedingExemptions = [];
+    const clsLabel = cls === 'All' ? 'All classes' : cls;
+    if (document.getElementById('fd-bulk-scope').value === 'term') {
+      const terms = ['1','2','3'].filter(n => document.getElementById('fd-bulk-t' + n).checked).map(n => 'Term ' + n);
+      if (!terms.length) { toast('⚠ Select at least one term'); return; }
+      let added = 0;
+      terms.forEach((term, i) => {
+        if (db.feedingExemptions.some(e => e.cls === cls && e.term === term)) return;
+        db.feedingExemptions.push({ id: 'FX' + Date.now() + '_' + i, cls, term, reason, setBy: by, setAt: today() });
+        added++;
+      });
+      if (!added) { toast('⚠ That class/term is already exempt'); return; }
+      saveDb();
+      toast(`✅ ${clsLabel} exempt from feeding fee for ${terms.join(', ')}`);
+    } else {
+      const month = document.getElementById('fd-bulk-month').value;
+      if (!month) { toast('⚠ Pick the month'); return; }
+      if (db.feedingExemptions.some(e => e.cls === cls && e.month === month)) { toast('⚠ That class/month is already exempt'); return; }
+      db.feedingExemptions.push({ id: 'FX' + Date.now(), cls, month, reason, setBy: by, setAt: today() });
+      saveDb();
+      toast(`✅ ${clsLabel} exempt from feeding fee for ${month}`);
+    }
+  } else {
+    const terms = ['1','2','3'].filter(n => document.getElementById('fd-bulk-t' + n).checked).map(n => 'Term ' + n);
+    if (!terms.length) { toast('⚠ Select at least one term'); return; }
+    const store = fdStore('tuition');
+    let n = 0;
+    (db.admissions || []).filter(a => ['Admitted','Continuing'].includes(a.status) && (cls === 'All' || a.cls === cls)).forEach(a => {
+      if (store[a.id]) return;
+      store[a.id] = { type: 'full', value: 0, terms: terms.length === 3 ? [] : terms, reason: reason || 'Bulk class exemption', setBy: by, setAt: today() };
+      n++;
+    });
+    saveDb();
+    toast(`✅ Tuition exemption applied to ${n} student${n !== 1 ? 's' : ''}`);
+  }
+  document.getElementById('fd-bulk-reason').value = '';
+  fdBulkRenderList(); fdFilterStudents(); fdRenderList(); fdRefreshViews();
+}
+
+function fdBulkRemove(id) {
+  if (!confirm('Remove this bulk exemption?')) return;
+  db.feedingExemptions = (db.feedingExemptions || []).filter(e => e.id !== id);
+  saveDb(); fdBulkRenderList(); fdRefreshViews();
+  toast('🗑 Bulk exemption removed');
+}
 
 function openFeeDiscountsModal() {
   if (!requireRole('Admin')) return;
-  _fdSelectedStudentId = null;
   document.getElementById('fd-student-search').value = '';
-  document.getElementById('fd-form-fields').style.display = 'none';
-  fdFilterStudents();
+  fdSetKind(_fdKind);
   fdRenderList();
   document.getElementById('fee-discounts-modal').classList.add('open');
 }
@@ -26868,11 +27049,11 @@ function openFeeDiscountsModal() {
 function fdFilterStudents() {
   const q = document.getElementById('fd-student-search').value.trim().toLowerCase();
   const sel = document.getElementById('fd-student-select');
+  const store = fdStore();
   const admitted = (db.admissions || []).filter(s => ['Admitted','Continuing','Scholarship'].includes(s.status));
   const filtered = q ? admitted.filter(s => s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q)) : admitted;
   sel.innerHTML = filtered.slice(0, 100).map(s => {
-    const hasDiscount = !!(db.feeDiscounts || {})[s.id];
-    return `<option value="${s.id}">${hasDiscount ? '🎟️ ' : ''}${esc(s.name)} — ${esc(s.cls)} (${s.id})</option>`;
+    return `<option value="${s.id}">${store[s.id] ? '🎟️ ' : ''}${esc(s.name)} — ${esc(s.cls)} (${s.id})</option>`;
   }).join('') || '<option disabled>No matching students</option>';
 }
 
@@ -26884,7 +27065,7 @@ function fdStudentPicked() {
   const s = (db.admissions || []).find(a => a.id === sid);
   if (!s) return;
 
-  const existing = (db.feeDiscounts || {})[sid];
+  const existing = fdStore()[sid];
   document.getElementById('fd-type').value = existing ? existing.type : 'percent';
   document.getElementById('fd-value').value = existing ? existing.value : '';
   const terms = existing ? existing.terms : [];
@@ -26907,7 +27088,8 @@ function fdTypeChanged() {
     row.style.display = 'none';
   } else {
     row.style.display = 'block';
-    label.textContent = type === 'percent' ? 'Discount (%)' : 'Discount Amount (GHS)';
+    label.textContent = type === 'percent' ? 'Discount (%)'
+      : (_fdKind === 'feeding' ? 'Discount Amount (GHS per day)' : 'Discount Amount (GHS)');
   }
 }
 
@@ -26916,6 +27098,7 @@ function saveFeeDiscount() {
   const type = document.getElementById('fd-type').value;
   const value = parseFloat(document.getElementById('fd-value').value) || 0;
   if (type !== 'full' && value <= 0) { toast('⚠ Enter a discount value greater than 0'); return; }
+  if (type === 'percent' && value > 100) { toast('⚠ A percentage cannot exceed 100'); return; }
 
   const terms = [];
   if (document.getElementById('fd-term-t1').checked) terms.push('Term 1');
@@ -26923,8 +27106,7 @@ function saveFeeDiscount() {
   if (document.getElementById('fd-term-t3').checked) terms.push('Term 3');
   if (terms.length === 0) { toast('⚠ Select at least one term'); return; }
 
-  if (!db.feeDiscounts) db.feeDiscounts = {};
-  db.feeDiscounts[_fdSelectedStudentId] = {
+  fdStore()[_fdSelectedStudentId] = {
     type, value,
     terms: terms.length === 3 ? [] : terms, // empty array = all terms (also covers future terms cleanly)
     reason: document.getElementById('fd-reason').value.trim(),
@@ -26934,48 +27116,55 @@ function saveFeeDiscount() {
 
   saveDb();
   const s = (db.admissions || []).find(a => a.id === _fdSelectedStudentId);
-  toast('✅ Fee discount saved for ' + (s ? s.name : _fdSelectedStudentId));
+  toast(`✅ ${_fdKind === 'feeding' ? 'Feeding' : 'Tuition'} discount saved for ` + (s ? s.name : _fdSelectedStudentId));
   fdFilterStudents();
   fdRenderList();
-  renderPayments();
-  renderDashboard();
+  fdRefreshViews();
 }
 
 function removeFeeDiscount() {
   if (!_fdSelectedStudentId) return;
   const s = (db.admissions || []).find(a => a.id === _fdSelectedStudentId);
-  if (!confirm(`Remove the fee discount for ${s ? s.name : _fdSelectedStudentId}?`)) return;
-  delete db.feeDiscounts[_fdSelectedStudentId];
+  if (!confirm(`Remove the ${_fdKind} fee discount for ${s ? s.name : _fdSelectedStudentId}?`)) return;
+  delete fdStore()[_fdSelectedStudentId];
   saveDb();
   toast('🗑 Discount removed');
   document.getElementById('fd-form-fields').style.display = 'none';
   fdFilterStudents();
   fdRenderList();
-  renderPayments();
-  renderDashboard();
+  fdRefreshViews();
 }
 
 function fdRenderList() {
   const tbody = document.getElementById('fd-list-body');
-  const entries = Object.entries(db.feeDiscounts || {});
   const typeLabels = { percent: 'Percentage', fixed: 'Fixed Amount', full: 'Full Exemption' };
-  tbody.innerHTML = entries.map(([sid, d]) => {
+  const rows = [];
+  ['tuition', 'feeding'].forEach(kind => {
+    Object.entries(fdStore(kind)).forEach(([sid, d]) => rows.push({ kind, sid, d }));
+  });
+  rows.sort((a, b) => {
+    const na = ((db.admissions || []).find(x => x.id === a.sid) || {}).name || a.sid;
+    const nb = ((db.admissions || []).find(x => x.id === b.sid) || {}).name || b.sid;
+    return na.localeCompare(nb) || a.kind.localeCompare(b.kind);
+  });
+  tbody.innerHTML = rows.map(({ kind, sid, d }) => {
     const s = (db.admissions || []).find(a => a.id === sid);
-    const valueLabel = d.type === 'full' ? '—' : (d.type === 'percent' ? d.value + '%' : 'GHS ' + fmt(d.value));
+    const valueLabel = d.type === 'full' ? '—' : (d.type === 'percent' ? d.value + '%' : 'GHS ' + fmt(d.value) + (kind === 'feeding' ? '/day' : ''));
     const termsLabel = (!d.terms || d.terms.length === 0) ? 'All terms' : d.terms.join(', ');
     return `<tr>
       <td><b>${s ? esc(s.name) : esc(sid)}</b>${s ? `<div style="font-size:10px;color:var(--muted)">${esc(s.cls)}</div>` : ''}</td>
+      <td style="font-size:11px">${kind === 'feeding' ? '🍽️ Feeding' : '🎓 Tuition'}</td>
       <td>${typeLabels[d.type]}${valueLabel !== '—' ? ' — ' + valueLabel : ''}</td>
       <td style="font-size:11px">${termsLabel}</td>
-      <td style="font-size:11px;color:var(--muted)">${d.reason || '—'}</td>
-      <td><button class="btn btn-sm btn-outline" onclick="fdEditFromList('${sid}')">✏️</button></td>
+      <td style="font-size:11px;color:var(--muted)">${esc(d.reason || '—')}</td>
+      <td><button class="btn btn-sm btn-outline" onclick="fdEditFromList('${sid}','${kind}')">✏️</button></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="5" class="empty-state">No discounts configured yet.</td></tr>';
+  }).join('') || '<tr><td colspan="6" class="empty-state">No discounts configured yet.</td></tr>';
 }
 
-function fdEditFromList(sid) {
+function fdEditFromList(sid, kind) {
   document.getElementById('fd-student-search').value = '';
-  fdFilterStudents();
+  fdSetKind(kind || _fdKind);
   const sel = document.getElementById('fd-student-select');
   sel.value = sid;
   fdStudentPicked();
@@ -41430,6 +41619,8 @@ function getChartOfAccounts() {
     { code:'1020', name:'Cash at Bank',                  type:'Asset', normal:'debit' },
     { code:'1030', name:'Mobile Money',                  type:'Asset', normal:'debit' },
     { code:'1100', name:'School Fees Receivable',        type:'Asset', normal:'debit' },
+    { code:'1110', name:'Feeding Fees Receivable',       type:'Asset', normal:'debit' },
+    { code:'1120', name:'Admission Fees Receivable',     type:'Asset', normal:'debit' },
     { code:'1200', name:'Inventory & Supplies',          type:'Asset', normal:'debit' },
     { code:'1250', name:'School Shop Inventory',          type:'Asset', normal:'debit' },
     { code:'1300', name:'Prepayments & Other Receivables',type:'Asset', normal:'debit' },
@@ -41437,6 +41628,7 @@ function getChartOfAccounts() {
     { code:'1510', name:'Furniture & Fittings',           type:'Asset', normal:'debit' },
     { code:'1520', name:'Computer Equipment',             type:'Asset', normal:'debit' },
     { code:'1530', name:'Other Fixed Assets',             type:'Asset', normal:'debit' },
+    { code:'1590', name:'Accumulated Depreciation',       type:'Asset', normal:'debit' }, // contra-asset: carries a credit (negative) balance
     // ── LIABILITIES (normal balance: Credit) ──
     { code:'2010', name:'Accounts Payable — Suppliers',   type:'Liability', normal:'credit' },
     { code:'2020', name:'SSNIT & Pension Payable',        type:'Liability', normal:'credit' },
@@ -41448,6 +41640,7 @@ function getChartOfAccounts() {
     // ── EQUITY (normal balance: Credit) ──
     { code:'3010', name:'Founder / Church Investment',    type:'Equity', normal:'credit' },
     { code:'3020', name:'Retained Earnings',              type:'Equity', normal:'credit' },
+    { code:'3030', name:'Accrued Fee Position Reserve',   type:'Equity', normal:'credit' }, // balancing side of the fees receivable / overpayment control entry
     { code:'3090', name:'Suspense / Adjustments',         type:'Equity', normal:'credit' },
     // ── REVENUE (normal balance: Credit) ──
     { code:'4010', name:'Tuition Fees',                   type:'Revenue', normal:'credit' },
@@ -41639,7 +41832,7 @@ function backfillJournalEntries() {
   });
 
   (db.assets || []).forEach(a => {
-    if (has('asset', a.id)) return;
+    if (a.approvalStatus === 'pending' || has('asset', a.id)) return;
     const assetAcctMap = { landBuilding:'1500', furnitureFittings:'1510', computerEquipment:'1520', otherFixedAssets:'1530' };
     postJournalEntry(a.purchaseDate || today(), 'Asset purchase: ' + a.name, [
       { account: assetAcctMap[a.category] || '1530', debit: parseFloat(a.cost)||0, credit: 0 },
@@ -48309,98 +48502,239 @@ function syncAssetsToBalanceSheet() {
  * dateFrom/dateTo optional — empty means all periods.
  */
 function computeFinancialPositionSnapshot(dateFrom, dateTo) {
-  const inRange = d => {
-    if (!d) return true;
-    if (dateFrom && d < dateFrom) return false;
-    if (dateTo && d > dateTo) return false;
-    return true;
-  };
-  const admitted  = db.admissions || [];
-  const revenues  = (db.revenue   || []).filter(r => inRange(r.date) && (typeof isPostedFin !== 'function' || isPostedFin(r)));
-  const expenses  = (db.expenses  || []).filter(r => inRange(r.date) && (typeof isPostedFin !== 'function' || isPostedFin(r)));
+  // Same ledger-fed position the Balance Sheet page shows (see bsPositionFromLedger).
+  try { bsRunLedgerSync(); } catch (e) { console.warn('sfp ledger sync', e); }
+  return bsPositionFromLedger(db, dateFrom, dateTo);
+}
 
-  // Non-current assets from Asset Management (or legacy fixedAssets)
-  const assetsList = db.assets || [];
-  const registerHasAssets = assetsList.length > 0;
-  const catTotals = { landBuilding: 0, furnitureFittings: 0, computerEquipment: 0, otherFixedAssets: 0 };
-  assetsList.forEach(a => {
-    const f = typeof computeAssetFinancials === 'function' ? computeAssetFinancials(a) : { currentValue: parseFloat(a.currentValue || a.cost || 0) };
-    if (catTotals[a.category] !== undefined) catTotals[a.category] += f.currentValue;
-  });
-  const legacyFixed = db.fixedAssets || {};
-  const landBuilding      = registerHasAssets ? catTotals.landBuilding      : parseFloat(legacyFixed.landBuilding      || 0);
-  const furnitureFittings = registerHasAssets ? catTotals.furnitureFittings : parseFloat(legacyFixed.furnitureFittings || 0);
-  const computerEquipment = registerHasAssets ? catTotals.computerEquipment : parseFloat(legacyFixed.computerEquipment || 0);
-  const otherFixedAssets  = registerHasAssets ? catTotals.otherFixedAssets  : parseFloat(legacyFixed.otherFixedAssets  || 0);
-  const customNonCurrentAssets = (db.customAssetLiabAccounts || []).filter(a => a.type === 'Asset' && a.classification === 'noncurrent');
-  const customNonCurrentAssetsTotal = customNonCurrentAssets.reduce((sum, a) => sum + (typeof getAccountLedgerBalance === 'function' ? getAccountLedgerBalance(a.code) : 0), 0);
-  const totalNonCurrent = landBuilding + furnitureFittings + computerEquipment + otherFixedAssets + customNonCurrentAssetsTotal;
-
-  const inventory   = parseFloat(db.inventory || 0);
-  const prepayments = parseFloat(db.bsPrepayments || 0);
-  const customCurrentAssets = (db.customAssetLiabAccounts || []).filter(a => a.type === 'Asset' && a.classification === 'current');
-  const customCurrentAssetsTotal = customCurrentAssets.reduce((sum, a) => sum + (typeof getAccountLedgerBalance === 'function' ? getAccountLedgerBalance(a.code) : 0), 0);
-
-  const cashPos = typeof computeCashPosition === 'function' ? computeCashPosition(db) : { bank: 0, momo: 0, hand: 0, total: 0 };
-  const cashAtBank = cashPos.bank, cashMoMo = cashPos.momo, cashInHand = cashPos.hand;
-
-  let feesReceivable = 0, overpayments = 0;
-  admitted.forEach(s => {
-    const st = typeof calcStudentStatus === 'function' ? calcStudentStatus(s.id) : { bal: 0 };
-    const bal = st.bal != null ? st.bal : ((st.totalBilled || 0) - (st.totalPaid || 0));
-    if (bal > 0) feesReceivable += bal;
-    else if (bal < 0) overpayments += Math.abs(bal);
-  });
-
-  const totalCurrent = inventory + cashAtBank + cashMoMo + cashInHand + feesReceivable + prepayments + customCurrentAssetsTotal;
-  const totalAssets  = totalNonCurrent + totalCurrent;
-
-  const ssnitPayable    = parseFloat(db.bsSsnitPayable || 0);
-  const payePayable     = parseFloat(db.bsPayePayable || 0);
-  const salariesPayable = parseFloat(db.bsSalariesPayable || 0);
-  const accountsPayable = parseFloat(db.bsAccountsPayable || 0);
-  const loansPayable    = parseFloat(db.bsLoansPayable || 0);
-  const otherPayables   = parseFloat(db.bsOtherPayables || 0);
-  const customCurrentLiabs = (db.customAssetLiabAccounts || []).filter(a => a.type === 'Liability' && a.classification === 'current');
-  const customCurrentLiabsTotal = customCurrentLiabs.reduce((sum, a) => sum + (typeof getAccountLedgerBalance === 'function' ? getAccountLedgerBalance(a.code) : 0), 0);
-  const customNonCurrentLiabs = (db.customAssetLiabAccounts || []).filter(a => a.type === 'Liability' && a.classification === 'noncurrent');
-  const customNonCurrentLiabsTotal = customNonCurrentLiabs.reduce((sum, a) => sum + (typeof getAccountLedgerBalance === 'function' ? getAccountLedgerBalance(a.code) : 0), 0);
-
-  const totalCurrentLiab    = overpayments + ssnitPayable + payePayable + salariesPayable + accountsPayable + otherPayables + customCurrentLiabsTotal;
-  const totalNonCurrentLiab = loansPayable + customNonCurrentLiabsTotal;
-  const totalLiabilities    = totalCurrentLiab + totalNonCurrentLiab;
-  const netAssets           = totalAssets - totalLiabilities;
-
-  const churchInvestment = parseFloat(db.churchInvestment || 0);
-  const retainedBF       = parseFloat(db.bsRetainedBF || 0);
-  let totalFeesColl = 0;
-  admitted.forEach(s => {
-    (typeof TERMS !== 'undefined' ? TERMS : ['Term 1','Term 2','Term 3']).forEach(t => {
-      totalFeesColl += ((db.payments || {})[s.id + '|' + t] || { paid: 0 }).paid || 0;
+// Pure General-Ledger position for ANY data object (the live db or an archived year's snapshot).
+// Assets, liabilities and equity are account balances from dataObj.journalEntries; the surplus is
+// the ledger's revenue less expenses (From/To dates apply to the surplus, To also caps balances).
+function bsPositionFromLedger(dataObj, from, to) {
+  const jes = Array.isArray(dataObj.journalEntries) ? dataObj.journalEntries : Object.values(dataObj.journalEntries || {});
+  const customAccts = dataObj.customAssetLiabAccounts || [];
+  const custom = {}; customAccts.forEach(a => { custom[a.code] = a; });
+  const typeOf = code => custom[code] ? custom[code].type
+    : ({ '1': 'Asset', '2': 'Liability', '3': 'Equity', '4': 'Revenue', '5': 'Expense' })[String(code).charAt(0)];
+  const bal = {}, pl = {};
+  jes.forEach(je => {
+    const ctl = je.source === 'bscontrol';
+    const d = je.date || '';
+    const inTo = ctl || !to || d <= to;
+    const inPl = ctl || ((!from || d >= from) && (!to || d <= to));
+    (je.lines || []).forEach(l => {
+      const t = typeOf(l.account);
+      if (!t) return;
+      const net = (l.debit || 0) - (l.credit || 0);
+      const signed = (t === 'Asset' || t === 'Expense') ? net : -net;
+      if (t === 'Revenue' || t === 'Expense') { if (inPl) pl[l.account] = (pl[l.account] || 0) + signed; }
+      else if (inTo) bal[l.account] = (bal[l.account] || 0) + signed;
     });
   });
-  const admFees = admitted.filter(a => a.status !== 'Scholarship' && a.status !== 'Continuing').reduce((sum, a) => sum + (a.fee || 0), 0)
-    + revenues.filter(r => r.cat === 'Admission Fees').reduce((a, r) => a + (r.amount || 0), 0);
-  const otherRev = revenues.filter(r => r.cat !== 'Admission Fees').reduce((a, r) => a + (r.amount || 0), 0);
-  const totalIncome = totalFeesColl + admFees + otherRev;
-  const totalExp = expenses.reduce((a, e) => a + (e.amount || 0), 0);
-  const netSurplusCurrentYear = totalIncome - totalExp;
-  const totalEquity = churchInvestment + retainedBF + netSurplusCurrentYear;
+  const g = c => Math.round((bal[c] || 0) * 100) / 100;
+  let revenue = 0, expense = 0;
+  Object.keys(pl).forEach(c => { if (typeOf(c) === 'Revenue') revenue += pl[c]; else expense += pl[c]; });
+
+  const landBuilding = g('1500'), furnitureFittings = g('1510'), computerEquipment = g('1520'), otherFixedAssets = g('1530');
+  const accumDepreciation = g('1590');
+  const customNonCurrentAssets = customAccts.filter(a => a.type === 'Asset' && a.classification === 'noncurrent');
+  const customNonCurrentAssetsTotal = customNonCurrentAssets.reduce((x, a) => x + g(a.code), 0);
+  const totalNonCurrent = landBuilding + furnitureFittings + computerEquipment + otherFixedAssets + accumDepreciation + customNonCurrentAssetsTotal;
+
+  const inventory = g('1200'), shopInventory = g('1250'), prepayments = g('1300');
+  const customCurrentAssets = customAccts.filter(a => a.type === 'Asset' && a.classification === 'current');
+  const customCurrentAssetsTotal = customCurrentAssets.reduce((x, a) => x + g(a.code), 0);
+  const cashAtBank = g('1020'), cashMoMo = g('1030'), cashInHand = g('1010');
+  const feesReceivable = g('1100'), feedingReceivable = g('1110'), admissionReceivable = g('1120');
+  const totalCurrent = inventory + shopInventory + cashAtBank + cashMoMo + cashInHand + feesReceivable + feedingReceivable + admissionReceivable + prepayments + customCurrentAssetsTotal;
+  const totalAssets = totalNonCurrent + totalCurrent;
+
+  const overpayments = g('2050'), ssnitPayable = g('2020'), payePayable = g('2030'), salariesPayable = g('2040');
+  const accountsPayable = g('2010'), otherPayables = g('2060'), loansPayable = g('2100');
+  const customCurrentLiabs = customAccts.filter(a => a.type === 'Liability' && a.classification === 'current');
+  const customCurrentLiabsTotal = customCurrentLiabs.reduce((x, a) => x + g(a.code), 0);
+  const customNonCurrentLiabs = customAccts.filter(a => a.type === 'Liability' && a.classification === 'noncurrent');
+  const customNonCurrentLiabsTotal = customNonCurrentLiabs.reduce((x, a) => x + g(a.code), 0);
+  const totalCurrentLiab = overpayments + ssnitPayable + payePayable + salariesPayable + accountsPayable + otherPayables + customCurrentLiabsTotal;
+  const totalNonCurrentLiab = loansPayable + customNonCurrentLiabsTotal;
+  const totalLiabilities = totalCurrentLiab + totalNonCurrentLiab;
+  const netAssets = totalAssets - totalLiabilities;
+
+  const churchInvestment = parseFloat(dataObj.churchInvestment || 0);
+  const retainedBF = parseFloat(dataObj.bsRetainedBF || 0);
+  const ledgerEquityAdj = g('3010') + g('3020') + g('3030') + g('3090');
+  const netSurplusCurrentYear = revenue - expense;
+  const totalEquity = churchInvestment + retainedBF + ledgerEquityAdj + netSurplusCurrentYear;
   const diff = Math.abs(netAssets - totalEquity);
   const balanced = diff < 1;
 
   return {
-    landBuilding, furnitureFittings, computerEquipment, otherFixedAssets,
+    landBuilding, furnitureFittings, computerEquipment, otherFixedAssets, accumDepreciation,
     customNonCurrentAssets, customNonCurrentAssetsTotal, totalNonCurrent,
-    inventory, prepayments, customCurrentAssets, customCurrentAssetsTotal,
-    cashAtBank, cashMoMo, cashInHand, feesReceivable, totalCurrent, totalAssets,
+    inventory, shopInventory, prepayments, customCurrentAssets, customCurrentAssetsTotal,
+    cashAtBank, cashMoMo, cashInHand, feesReceivable, feedingReceivable, admissionReceivable, totalCurrent, totalAssets,
     overpayments, ssnitPayable, payePayable, salariesPayable, accountsPayable,
     loansPayable, otherPayables, customCurrentLiabs, customCurrentLiabsTotal,
     customNonCurrentLiabs, customNonCurrentLiabsTotal,
     totalCurrentLiab, totalNonCurrentLiab, totalLiabilities, netAssets,
-    churchInvestment, retainedBF, netSurplusCurrentYear, totalEquity,
+    churchInvestment, retainedBF, ledgerEquityAdj, netSurplusCurrentYear, totalEquity,
     balanced, diff
   };
+}
+
+// ══════════════ BALANCE SHEET ← GENERAL LEDGER ══════════════
+// Every asset and liability line on the Balance Sheet is read from General Ledger
+// account balances. Items that have no natural transaction feed are brought into the
+// ledger as journal entries so the ledger — not a side field — is the single source:
+//   • Fees Receivable (1100) / Student Overpayments (2050) — control entry 'bscontrol/fees'
+//     re-stated from the student sub-ledger; balanced through equity 3030.
+//   • Accumulated Depreciation (1590) — control entry 'bscontrol/dep' from the Asset register
+//     (Dr 5200 Depreciation, Cr 1590).
+//   • Inventory, Prepayments, SSNIT/PAYE/Salaries/Suppliers/Other payables, Loans — editing
+//     the figure on the Balance Sheet posts an adjusting entry (offset 3090) instead of
+//     overwriting a hidden field. Existing manual figures are migrated in once.
+const BS_MANUAL_ACCOUNTS = {
+  inventory: '1200', bsPrepayments: '1300',
+  bsAccountsPayable: '2010', bsSsnitPayable: '2020', bsPayePayable: '2030',
+  bsSalariesPayable: '2040', bsOtherPayables: '2060', bsLoansPayable: '2100'
+};
+
+function bsAdjustAccount(code, target, narration) {
+  const acct = getChartOfAccounts().find(a => a.code === code);
+  if (!acct) return false;
+  const delta = Math.round((target - getAccountLedgerBalance(code)) * 100) / 100;
+  if (Math.abs(delta) < 0.005) return false;
+  const amt = Math.abs(delta);
+  const acctSideDebit = (acct.normal === 'debit') === (delta > 0);
+  const lines = acctSideDebit
+    ? [{ account: code, debit: amt, credit: 0 }, { account: '3090', debit: 0, credit: amt }]
+    : [{ account: '3090', debit: amt, credit: 0 }, { account: code, debit: 0, credit: amt }];
+  return postJournalEntry(today(), (narration || 'Balance sheet adjustment') + ' — ' + acct.name, lines, 'bsmanual', code + '|' + Date.now());
+}
+
+function bsMigrateManualFields() {
+  if (db.bsLedgerMigrated) return false;
+  Object.keys(BS_MANUAL_ACCOUNTS).forEach(k => {
+    const v = parseFloat(db[k] || 0);
+    if (v) bsAdjustAccount(BS_MANUAL_ACCOUNTS[k], v, 'Opening balance brought into ledger');
+  });
+  if (!(db.assets || []).length) {
+    const fa = db.fixedAssets || {};
+    const map = { landBuilding: '1500', furnitureFittings: '1510', computerEquipment: '1520', otherFixedAssets: '1530' };
+    Object.keys(map).forEach(k => {
+      const v = parseFloat(fa[k] || 0);
+      if (v) bsAdjustAccount(map[k], v, 'Opening fixed asset balance brought into ledger');
+    });
+  }
+  db.bsLedgerMigrated = true;
+  return true;
+}
+
+function bsSyncControlAccounts() {
+  const r2 = n => Math.round((n || 0) * 100) / 100;
+  const sig = ls => ls.map(l => l.account + ':' + r2(l.debit) + ':' + r2(l.credit)).join('|');
+  const upsert = (id, narration, lines) => {
+    const cur = (db.journalEntries || []).find(je => je.source === 'bscontrol' && je.sourceId === id);
+    if (cur && sig(cur.lines || []) === sig(lines) && cur.narration === narration) return false;
+    if (!cur && !lines.length) return false;
+    removeJournalEntriesFor('bscontrol', id);
+    if (lines.length) postJournalEntry(today(), narration, lines, 'bscontrol', id);
+    return true;
+  };
+  let changed = false;
+
+  // Student fees sub-ledger → 1100 / 2050 (balanced through 3030)
+  let rec = 0, over = 0;
+  (db.admissions || []).forEach(st => {
+    const b = calcStudentStatus(st.id).bal || 0;
+    if (b > 0) rec += b; else if (b < 0) over += -b;
+  });
+  rec = r2(rec); over = r2(over);
+  // Feeding arrears — same per-student figure the Feeding Revenue / Feeding Report pages show
+  let feedRec = 0;
+  try {
+    (db.admissions || []).forEach(st => {
+      if (!(typeof CLASSES !== 'undefined' && CLASSES.includes(st.cls))) return;
+      feedRec += feedingCumulativeForStudent(st.cls, st.id, st.date || st.admissionDate || '').outstanding || 0;
+    });
+  } catch (e) { console.warn('feeding receivable', e); }
+  feedRec = r2(feedRec);
+  // Admission fee still owed by newly admitted students (class admission fee less amount paid)
+  let admRec = 0;
+  (db.admissions || []).forEach(st => {
+    if (st.status !== 'Admitted') return;
+    const due = parseFloat((FEE_BY_CLASS[st.cls] || {}).admissionFee) || 0;
+    if (due > 0) admRec += Math.max(0, due - (parseFloat(st.fee) || 0));
+  });
+  admRec = r2(admRec);
+  const feeLines = [];
+  if (rec > 0)  feeLines.push({ account: '1100', debit: rec, credit: 0 });
+  if (feedRec > 0) feeLines.push({ account: '1110', debit: feedRec, credit: 0 });
+  if (admRec > 0)  feeLines.push({ account: '1120', debit: admRec, credit: 0 });
+  if (over > 0) feeLines.push({ account: '2050', debit: 0, credit: over });
+  const gap = r2(rec + feedRec + admRec - over);
+  if (gap > 0) feeLines.push({ account: '3030', debit: 0, credit: gap });
+  else if (gap < 0) feeLines.push({ account: '3030', debit: -gap, credit: 0 });
+  if (upsert('fees', 'Fees receivable & overpayments restated from student accounts', feeLines)) changed = true;
+
+  // Fixed-asset register → accumulated depreciation (re-stated at most once a day)
+  let dep = 0, depSig = '';
+  (db.assets || []).forEach(a => {
+    if (a.approvalStatus === 'pending') return;
+    dep += computeAssetFinancials(a).accumDep;
+    depSig += a.id + ':' + (a.cost || 0) + ':' + (a.depRate || 0) + ':' + (a.salvage || 0) + ':' + (a.purchaseDate || '') + ';';
+  });
+  dep = r2(dep);
+  const depLines = dep > 0 ? [{ account: '5200', debit: dep, credit: 0 }, { account: '1590', debit: 0, credit: dep }] : [];
+  let depH = 0; for (let i = 0; i < depSig.length; i++) depH = (depH * 31 + depSig.charCodeAt(i)) | 0;
+  const curDep = (db.journalEntries || []).find(je => je.source === 'bscontrol' && je.sourceId === 'dep');
+  const depNarr = 'Accumulated depreciation to ' + today() + ' [' + depH + ']';
+  if (!(curDep && curDep.narration === depNarr) || (!depLines.length && curDep)) {
+    if (upsert('dep', depNarr, depLines)) changed = true;
+  }
+  return changed;
+}
+
+function bsMirrorManualFields() {
+  Object.keys(BS_MANUAL_ACCOUNTS).forEach(k => {
+    db[k] = Math.round(getAccountLedgerBalance(BS_MANUAL_ACCOUNTS[k]) * 100) / 100;
+  });
+}
+
+function bsRunLedgerSync() {
+  let changed = false;
+  try { backfillJournalEntries(); } catch (e) { console.warn('bs backfill', e); }
+  try { if (bsMigrateManualFields()) changed = true; } catch (e) { console.warn('bs migrate', e); }
+  try { if (bsSyncControlAccounts()) changed = true; } catch (e) { console.warn('bs control', e); }
+  bsMirrorManualFields();
+  if (changed) saveDb();
+  return changed;
+}
+
+// Ledger view for the Balance Sheet. Asset/liability/equity balances are cumulative up to
+// the "To" date (control entries are always current). Revenue/expense accounts — which feed
+// the surplus — respect both From and To.
+function bsLedgerView(from, to) {
+  const info = {};
+  getChartOfAccounts().forEach(a => { info[a.code] = a; });
+  const bal = {}, pl = {};
+  (db.journalEntries || []).forEach(je => {
+    const ctl = je.source === 'bscontrol';
+    const d = je.date || '';
+    const inTo = ctl || !to || d <= to;
+    const inPl = ctl || ((!from || d >= from) && (!to || d <= to));
+    (je.lines || []).forEach(l => {
+      const a = info[l.account];
+      if (!a) return;
+      const net = (l.debit || 0) - (l.credit || 0);
+      const signed = a.normal === 'debit' ? net : -net;
+      if (a.type === 'Revenue' || a.type === 'Expense') { if (inPl) pl[l.account] = (pl[l.account] || 0) + signed; }
+      else if (inTo) bal[l.account] = (bal[l.account] || 0) + signed;
+    });
+  });
+  let revenue = 0, expense = 0;
+  Object.keys(pl).forEach(c => { if (info[c].type === 'Revenue') revenue += pl[c]; else expense += pl[c]; });
+  return { bal, pl, revenue, expense, surplus: revenue - expense };
 }
 
 function renderBalanceSheet() {
@@ -48431,105 +48765,68 @@ function renderBalanceSheet() {
   const expenses  = (db.expenses  || []).filter(r => inBsRange(r.date) && isPostedFin(r));
   const pettyCash = (db.pettyCash || []).filter(p => inBsRange(p.date));
 
-  // ── NON-CURRENT ASSETS — auto-computed from the Asset Management register ──
-  // Falls back to the last manually-entered figures only if no assets have been
-  // registered yet, so existing balance sheets don't suddenly zero out.
+  // ── LEDGER FEED — every asset / liability line below is a General Ledger balance ──
+  bsRunLedgerSync();
+  const bsView = bsLedgerView(bsFrom, bsTo);
+  const glBal = c => Math.round((bsView.bal[c] || 0) * 100) / 100;
+
+  // ── NON-CURRENT ASSETS — ledger accounts 1500–1530 at cost, less 1590 accumulated depreciation ──
   const assetsList = db.assets || [];
   const registerHasAssets = assetsList.length > 0;
-  const catTotals = { landBuilding: 0, furnitureFittings: 0, computerEquipment: 0, otherFixedAssets: 0 };
-  assetsList.forEach(a => {
-    const f = computeAssetFinancials(a);
-    if (catTotals[a.category] !== undefined) catTotals[a.category] += f.currentValue;
-  });
-  const legacyFixed = db.fixedAssets || { landBuilding: 0, furnitureFittings: 0, computerEquipment: 0, otherFixedAssets: 0 };
-  const landBuilding      = registerHasAssets ? catTotals.landBuilding      : parseFloat(legacyFixed.landBuilding      || 0);
-  const furnitureFittings = registerHasAssets ? catTotals.furnitureFittings : parseFloat(legacyFixed.furnitureFittings || 0);
-  const computerEquipment = registerHasAssets ? catTotals.computerEquipment : parseFloat(legacyFixed.computerEquipment || 0);
-  const otherFixedAssets  = registerHasAssets ? catTotals.otherFixedAssets  : parseFloat(legacyFixed.otherFixedAssets  || 0);
+  const landBuilding      = glBal('1500');
+  const furnitureFittings = glBal('1510');
+  const computerEquipment = glBal('1520');
+  const otherFixedAssets  = glBal('1530');
+  const accumDepreciation = glBal('1590'); // negative (contra-asset)
 
-  // Custom Non-Current Asset accounts (added via "+ Add Account") — balance from the GL
   const customNonCurrentAssets = (db.customAssetLiabAccounts || []).filter(a => a.type === 'Asset' && a.classification === 'noncurrent');
-  const customNonCurrentAssetsTotal = customNonCurrentAssets.reduce((sum,a) => sum + getAccountLedgerBalance(a.code), 0);
-  const totalNonCurrent   = landBuilding + furnitureFittings + computerEquipment + otherFixedAssets + customNonCurrentAssetsTotal;
+  const customNonCurrentAssetsTotal = customNonCurrentAssets.reduce((sum,a) => sum + glBal(a.code), 0);
+  const totalNonCurrent   = landBuilding + furnitureFittings + computerEquipment + otherFixedAssets + accumDepreciation + customNonCurrentAssetsTotal;
 
   // ── CURRENT ASSETS ────────────────────────────────────────
-  // Inventory & Prepayments have no dedicated tracking feature yet — left manual, clearly labeled.
-  const inventory    = parseFloat(db.inventory || 0);
-  const prepayments  = parseFloat(db.bsPrepayments || 0);
-
-  // Custom Current Asset accounts (added via "+ Add Account") — balance from the GL
+  const inventory     = glBal('1200');
+  const shopInventory = glBal('1250');
+  const prepayments   = glBal('1300');
   const customCurrentAssets = (db.customAssetLiabAccounts || []).filter(a => a.type === 'Asset' && a.classification === 'current');
-  const customCurrentAssetsTotal = customCurrentAssets.reduce((sum,a) => sum + getAccountLedgerBalance(a.code), 0);
+  const customCurrentAssetsTotal = customCurrentAssets.reduce((sum,a) => sum + glBal(a.code), 0);
+  const cashAtBank = glBal('1020');
+  const cashMoMo   = glBal('1030');
+  const cashInHand = glBal('1010');
 
-  // Cash at Bank / Mobile Money / Cash in Hand — auto-computed from actual transaction
-  // records (see computeCashPosition — shared with the Statement of Cash Flows so the two
-  // always tie out to the same figures, per IAS 1's requirement for consistent statements).
-  const cashPos    = computeCashPosition(db);
-  const cashAtBank = cashPos.bank;
-  const cashMoMo   = cashPos.momo;
-  const cashInHand = cashPos.hand;
+  // Fees Receivable (Debtors) — ledger 1100 (restated from student accounts by the control entry)
+  const feesReceivable = glBal('1100');
+  const feedingReceivable = glBal('1110');
+  const admissionReceivable = glBal('1120');
 
-  // Fees Receivable (Debtors): outstanding school fees owed BY students
-  let feesReceivable = 0;
-  admitted.forEach(s => {
-    const { bal } = calcStudentStatus(s.id);
-    if (bal > 0) feesReceivable += bal;
-  });
-
-  const totalCurrent = inventory + cashAtBank + cashMoMo + cashInHand + feesReceivable + prepayments + customCurrentAssetsTotal;
+  const totalCurrent = inventory + shopInventory + cashAtBank + cashMoMo + cashInHand + feesReceivable + feedingReceivable + admissionReceivable + prepayments + customCurrentAssetsTotal;
   const totalAssets  = totalNonCurrent + totalCurrent;
 
   // ── LIABILITIES ──────────────────────────────────────────
   // NOTE: Expenses on the Income Statement are COSTS INCURRED, not liabilities.
   // Only amounts STILL OWED (unpaid as at balance sheet date) are liabilities.
 
-  // 1. Student Overpayments Payable — students paid MORE than billed (school owes refund)
-  let overpayments = 0;
-  admitted.forEach(s => {
-    const { bal } = calcStudentStatus(s.id);
-    if (bal < 0) overpayments += Math.abs(bal);
-  });
-
-  // 2. SSNIT / PAYE Payable — manual, same reasoning as Salaries Payable below: the
-  // payroll journal entries already credit Bank for the FULL gross + employer cost at
-  // the moment a run is posted (this app has no separate "remit to SSNIT/GRA" step), so
-  // that cash is already treated as paid out. Auto-adding the cumulative accrued SSNIT/
-  // PAYE on TOP of that as a still-outstanding liability double-counted money that had
-  // already reduced both Cash and Equity by the same amount — which meant the statement
-  // could never actually balance for any school that had run payroll. Left manual, with
-  // the all-time accrued total shown alongside as a reference figure (e.g. if you know
-  // this hasn't actually been remitted yet, enter it here).
-  const payrollRuns = db.payrollRuns || [];
+  // All liabilities are General Ledger balances (2010–2100 + custom liability accounts).
+  const overpayments    = glBal('2050');
+  // Reference figures only — payroll accrued to date (shown beside the ledger balances)
   let accruedSsnit = 0, accruedPaye = 0, accruedNetPay = 0;
-  payrollRuns.forEach(run => {
+  (db.payrollRuns || []).forEach(run => {
     (run.lines || []).forEach(line => {
       accruedSsnit  += (line.emplrSsnit || 0);
       accruedPaye   += (line.paye || 0);
       accruedNetPay += (line.net || 0);
     });
   });
-  const ssnitPayable = parseFloat(db.bsSsnitPayable || 0);
-  const payePayable  = parseFloat(db.bsPayePayable || 0);
+  const ssnitPayable    = glBal('2020');
+  const payePayable     = glBal('2030');
+  const salariesPayable = glBal('2040');
+  const accountsPayable = glBal('2010');
+  const otherPayables   = glBal('2060');
+  const loansPayable    = glBal('2100');
 
-  // 3. Accrued Salaries Payable — whether net pay is still owed depends on whether you've
-  // actually disbursed it, which this app doesn't track separately from running payroll —
-  // left manual, with the total payroll run to date shown alongside as a reference figure.
-  const salariesPayable = parseFloat(db.bsSalariesPayable || 0);
-
-  // 4. Accounts Payable — amounts owed to suppliers for goods/services not yet paid (manually entered)
-  const accountsPayable = parseFloat(db.bsAccountsPayable || 0);
-
-  // 5. Loans / Bank Borrowings (manually entered)
-  const loansPayable = parseFloat(db.bsLoansPayable || 0);
-
-  // 6. Other Payables (manually entered)
-  const otherPayables = parseFloat(db.bsOtherPayables || 0);
-
-  // Custom Liability accounts (added via "+ Add Account") — balance from the GL
   const customCurrentLiabs = (db.customAssetLiabAccounts || []).filter(a => a.type === 'Liability' && a.classification === 'current');
-  const customCurrentLiabsTotal = customCurrentLiabs.reduce((sum,a) => sum + getAccountLedgerBalance(a.code), 0);
+  const customCurrentLiabsTotal = customCurrentLiabs.reduce((sum,a) => sum + glBal(a.code), 0);
   const customNonCurrentLiabs = (db.customAssetLiabAccounts || []).filter(a => a.type === 'Liability' && a.classification === 'noncurrent');
-  const customNonCurrentLiabsTotal = customNonCurrentLiabs.reduce((sum,a) => sum + getAccountLedgerBalance(a.code), 0);
+  const customNonCurrentLiabsTotal = customNonCurrentLiabs.reduce((sum,a) => sum + glBal(a.code), 0);
 
   const totalCurrentLiab    = overpayments + ssnitPayable + payePayable + salariesPayable + accountsPayable + otherPayables + customCurrentLiabsTotal;
   const totalNonCurrentLiab = loansPayable + customNonCurrentLiabsTotal;
@@ -48546,20 +48843,18 @@ function renderBalanceSheet() {
   // (see executeCloseYear), so this is only ever manual the very first year a school uses this.
   const retainedBF = parseFloat(db.bsRetainedBF || 0);
 
-  // Current Year Net Surplus / (Deficit) — derived from Income Statement
-  // Revenue = fees collected (cash basis) + other revenue
-  let totalFeesColl = 0;
-  admitted.forEach(s => { TERMS.forEach(t => { totalFeesColl += (db.payments[s.id+'|'+t]||{paid:0}).paid; }); });
-  // Admission fees — one-time registration fee plus any Revenue Tracker entry
-  // filed under "Admission Fees", so both sources combine into one figure.
-  const admFees    = admitted.filter(a=>a.status!=='Scholarship' && a.status!=='Continuing').reduce((sum,a)=>sum+(a.fee||0),0)
-    + revenues.filter(r=>r.cat==='Admission Fees').reduce((a,r)=>a+(r.amount||0),0);
-  const otherRev   = revenues.filter(r=>r.cat!=='Admission Fees').reduce((a,r)=>a+(r.amount||0),0);
-  const totalIncome = totalFeesColl + admFees + otherRev;
-  const totalExp    = expenses.reduce((a,e)=>a+(e.amount||0),0);
-  const netSurplusCurrentYear = totalIncome - totalExp;
+  // Current Year Net Surplus / (Deficit) — from the ledger's revenue & expense accounts
+  const totalFeesColl = bsView.pl['4010'] || 0;
+  const admFees       = bsView.pl['4020'] || 0;
+  const totalIncome   = bsView.revenue;
+  const otherRev      = totalIncome - totalFeesColl - admFees;
+  const totalExp      = bsView.expense;
+  const netSurplusCurrentYear = bsView.surplus;
+  // Other equity accounts that carry ledger balances (opening capital / reserves posted by journal,
+  // the accrued-fee reserve and the suspense/adjustment account used by balance-sheet adjustments)
+  const ledgerEquityAdj = glBal('3010') + glBal('3020') + glBal('3030') + glBal('3090');
 
-  const totalEquity = churchInvestment + retainedBF + netSurplusCurrentYear;
+  const totalEquity = churchInvestment + retainedBF + ledgerEquityAdj + netSurplusCurrentYear;
 
   // ── BALANCE CHECK ────────────────────────────────────────
   // Under Assets − Liabilities = Equity: Net Assets should equal Total Equity
@@ -48574,7 +48869,7 @@ function renderBalanceSheet() {
   // helper — inline-edit for manual liability/equity fields
   function mkEditable(dbKey, spanId, opts) {
     opts = opts || {};
-    const cur = parseFloat(db[dbKey] || 0);
+    const cur = BS_MANUAL_ACCOUNTS[dbKey] ? glBal(BS_MANUAL_ACCOUNTS[dbKey]) : parseFloat(db[dbKey] || 0);
     return `<span class="bs-amount bs-editable" id="${spanId}" onclick="bsEditManual('${dbKey}','${spanId}',${opts.allowNeg||false})" title="Click to edit">GHS ${fmt(cur)}</span>`;
   }
 
@@ -48669,10 +48964,10 @@ function renderBalanceSheet() {
       </div>
     </div>
 
-    <!-- ══ MAIN TWO-COLUMN LAYOUT ══ -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+    <!-- ══ MAIN VERTICAL LAYOUT (Assets, then Equity &amp; Liabilities) ══ -->
+    <div style="display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start;max-width:860px;margin:0 auto">
 
-      <!-- ════ LEFT: ASSETS ════ -->
+      <!-- ════ ASSETS (top) ════ -->
       <div>
         <div class="card" style="margin-bottom:14px">
           <div class="card-header" style="background:var(--navy)">
@@ -48696,10 +48991,14 @@ function renderBalanceSheet() {
               <span>Other Fixed Assets</span>
               <span class="bs-amount">GHS ${fmt(otherFixedAssets)}</span>
             </div>
+            <div class="bs-row">
+              <span>Less: Accumulated Depreciation <span style="font-size:10px;color:var(--muted)">(ledger 1590)</span></span>
+              <span class="bs-amount" style="color:var(--red)">${accumDepreciation < 0 ? '(' + fmt(Math.abs(accumDepreciation)) + ')' : 'GHS ' + fmt(accumDepreciation)}</span>
+            </div>
             ${customNonCurrentAssets.map(a => `
             <div class="bs-row">
               <span>${esc(a.name)} <span style="font-size:9px;background:var(--cream2);color:var(--muted);padding:1px 6px;border-radius:8px;margin-left:2px">custom</span> <button class="btn btn-sm btn-danger" style="padding:1px 6px;font-size:10px" onclick="deleteCustomAssetLiabAccount('${a.code}')">✕</button></span>
-              <span class="bs-amount">GHS ${fmt(getAccountLedgerBalance(a.code))}</span>
+              <span class="bs-amount">GHS ${fmt(glBal(a.code))}</span>
             </div>`).join('')}
             <div class="bs-row total">
               <span style="font-weight:700">Total Non-Current Assets</span>
@@ -48710,7 +49009,7 @@ function renderBalanceSheet() {
               ⚠ No assets registered yet — showing GHS 0 for each category. Go to <b>Finance → Asset Management</b> to register your fixed assets so these figures populate automatically.
             </div>` : `
             <div style="padding:8px 20px;font-size:11px;color:var(--muted)">
-              Computed from <b>${assetsList.length}</b> registered asset${assetsList.length!==1?'s':''} (current book value after depreciation). Manage these in <b>Finance → Asset Management</b>.
+              Ledger balances: cost of <b>${assetsList.length}</b> registered asset${assetsList.length!==1?'s':''} (accounts 1500–1530) less accumulated depreciation (1590). Manage these in <b>Finance → Asset Management</b>.
             </div>`}
           </div>
         </div>
@@ -48718,49 +49017,67 @@ function renderBalanceSheet() {
         <div class="card">
           <div class="card-header" style="background:var(--navy)">
             <span class="card-title" style="color:var(--gold2)">💰 CURRENT ASSETS</span>
-            <span style="font-size:10px;color:rgba(201,168,76,0.5);font-style:italic">Cash rows auto-computed · others manual</span>
+            <span style="font-size:10px;color:rgba(201,168,76,0.5);font-style:italic">Every row is a General Ledger balance</span>
           </div>
           <div class="card-body" style="padding:0">
             <div class="bs-row">
-              <span>📦 Inventory &amp; Supplies <span style="font-size:10px;color:var(--muted)">(manual — no linked tracking yet)</span></span>
-              <span class="bs-amount bs-editable" onclick="bsEditInventory(this)" title="Click to edit">GHS ${fmt(inventory)}</span>
+              <span>📦 Inventory &amp; Supplies <span style="font-size:10px;color:var(--muted)">(ledger 1200 — click to post an adjustment)</span></span>
+              <span class="bs-amount bs-editable" onclick="bsEditInventory(this)" title="Click to post an adjusting entry">GHS ${fmt(inventory)}</span>
+            </div>
+            <div class="bs-row">
+              <span>🛍️ School Shop Inventory <span style="font-size:10px;color:var(--muted)">(ledger 1250 — from School Shop purchases &amp; sales)</span></span>
+              <span class="bs-amount">GHS ${fmt(shopInventory)}</span>
             </div>
             <div class="bs-row">
               <span>
                 🏛️ Cash at Bank
-                <span style="font-size:10px;color:var(--muted)">(auto: fee payments + revenue − expenses, Bank)</span>
+                <span style="font-size:10px;color:var(--muted)">(ledger 1020)</span>
               </span>
               <span class="bs-amount" style="color:var(--green)">GHS ${fmt(cashAtBank)}</span>
             </div>
             <div class="bs-row">
               <span>
                 📱 Mobile Money (MoMo)
-                <span style="font-size:10px;color:var(--muted)">(auto: revenue − expenses, MoMo)</span>
+                <span style="font-size:10px;color:var(--muted)">(ledger 1030)</span>
               </span>
               <span class="bs-amount">GHS ${fmt(cashMoMo)}</span>
             </div>
             <div class="bs-row">
               <span>
                 💵 Cash in Hand
-                <span style="font-size:10px;color:var(--muted)">(auto: fee payments + revenue − expenses, Cash, + Petty Cash net)</span>
+                <span style="font-size:10px;color:var(--muted)">(ledger 1010)</span>
               </span>
               <span class="bs-amount">GHS ${fmt(cashInHand)}</span>
             </div>
             <div class="bs-row">
               <span>
                 📋 School Fees Receivable
-                <span style="font-size:10px;color:var(--muted)">(${admitted.filter(s=>calcStudentStatus(s.id).bal>0).length} students with balances)</span>
+                <span style="font-size:10px;color:var(--muted)">(ledger 1100 · ${admitted.filter(s=>calcStudentStatus(s.id).bal>0).length} students with balances)</span>
               </span>
               <span class="bs-amount" style="color:var(--amber)">GHS ${fmt(feesReceivable)}</span>
             </div>
             <div class="bs-row">
-              <span>Prepayments &amp; Other Receivables <span style="font-size:10px;color:var(--muted)">(manual — no linked tracking yet)</span></span>
+              <span>
+                🍽️ Feeding Fees Receivable
+                <span style="font-size:10px;color:var(--muted)">(ledger 1110 · unpaid daily feeding fees to date, after discounts &amp; exemptions)</span>
+              </span>
+              <span class="bs-amount" style="color:var(--amber)">GHS ${fmt(feedingReceivable)}</span>
+            </div>
+            <div class="bs-row">
+              <span>
+                🎓 Admission Fees Receivable
+                <span style="font-size:10px;color:var(--muted)">(ledger 1120 · class admission fee less amount paid, newly admitted students)</span>
+              </span>
+              <span class="bs-amount" style="color:var(--amber)">GHS ${fmt(admissionReceivable)}</span>
+            </div>
+            <div class="bs-row">
+              <span>Prepayments &amp; Other Receivables <span style="font-size:10px;color:var(--muted)">(ledger 1300 — click to post an adjustment)</span></span>
               ${mkEditable('bsPrepayments','bs-span-prepay')}
             </div>
             ${customCurrentAssets.map(a => `
             <div class="bs-row">
               <span>${esc(a.name)} <span style="font-size:9px;background:var(--cream2);color:var(--muted);padding:1px 6px;border-radius:8px;margin-left:2px">custom</span> <button class="btn btn-sm btn-danger" style="padding:1px 6px;font-size:10px" onclick="deleteCustomAssetLiabAccount('${a.code}')">✕</button></span>
-              <span class="bs-amount">GHS ${fmt(getAccountLedgerBalance(a.code))}</span>
+              <span class="bs-amount">GHS ${fmt(glBal(a.code))}</span>
             </div>`).join('')}
             <div class="bs-row total">
               <span style="font-weight:700">Total Current Assets</span>
@@ -48795,7 +49112,7 @@ function renderBalanceSheet() {
         </div>
       </div>
 
-      <!-- ════ RIGHT: EQUITY + LIABILITIES (IFRS order) ════ -->
+      <!-- ════ EQUITY + LIABILITIES (below assets, IFRS order) ════ -->
       <div>
 
         <!-- ── EQUITY ── -->
@@ -48832,6 +49149,13 @@ function renderBalanceSheet() {
                 ${netSurplusCurrentYear < 0 ? '(' : ''}GHS ${fmt(Math.abs(netSurplusCurrentYear))}${netSurplusCurrentYear < 0 ? ')' : ''}
               </span>
             </div>
+            <div class="bs-row">
+              <span>
+                Reserves &amp; ledger adjustments
+                <span style="font-size:10px;color:var(--muted)">(ledger 3010 / 3020 / 3030 accrued fee reserve / 3090 suspense)</span>
+              </span>
+              <span class="bs-amount">${ledgerEquityAdj < 0 ? '(' : ''}GHS ${fmt(Math.abs(ledgerEquityAdj))}${ledgerEquityAdj < 0 ? ')' : ''}</span>
+            </div>
             <div class="bs-row total" style="background:#14532d">
               <span style="color:#bbf7d0;font-weight:700">TOTAL EQUITY</span>
               <span class="bs-amount" style="color:#bbf7d0;font-weight:700">GHS ${fmt(totalEquity)}</span>
@@ -48846,13 +49170,13 @@ function renderBalanceSheet() {
           </div>
           <div class="card-body" style="padding:0">
             <div class="bs-row">
-              <span>Loans / Bank Borrowings Payable <span style="font-size:10px;color:var(--muted)">(manual)</span></span>
+              <span>Loans / Bank Borrowings Payable <span style="font-size:10px;color:var(--muted)">(ledger 2100)</span></span>
               ${mkEditable('bsLoansPayable','bs-span-loans')}
             </div>
             ${customNonCurrentLiabs.map(a => `
             <div class="bs-row">
               <span>${esc(a.name)} <span style="font-size:9px;background:rgba(255,255,255,0.15);color:#fecaca;padding:1px 6px;border-radius:8px;margin-left:2px">custom</span> <button class="btn btn-sm btn-danger" style="padding:1px 6px;font-size:10px" onclick="deleteCustomAssetLiabAccount('${a.code}')">✕</button></span>
-              <span class="bs-amount">GHS ${fmt(getAccountLedgerBalance(a.code))}</span>
+              <span class="bs-amount">GHS ${fmt(glBal(a.code))}</span>
             </div>`).join('')}
             <div class="bs-row total" style="background:#7f1d1d">
               <span style="color:#fecaca;font-weight:700">Total Non-Current Liabilities</span>
@@ -48865,52 +49189,52 @@ function renderBalanceSheet() {
         <div class="card" style="margin-bottom:14px">
           <div class="card-header" style="background:#7f1d1d">
             <span class="card-title" style="color:#fecaca">⚠️ CURRENT LIABILITIES</span>
-            <span style="font-size:10px;color:rgba(252,165,165,0.5);font-style:italic">All manual — auto totals shown as reference</span>
+            <span style="font-size:10px;color:rgba(252,165,165,0.5);font-style:italic">Every row is a General Ledger balance</span>
           </div>
           <div class="card-body" style="padding:0">
             <div class="bs-row">
               <span>
                 Student Overpayments Payable
-                <span style="font-size:10px;color:var(--muted)">(refunds owed to students)</span>
+                <span style="font-size:10px;color:var(--muted)">(ledger 2050 · refunds owed to students)</span>
               </span>
               <span class="bs-amount" style="color:var(--red)">GHS ${fmt(overpayments)}</span>
             </div>
             <div class="bs-row">
               <span>
                 SSNIT &amp; Pension Contributions Payable
-                <span style="font-size:10px;color:var(--muted)">(manual — employer portion accrued, all payroll runs to date: GHS ${fmt(accruedSsnit)})</span>
+                <span style="font-size:10px;color:var(--muted)">(ledger 2020 · employer portion accrued, all payroll runs to date: GHS ${fmt(accruedSsnit)})</span>
               </span>
               ${mkEditable('bsSsnitPayable','bs-span-ssnit')}
             </div>
             <div class="bs-row">
               <span>
                 PAYE Tax Payable (GRA)
-                <span style="font-size:10px;color:var(--muted)">(manual — withheld, all payroll runs to date: GHS ${fmt(accruedPaye)})</span>
+                <span style="font-size:10px;color:var(--muted)">(ledger 2030 · withheld, all payroll runs to date: GHS ${fmt(accruedPaye)})</span>
               </span>
               ${mkEditable('bsPayePayable','bs-span-paye')}
             </div>
             <div class="bs-row">
               <span>
                 Accrued Salaries Payable
-                <span style="font-size:10px;color:var(--muted)">(manual — total net pay run to date: GHS ${fmt(accruedNetPay)})</span>
+                <span style="font-size:10px;color:var(--muted)">(ledger 2040 · total net pay run to date: GHS ${fmt(accruedNetPay)})</span>
               </span>
               ${mkEditable('bsSalariesPayable','bs-span-salaries')}
             </div>
             <div class="bs-row">
               <span>
                 Accounts Payable — Suppliers
-                <span style="font-size:10px;color:var(--muted)">(manual — no linked tracking yet)</span>
+                <span style="font-size:10px;color:var(--muted)">(ledger 2010)</span>
               </span>
               ${mkEditable('bsAccountsPayable','bs-span-ap')}
             </div>
             <div class="bs-row">
-              <span>Other Payables &amp; Accruals <span style="font-size:10px;color:var(--muted)">(manual)</span></span>
+              <span>Other Payables &amp; Accruals <span style="font-size:10px;color:var(--muted)">(ledger 2060)</span></span>
               ${mkEditable('bsOtherPayables','bs-span-other-liab')}
             </div>
             ${customCurrentLiabs.map(a => `
             <div class="bs-row">
               <span>${esc(a.name)} <span style="font-size:9px;background:rgba(255,255,255,0.15);color:#fecaca;padding:1px 6px;border-radius:8px;margin-left:2px">custom</span> <button class="btn btn-sm btn-danger" style="padding:1px 6px;font-size:10px" onclick="deleteCustomAssetLiabAccount('${a.code}')">✕</button></span>
-              <span class="bs-amount">GHS ${fmt(getAccountLedgerBalance(a.code))}</span>
+              <span class="bs-amount">GHS ${fmt(glBal(a.code))}</span>
             </div>`).join('')}
             <div class="bs-row total" style="background:#7f1d1d">
               <span style="color:#fecaca;font-weight:700">Total Current Liabilities</span>
@@ -48939,8 +49263,8 @@ function renderBalanceSheet() {
           </div>
         </div>
 
-      </div><!-- end right column -->
-    </div><!-- end grid -->
+      </div><!-- end equity & liabilities -->
+    </div><!-- end vertical statement -->
 
     <!-- ══ STATEMENT OF CHANGES IN EQUITY ══ -->
     <div class="card" style="margin-top:16px">
@@ -49021,6 +49345,15 @@ function renderBalanceSheet() {
 // genuine independent recalculation against that year's own fee schedule and records, not a
 // stored number that might be stale.
 function computeBalanceSheetTotalsFromSnapshot(dataObj) {
+  // Ledger path — the live db, or an archived year that was already running on the ledger
+  // (it has the balance-sheet control entries / migration flag). Older archives that predate
+  // the ledger feed fall through to the original record-based calculation below.
+  const _snapJes = Array.isArray(dataObj.journalEntries) ? dataObj.journalEntries : Object.values(dataObj.journalEntries || {});
+  if (dataObj === db || dataObj.bsLedgerMigrated || _snapJes.some(je => je && je.source === 'bscontrol')) {
+    if (dataObj === db) { try { bsRunLedgerSync(); } catch (e) { console.warn(e); } }
+    const P = bsPositionFromLedger(dataObj, '', '');
+    return { totalAssets: P.totalAssets, totalLiabilities: P.totalLiabilities, totalEquity: P.totalEquity, netAssets: P.netAssets, ledgerBased: true };
+  }
   const admissions   = dataObj.admissions || [];
   const paymentsMap  = dataObj.payments   || {};
   const feesByClass  = dataObj.fees       || FEE_BY_CLASS;
@@ -49146,7 +49479,9 @@ async function _bsLoadPriorYearComparison(curAssets, curLiab, curEquity, curNet)
         </tbody>
       </table>
       <div style="padding:8px 20px 12px;font-size:11px;color:var(--muted)">
-        ℹ Prior year figures are recalculated fresh from that year's own records (per IAS 1's comparative-information requirement), not copied from a stored total.
+        ${prev.ledgerBased
+          ? "ℹ Prior year figures are read from that year's own General Ledger (per IAS 1's comparative-information requirement), the same way the current year is."
+          : "ℹ That year was closed before the ledger-fed Balance Sheet, so its figures are recalculated from its own records (per IAS 1's comparative-information requirement) rather than its ledger."}
       </div>`;
   } catch (e) {
     box.innerHTML = `<div style="padding:16px 20px;font-size:12px;color:var(--red)">⚠ Could not load prior year data for comparison.</div>`;
@@ -49155,7 +49490,7 @@ async function _bsLoadPriorYearComparison(curAssets, curLiab, curEquity, curNet)
 
 // ── Inline edit helpers for Balance Sheet fixed assets & inventory ──
 function bsEditInventory(spanEl) {
-  const current = parseFloat(db.inventory || 0);
+  const current = getAccountLedgerBalance('1200');
   const inp = document.createElement('input');
   inp.type = 'number'; inp.min = '0'; inp.step = '0.01';
   inp.value = current;
@@ -49163,7 +49498,8 @@ function bsEditInventory(spanEl) {
   spanEl.replaceWith(inp);
   inp.focus(); inp.select();
   function commit() {
-    db.inventory = Math.max(0, parseFloat(inp.value) || 0);
+    bsAdjustAccount('1200', Math.max(0, parseFloat(inp.value) || 0), 'Inventory adjustment');
+    bsMirrorManualFields();
     saveDb();
     renderBalanceSheet();
   }
@@ -49192,7 +49528,7 @@ function bsEditChurchInvestment(spanEl) {
 function bsEditManual(dbKey, spanId, allowNeg) {
   const spanEl = document.getElementById(spanId);
   if (!spanEl) return;
-  const current = parseFloat(db[dbKey] || 0);
+  const current = BS_MANUAL_ACCOUNTS[dbKey] ? getAccountLedgerBalance(BS_MANUAL_ACCOUNTS[dbKey]) : parseFloat(db[dbKey] || 0);
   const inp = document.createElement('input');
   inp.type = 'number'; inp.step = '0.01';
   if (!allowNeg) inp.min = '0';
@@ -49202,7 +49538,12 @@ function bsEditManual(dbKey, spanId, allowNeg) {
   inp.focus(); inp.select();
   function commit() {
     const val = parseFloat(inp.value) || 0;
-    db[dbKey] = allowNeg ? val : Math.max(0, val);
+    if (BS_MANUAL_ACCOUNTS[dbKey]) {
+      bsAdjustAccount(BS_MANUAL_ACCOUNTS[dbKey], Math.max(0, val), 'Manual adjustment');
+      bsMirrorManualFields();
+    } else {
+      db[dbKey] = allowNeg ? val : Math.max(0, val);
+    }
     saveDb();
     renderBalanceSheet();
   }
@@ -49479,11 +49820,15 @@ function renderReport(type, mgmtDateFrom, mgmtDateTo) {
           <tr><td style="padding-left:20px">Furniture &amp; Fittings</td><td style="text-align:right;padding-right:20px">${fmt(sfp.furnitureFittings)}</td></tr>
           <tr><td style="padding-left:20px">Computer Equipment</td><td style="text-align:right;padding-right:20px">${fmt(sfp.computerEquipment)}</td></tr>
           <tr><td style="padding-left:20px">Other Fixed Assets</td><td style="text-align:right;padding-right:20px">${fmt(sfp.otherFixedAssets)}</td></tr>
+          <tr><td style="padding-left:20px">Less: Accumulated Depreciation</td><td style="text-align:right;padding-right:20px">${sfp.accumDepreciation < 0 ? '(' + fmt(Math.abs(sfp.accumDepreciation)) + ')' : fmt(sfp.accumDepreciation)}</td></tr>
           ${customAssetRows}
           <tr style="font-weight:600"><td>Total Non-Current Assets</td><td style="text-align:right;padding-right:20px">${fmt(sfp.totalNonCurrent)}</td></tr>
           <tr><td colspan="2" style="background:var(--cream2);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.4px">Current Assets</td></tr>
           <tr><td style="padding-left:20px">Inventory</td><td style="text-align:right;padding-right:20px">${fmt(sfp.inventory)}</td></tr>
+          <tr><td style="padding-left:20px">School Shop Inventory</td><td style="text-align:right;padding-right:20px">${fmt(sfp.shopInventory)}</td></tr>
           <tr><td style="padding-left:20px">Fees Receivable (Debtors)</td><td style="text-align:right;padding-right:20px">${fmt(sfp.feesReceivable)}</td></tr>
+          <tr><td style="padding-left:20px">Feeding Fees Receivable</td><td style="text-align:right;padding-right:20px">${fmt(sfp.feedingReceivable)}</td></tr>
+          <tr><td style="padding-left:20px">Admission Fees Receivable</td><td style="text-align:right;padding-right:20px">${fmt(sfp.admissionReceivable)}</td></tr>
           <tr><td style="padding-left:20px">Prepayments</td><td style="text-align:right;padding-right:20px">${fmt(sfp.prepayments)}</td></tr>
           <tr><td style="padding-left:20px">Cash at Bank</td><td style="text-align:right;padding-right:20px">${fmt(sfp.cashAtBank)}</td></tr>
           <tr><td style="padding-left:20px">Mobile Money</td><td style="text-align:right;padding-right:20px">${fmt(sfp.cashMoMo)}</td></tr>
@@ -49525,6 +49870,7 @@ function renderReport(type, mgmtDateFrom, mgmtDateTo) {
         <tbody>
           <tr><td style="padding-left:20px">Opening Fund / Capital</td><td style="text-align:right;padding-right:20px">${fmt(sfp.churchInvestment)}</td></tr>
           <tr><td style="padding-left:20px">Accumulated Surplus / (Deficit) b/f</td><td style="text-align:right;padding-right:20px">${fmt(sfp.retainedBF)}</td></tr>
+          <tr><td style="padding-left:20px">Reserves &amp; ledger adjustments</td><td style="text-align:right;padding-right:20px">${fmt(sfp.ledgerEquityAdj)}</td></tr>
           <tr><td style="padding-left:20px">Current Period Surplus / (Deficit)</td><td style="text-align:right;padding-right:20px;color:${sfp.netSurplusCurrentYear>=0?'var(--green)':'var(--red)'}">${fmt(sfp.netSurplusCurrentYear)}</td></tr>
         </tbody>
         <tfoot><tr style="font-weight:700;background:var(--navy);color:var(--gold2)">
@@ -49978,7 +50324,38 @@ function renderCashFlow() {
   const netFinancing = 0;
 
   const netChangeInCash = netOperating + netInvesting + netFinancing;
-  const cashEnd = computeCashPosition(db);
+  // ── LEDGER-DRIVEN STATEMENT ──
+  // Every figure in the three-section statement is read from the General Ledger: for each journal
+  // entry that touches Cash in Hand / Bank / MoMo, the cash that moved is classified by the
+  // account on the other side of the entry. Transfers between cash accounts net to zero.
+  bsRunLedgerSync();
+  const cf = (() => {
+    const info = {}; getChartOfAccounts().forEach(x => { info[x.code] = x; });
+    const cashCodes = ['1010', '1020', '1030'];
+    const r = { fees: 0, adm: 0, otherRev: 0, expenses: 0, workingCap: 0, investing: 0, financing: 0 };
+    (db.journalEntries || []).forEach(je => {
+      const lines = je.lines || [];
+      if (!lines.some(l => cashCodes.includes(l.account))) return;
+      lines.forEach(l => {
+        if (cashCodes.includes(l.account)) return;
+        const amt = (l.credit || 0) - (l.debit || 0); // cash that arrived (+) or left (−) through this line
+        const ac = info[l.account]; if (!ac) return;
+        if (ac.type === 'Revenue') { if (l.account === '4010') r.fees += amt; else if (l.account === '4020') r.adm += amt; else r.otherRev += amt; }
+        else if (ac.type === 'Expense') r.expenses += amt;
+        else if (l.account.startsWith('15')) r.investing += amt;
+        else if (l.account === '2100' || ac.type === 'Equity') r.financing += amt;
+        else r.workingCap += amt;
+      });
+    });
+    const bal = {}; (db.journalEntries || []).forEach(je => (je.lines || []).forEach(l => { if (cashCodes.includes(l.account)) bal[l.account] = (bal[l.account] || 0) + (l.debit || 0) - (l.credit || 0); }));
+    r.bank = bal['1020'] || 0; r.momo = bal['1030'] || 0; r.hand = bal['1010'] || 0;
+    r.end = r.bank + r.momo + r.hand;
+    r.operating = r.fees + r.adm + r.otherRev + r.expenses + r.workingCap;
+    r.net = r.operating + r.investing + r.financing;
+    r.opening = r.end - r.net;
+    return r;
+  })();
+  const cashEnd = { total: cf.end, bank: cf.bank, momo: cf.momo, hand: cf.hand };
 
   const collRate = (() => {
     let billed = 0;
@@ -50020,11 +50397,12 @@ function renderCashFlow() {
     </tr>`;
   }).filter(Boolean).join('');
 
+  const cfAmt = n => n < 0 ? '(' + fmt(Math.abs(n)) + ')' : 'GHS ' + fmt(n);
   el.innerHTML = `
     <div class="section-header">
       <div>
         <div class="section-title">🌊 Statement of Cash Flows</div>
-        <div class="section-sub">Prepared under the indirect method (IAS 7) &nbsp;·&nbsp; ${ACTIVE_YEAR} Academic Year &nbsp;·&nbsp; For the period ended ${new Date().toLocaleDateString('en-GH',{day:'numeric',month:'long',year:'numeric'})}</div>
+        <div class="section-sub">Prepared under the direct method (IAS 7) &nbsp;·&nbsp; ${ACTIVE_YEAR} Academic Year &nbsp;·&nbsp; For the period ended ${new Date().toLocaleDateString('en-GH',{day:'numeric',month:'long',year:'numeric'})}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-outline btn-sm" onclick="openReportPrintSettings('cashflow')">🖨️ Print / PDF</button>
@@ -50033,14 +50411,14 @@ function renderCashFlow() {
 
     <!-- KPI Strip -->
     <div class="kpi-grid kpi-grid-4" style="margin-bottom:16px">
-      <div class="kpi-card ${netOperating >= 0 ? 'green' : 'red'}">
+      <div class="kpi-card ${cf.operating >= 0 ? 'green' : 'red'}">
         <div class="kpi-label">Net Cash from Operating</div>
-        <div class="kpi-value" style="color:${netOperating>=0?'var(--green)':'var(--red)'}">GHS ${fmt(netOperating)}</div>
-        <div class="kpi-sub">Receipts − Payments</div>
+        <div class="kpi-value" style="color:${cf.operating>=0?'var(--green)':'var(--red)'}">GHS ${fmt(cf.operating)}</div>
+        <div class="kpi-sub">From the General Ledger</div>
       </div>
-      <div class="kpi-card ${netInvesting >= 0 ? 'green' : 'red'}">
+      <div class="kpi-card ${cf.investing >= 0 ? 'green' : 'red'}">
         <div class="kpi-label">Net Cash from Investing</div>
-        <div class="kpi-value" style="color:${netInvesting>=0?'var(--green)':'var(--red)'}">GHS ${fmt(netInvesting)}</div>
+        <div class="kpi-value" style="color:${cf.investing>=0?'var(--green)':'var(--red)'}">GHS ${fmt(cf.investing)}</div>
         <div class="kpi-sub">Asset purchases</div>
       </div>
       <div class="kpi-card gold">
@@ -50048,10 +50426,10 @@ function renderCashFlow() {
         <div class="kpi-value">${collRate}%</div>
         <div class="kpi-sub">of total billed</div>
       </div>
-      <div class="kpi-card ${netChangeInCash >= 0 ? 'green' : 'red'}">
+      <div class="kpi-card ${cf.net >= 0 ? 'green' : 'red'}">
         <div class="kpi-label">Net Change in Cash</div>
-        <div class="kpi-value" style="color:${netChangeInCash >= 0 ? 'var(--green)' : 'var(--red)'}">GHS ${fmt(netChangeInCash)}</div>
-        <div class="kpi-sub">${netChangeInCash >= 0 ? 'Net increase' : 'Net decrease'}</div>
+        <div class="kpi-value" style="color:${cf.net >= 0 ? 'var(--green)' : 'var(--red)'}">GHS ${fmt(cf.net)}</div>
+        <div class="kpi-sub">${cf.net >= 0 ? 'Net increase' : 'Net decrease'}</div>
       </div>
     </div>
 
@@ -50060,50 +50438,51 @@ function renderCashFlow() {
       <div class="card-header" style="background:var(--navy)"><span class="card-title" style="color:var(--gold2)">📄 Statement of Cash Flows</span></div>
 
       <div class="is-section-label">CASH FLOWS FROM OPERATING ACTIVITIES</div>
-      <div class="is-row"><span>Tuition &amp; Fees collected from students</span><span style="color:var(--green);font-weight:600">GHS ${fmt(totalFeesCollected)}</span></div>
-      <div class="is-row"><span>Other operating revenue received</span><span style="color:var(--green);font-weight:600">GHS ${fmt(totalOtherRevenue)}</span></div>
-      <div class="is-row"><span>Payments to suppliers and employees</span><span style="color:var(--red);font-weight:600">(${fmt(totalExpenses)})</span></div>
-      <div class="is-row"><span>Petty cash — net payments</span><span style="color:var(--red);font-weight:600">(${fmt(pettyCashNetOut)})</span></div>
-      <div class="is-row total ${netOperating>=0?'net-profit':'net-loss'}">
-        <span>Net Cash ${netOperating>=0?'from':'used in'} Operating Activities</span>
-        <span>GHS ${fmt(Math.abs(netOperating))}</span>
+      <div class="is-row"><span>Tuition fees collected from students <span style="font-size:10px;color:var(--muted)">(ledger 4010)</span></span><span style="color:var(--green);font-weight:600">${cfAmt(cf.fees)}</span></div>
+      <div class="is-row"><span>Admission fees collected <span style="font-size:10px;color:var(--muted)">(ledger 4020)</span></span><span style="color:var(--green);font-weight:600">${cfAmt(cf.adm)}</span></div>
+      <div class="is-row"><span>Other operating revenue received <span style="font-size:10px;color:var(--muted)">(feeding, shop, other revenue)</span></span><span style="color:var(--green);font-weight:600">${cfAmt(cf.otherRev)}</span></div>
+      <div class="is-row"><span>Payments to suppliers and employees <span style="font-size:10px;color:var(--muted)">(expenses, payroll, petty cash)</span></span><span style="color:var(--red);font-weight:600">${cfAmt(cf.expenses)}</span></div>
+      <div class="is-row"><span>Inventory, receivables &amp; payables movements <span style="font-size:10px;color:var(--muted)">(working capital)</span></span><span style="font-weight:600">${cfAmt(cf.workingCap)}</span></div>
+      <div class="is-row total ${cf.operating>=0?'net-profit':'net-loss'}">
+        <span>Net Cash ${cf.operating>=0?'from':'used in'} Operating Activities</span>
+        <span>GHS ${fmt(Math.abs(cf.operating))}</span>
       </div>
 
       <div class="is-section-label" style="margin-top:4px">CASH FLOWS FROM INVESTING ACTIVITIES</div>
       <div class="is-row">
-        <span>Purchase of fixed assets <span style="font-size:10px;color:var(--muted)">(from Asset Management register, ${assetsList.length} item${assetsList.length!==1?'s':''})</span></span>
-        <span style="color:var(--red);font-weight:600">${assetPurchases>0?'('+fmt(assetPurchases)+')':fmt(0)}</span>
+        <span>Purchase of fixed assets <span style="font-size:10px;color:var(--muted)">(ledger 1500–1530, ${assetsList.length} register item${assetsList.length!==1?'s':''})</span></span>
+        <span style="color:var(--red);font-weight:600">${cfAmt(cf.investing)}</span>
       </div>
-      <div class="is-row total ${netInvesting>=0?'net-profit':'net-loss'}">
-        <span>Net Cash ${netInvesting>=0?'from':'used in'} Investing Activities</span>
-        <span>GHS ${fmt(Math.abs(netInvesting))}</span>
+      <div class="is-row total ${cf.investing>=0?'net-profit':'net-loss'}">
+        <span>Net Cash ${cf.investing>=0?'from':'used in'} Investing Activities</span>
+        <span>GHS ${fmt(Math.abs(cf.investing))}</span>
       </div>
 
       <div class="is-section-label" style="margin-top:4px">CASH FLOWS FROM FINANCING ACTIVITIES</div>
       <div class="is-row">
-        <span>Capital contributions / loan movements <span style="font-size:10px;color:var(--muted)">(not separately dated — see Balance Sheet)</span></span>
-        <span style="color:var(--muted)">GHS 0.00</span>
+        <span>Loans, capital &amp; opening-balance movements <span style="font-size:10px;color:var(--muted)">(ledger 2100, equity accounts, brought-forward balances)</span></span>
+        <span style="font-weight:600">${cfAmt(cf.financing)}</span>
       </div>
       <div class="is-row total">
         <span>Net Cash from Financing Activities</span>
-        <span>GHS ${fmt(netFinancing)}</span>
+        <span>GHS ${fmt(cf.financing)}</span>
       </div>
 
       <div class="is-section-label" style="margin-top:4px">RECONCILIATION</div>
-      <div class="is-row ${netChangeInCash>=0?'net-profit':'net-loss'}">
+      <div class="is-row ${cf.net>=0?'net-profit':'net-loss'}">
         <span style="font-weight:600">Net Increase / (Decrease) in Cash and Cash Equivalents</span>
-        <span style="font-weight:700">${netChangeInCash<0?'(':''}GHS ${fmt(Math.abs(netChangeInCash))}${netChangeInCash<0?')':''}</span>
+        <span style="font-weight:700">${cf.net<0?'(':''}GHS ${fmt(Math.abs(cf.net))}${cf.net<0?')':''}</span>
       </div>
-      <div class="is-row" id="cf-opening-row">
-        <span>Cash and Cash Equivalents at Beginning of Period</span>
-        <span id="cf-opening-value" style="color:var(--muted)">⏳ Checking prior year…</span>
+      <div class="is-row">
+        <span>Cash and Cash Equivalents at Beginning of Period <span style="font-size:10px;color:var(--muted)">(ledger closing balance less the movement above)</span></span>
+        <span style="color:var(--muted)">GHS ${fmt(cf.opening)}</span>
       </div>
       <div class="is-row total" style="background:var(--navy)">
         <span style="color:var(--gold2)">Cash and Cash Equivalents at End of Period</span>
         <span style="color:var(--gold2)">GHS ${fmt(cashEnd.total)}</span>
       </div>
       <div style="padding:10px 20px;font-size:11px;color:var(--muted)">
-        ℹ "End of Period" cash (Bank GHS ${fmt(cashEnd.bank)} + MoMo GHS ${fmt(cashEnd.momo)} + Hand GHS ${fmt(cashEnd.hand)}) is computed the same way as on the Balance Sheet, so the two statements always tie out.
+        ℹ Every figure above is read from the General Ledger. "End of Period" cash (Bank GHS ${fmt(cashEnd.bank)} + MoMo GHS ${fmt(cashEnd.momo)} + Hand GHS ${fmt(cashEnd.hand)}) is the same ledger balance shown on the Balance Sheet, so the two statements tie out. The term table and expense breakdown below are record-based supporting analysis.
       </div>
     </div>
 
