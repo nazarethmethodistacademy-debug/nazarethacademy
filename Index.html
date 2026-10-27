@@ -5231,6 +5231,13 @@
   #page-dashboard #dash-section-kpis.kpi-grid {
     gap: 16px;
     margin-bottom: 22px;
+    grid-template-columns: repeat(5, 1fr);
+  }
+  @media (max-width: 1100px) {
+    #page-dashboard #dash-section-kpis.kpi-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 700px) {
+    #page-dashboard #dash-section-kpis.kpi-grid { grid-template-columns: repeat(2, 1fr); }
   }
   #page-dashboard #dash-section-kpis .kpi-card {
     padding: 22px 22px 20px;
@@ -6067,6 +6074,14 @@
             <div class="kpi-value" id="kpi-billed">0</div>
           </div>
           <div class="kpi-sub" id="kpi-billed-sub">Annual fee revenue</div>
+        </div>
+        <div class="kpi-card gold kpi-clickable" id="kpi-card-admission" onclick="navigate('admission')" title="Admission / registration fees collected (separate from tuition fees)">
+          <div class="kpi-icon" aria-hidden="true">🪪</div>
+          <div>
+            <div class="kpi-label">Admission Fees Collected (GHS)</div>
+            <div class="kpi-value" id="kpi-admission-fees">0</div>
+          </div>
+          <div class="kpi-sub" id="kpi-admission-sub">Registration · ledger 4020</div>
         </div>
       </div>
 
@@ -8067,6 +8082,20 @@
             </div>
           </div>
           <input type="checkbox" id="gs-allow-pending-edit" style="width:18px;height:18px;accent-color:var(--navy);cursor:pointer;flex-shrink:0;margin-top:2px">
+        </div>
+      </div>
+      <div class="card" style="padding:14px 16px;margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--navy)">📝 Allow editing previous (posted) transactions</div>
+            <div style="font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.6">
+              When on, approved Revenue and Expense entries can be fully edited — <strong>date</strong>,
+              <strong>description / narration</strong>, and <strong>amount</strong> (plus category and payment mode).
+              The linked General Ledger entry is automatically corrected. When off, only date and mode
+              can be changed inline on approved rows. Turn this on only for trusted finance users.
+            </div>
+          </div>
+          <input type="checkbox" id="gs-allow-edit-posted-tx" style="width:18px;height:18px;accent-color:var(--navy);cursor:pointer;flex-shrink:0;margin-top:2px">
         </div>
       </div>
       <div class="card" style="padding:14px 16px;margin-top:12px">
@@ -10184,6 +10213,8 @@ function openGeneralSettingsModal() {
   document.getElementById('gs-auto-disable-feeding').checked = !!db.generalSettings.autoDisableFeedingOnAbsent;
   document.getElementById('gs-allow-finance-date-edit').checked = db.generalSettings.allowFinanceDateEdit !== false;
   document.getElementById('gs-allow-pending-edit').checked = db.generalSettings.allowPendingEdit !== false;
+  const gsPosted = document.getElementById('gs-allow-edit-posted-tx');
+  if (gsPosted) gsPosted.checked = !!db.generalSettings.allowEditPostedTransaction;
   const set = (id, key) => { const el = document.getElementById(id); if (el) el.checked = gsAllow(key); };
   set('gs-allow-edit-payment', 'allowEditPayment');
   set('gs-allow-delete-payment', 'allowDeletePayment');
@@ -10212,6 +10243,8 @@ function saveGeneralSettings() {
   db.generalSettings.autoDisableFeedingOnAbsent = document.getElementById('gs-auto-disable-feeding').checked;
   db.generalSettings.allowFinanceDateEdit = document.getElementById('gs-allow-finance-date-edit').checked;
   db.generalSettings.allowPendingEdit = document.getElementById('gs-allow-pending-edit').checked;
+  const gsPostedSave = document.getElementById('gs-allow-edit-posted-tx');
+  if (gsPostedSave) db.generalSettings.allowEditPostedTransaction = !!gsPostedSave.checked;
   const read = (id, key) => {
     const el = document.getElementById(id);
     if (el) db.generalSettings[key] = !!el.checked;
@@ -11549,6 +11582,7 @@ function ensureGeneralSettingsDefaults() {
     autoDisableFeedingOnAbsent: true,
     allowFinanceDateEdit: true,
     allowPendingEdit: true,
+    allowEditPostedTransaction: false,
     allowEditPayment: true,
     allowDeletePayment: true,
     allowEditRevenue: true,
@@ -11833,6 +11867,7 @@ function initDb(callback) {
       if (db.generalSettings.autoDisableFeedingOnAbsent === undefined) db.generalSettings.autoDisableFeedingOnAbsent = true;
       if (db.generalSettings.allowFinanceDateEdit === undefined) db.generalSettings.allowFinanceDateEdit = true;
       if (db.generalSettings.allowPendingEdit === undefined) db.generalSettings.allowPendingEdit = true;
+      if (db.generalSettings.allowEditPostedTransaction === undefined) db.generalSettings.allowEditPostedTransaction = false;
       if (db.generalSettings.allowEditPayment === undefined) db.generalSettings.allowEditPayment = true;
       if (db.generalSettings.allowDeletePayment === undefined) db.generalSettings.allowDeletePayment = true;
       if (db.generalSettings.allowEditRevenue === undefined) db.generalSettings.allowEditRevenue = true;
@@ -15844,6 +15879,23 @@ function renderDashboard() {
   document.getElementById('kpi-billed').textContent = fmt(totalBilled);
   document.getElementById('kpi-coll-pct').textContent = pct(totalPaid, totalBilled) + ' collection rate';
 
+  // Admission fees collected (4020) — separate KPI; not included in Total Collected
+  try {
+    const admFeeTot = typeof getAdmissionFeeTotal === 'function' ? getAdmissionFeeTotal(db) : 0;
+    const admEl = document.getElementById('kpi-admission-fees');
+    if (admEl) admEl.textContent = fmt(admFeeTot);
+    const admSub = document.getElementById('kpi-admission-sub');
+    if (admSub) {
+      const nAdm = (db.admissions || []).filter(a => a.status === 'Admitted' && (a.fee || 0) > 0).length;
+      admSub.textContent = nAdm
+        ? (nAdm + ' new admit' + (nAdm === 1 ? '' : 's') + ' with fee · ledger 4020')
+        : 'Registration · ledger 4020';
+    }
+  } catch (e) {
+    const admEl = document.getElementById('kpi-admission-fees');
+    if (admEl) admEl.textContent = '0';
+  }
+
   // ── Target-achievement coloring: cards turn green the moment their stated target is met ──
   const STUDENT_TARGET = 120;
   const studentsCard = document.getElementById('kpi-card-students');
@@ -18296,6 +18348,7 @@ function renderRevenue() {
       ? `<input type="date" value="${r.date||''}" onchange="updateRevenueDate(${r.id}, this.value)" style="font-size:11.5px;padding:3px 5px;border:1px solid var(--border);border-radius:5px;font-family:inherit;background:var(--white);color:inherit">`
       : (r.date||'—');
     const pendEdit = canEdit && gsAllow('allowPendingEdit') && gsAllow('allowEditRevenue');
+    const canEditPostedRev = canEdit && gsAllow('allowEditPostedTransaction') && gsAllow('allowEditRevenue');
     const canDelRev = canEdit && gsAllow('allowDeleteRevenue');
     const actionCell = isPending
       ? `<div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -18303,7 +18356,12 @@ function renderRevenue() {
           ${canApprove ? `<button class="btn btn-sm" style="background:var(--green);color:var(--white);font-size:11px;padding:3px 8px" onclick="approveRevenueEntry(${r.id})">✓ Approve</button><button class="btn btn-sm btn-danger" style="font-size:11px;padding:3px 8px" onclick="rejectRevenueEntry(${r.id})">✕ Reject</button>` : ''}
           ${!pendEdit && !canApprove ? `<span class="badge" style="background:var(--amber-light);color:var(--amber)">⏳ Pending</span>` : ''}
         </div>`
-      : (canDelRev ? `<button class="btn btn-sm btn-danger" onclick="deleteRevenue(${r.id})">✕</button>` : '');
+      : ((canEditPostedRev || canDelRev)
+          ? `<div style="display:flex;gap:4px;flex-wrap:wrap">
+              ${canEditPostedRev ? `<button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick="openRevenueModal(${r.id})" title="Edit date, description, amount">✏️ Edit</button>` : ''}
+              ${canDelRev ? `<button class="btn btn-sm btn-danger" onclick="deleteRevenue(${r.id})">✕</button>` : ''}
+            </div>`
+          : '');
     const stu = r.studentId ? (db.admissions||[]).find(a => a.id === r.studentId) : null;
     return `<tr ${isPending ? 'style="opacity:0.7;background:var(--amber-light)"' : ''}>
       <td style="color:var(--muted)">${i+1}</td>
@@ -18358,15 +18416,20 @@ function openRevenueModal(id) {
   const rec = id ? (db.revenue || []).find(r => r.id === id) : null;
   if (id && !rec) return;
   if (rec && rec.status !== 'pending') {
-    toast('⛔ Only pending entries can be fully edited — an approved entry\'s date or payment mode can still be corrected inline in the table', 'error');
-    return;
+    if (!gsAllow('allowEditPostedTransaction')) {
+      toast('⛔ Only pending entries can be fully edited — turn on “Allow editing previous (posted) transactions” in General Settings, or correct date/mode inline', 'error');
+      return;
+    }
   }
-  if (rec && db.generalSettings && db.generalSettings.allowPendingEdit === false) {
+  if (rec && rec.status === 'pending' && db.generalSettings && db.generalSettings.allowPendingEdit === false) {
     toast('⛔ Editing pending entries is turned off in General Settings', 'error');
     return;
   }
   _editingRevenueId = rec ? rec.id : null;
-  document.getElementById('revenue-modal-title').textContent = rec ? 'Edit Revenue Entry (Pending)' : 'Add Revenue Entry';
+  const revIsPosted = rec && rec.status !== 'pending';
+  document.getElementById('revenue-modal-title').textContent = rec
+    ? (revIsPosted ? 'Edit Revenue Entry (Posted)' : 'Edit Revenue Entry (Pending)')
+    : 'Add Revenue Entry';
   document.getElementById('revenue-modal-savebtn').textContent = rec ? '💾 Save Changes' : '💾 Save Entry';
   document.getElementById('rev-date').value = rec ? rec.date : today();
   document.getElementById('rev-cat-sel').innerHTML = getRevCats().map(c => `<option ${rec && c===rec.cat ? 'selected' : ''}>${c}</option>`).join('');
@@ -18431,6 +18494,11 @@ function saveRevenue() {
   if (_editingRevenueId) {
     const rec = (db.revenue || []).find(r => r.id === _editingRevenueId);
     if (!rec) { _editingRevenueId = null; closeModal('revenue-modal'); return; }
+    const wasPosted = rec.status !== 'pending';
+    if (wasPosted && !gsAllow('allowEditPostedTransaction')) {
+      toast('⛔ Editing posted transactions is turned off in General Settings', 'error');
+      return;
+    }
     Object.assign(rec, {
       date, desc, ref: document.getElementById('rev-ref').value,
       term: document.getElementById('rev-term-sel').value,
@@ -18438,13 +18506,20 @@ function saveRevenue() {
       amount, notes: document.getElementById('rev-notes').value,
       editedBy: currentUser.username, editedAt: today()
     });
-    // Still pending — nothing posted to the ledger yet, so there's no
-    // journal entry to correct.
+    if (wasPosted) {
+      // Re-post the General Ledger entry so date, amount, category and cash
+      // account stay in sync with the corrected tracker row.
+      removeJournalEntriesFor('revenue', rec.id);
+      postJournalEntry(date, 'Revenue: ' + desc, [
+        { account: cashAccountForMode(mode), debit: amount, credit: 0 },
+        { account: revenueAccountCode(cat), debit: 0, credit: amount }
+      ], 'revenue', rec.id);
+    }
     _editingRevenueId = null;
     saveDb();
     closeModal('revenue-modal');
     renderRevenue();
-    toast('✅ Pending entry updated');
+    toast(wasPosted ? '✅ Posted revenue updated — ledger corrected' : '✅ Pending entry updated');
     return;
   }
   const newId = db.nextRevId++;
@@ -18600,6 +18675,7 @@ function renderExpenses() {
       ? `<input type="date" value="${r.date||''}" onchange="updateExpenseDate(${r.id}, this.value)" style="font-size:11.5px;padding:3px 5px;border:1px solid var(--border);border-radius:5px;font-family:inherit;background:var(--white);color:inherit">`
       : (r.date||'—');
     const pendEdit = canEdit && gsAllow('allowPendingEdit') && gsAllow('allowEditExpense');
+    const canEditPostedExp = canEdit && gsAllow('allowEditPostedTransaction') && gsAllow('allowEditExpense');
     const canDelExp = canEdit && gsAllow('allowDeleteExpense');
     const actionCell = isPending
       ? `<div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -18607,7 +18683,12 @@ function renderExpenses() {
           ${canApprove ? `<button class="btn btn-sm" style="background:var(--green);color:var(--white);font-size:11px;padding:3px 8px" onclick="approveExpenseEntry(${r.id})">✓ Approve</button><button class="btn btn-sm btn-danger" style="font-size:11px;padding:3px 8px" onclick="rejectExpenseEntry(${r.id})">✕ Reject</button>` : ''}
           ${!pendEdit && !canApprove ? `<span class="badge" style="background:var(--amber-light);color:var(--amber)">⏳ Pending</span>` : ''}
         </div>`
-      : (canDelExp ? `<button class="btn btn-sm btn-danger" onclick="deleteExpense(${r.id})">✕</button>` : '');
+      : ((canEditPostedExp || canDelExp)
+          ? `<div style="display:flex;gap:4px;flex-wrap:wrap">
+              ${canEditPostedExp ? `<button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick="openExpenseModal(${r.id})" title="Edit date, description, amount">✏️ Edit</button>` : ''}
+              ${canDelExp ? `<button class="btn btn-sm btn-danger" onclick="deleteExpense(${r.id})">✕</button>` : ''}
+            </div>`
+          : '');
     return `<tr ${isPending ? 'style="opacity:0.7;background:var(--amber-light)"' : ''}>
       <td style="color:var(--muted)">${i+1}</td>
       <td>${dateCell}</td><td>${esc(r.desc)}${isPending && canApprove ? ' <span class="badge" style="background:var(--amber-light);color:var(--amber);font-size:9px">⏳ Pending</span>' : ''}</td><td>${esc(r.ref||'—')}</td>
@@ -18656,15 +18737,20 @@ function openExpenseModal(id) {
   const rec = id ? (db.expenses || []).find(r => r.id === id) : null;
   if (id && !rec) return;
   if (rec && rec.status !== 'pending') {
-    toast('⛔ Only pending entries can be fully edited — an approved entry\'s date or payment mode can still be corrected inline in the table', 'error');
-    return;
+    if (!gsAllow('allowEditPostedTransaction')) {
+      toast('⛔ Only pending entries can be fully edited — turn on “Allow editing previous (posted) transactions” in General Settings, or correct date/mode inline', 'error');
+      return;
+    }
   }
-  if (rec && db.generalSettings && db.generalSettings.allowPendingEdit === false) {
+  if (rec && rec.status === 'pending' && db.generalSettings && db.generalSettings.allowPendingEdit === false) {
     toast('⛔ Editing pending entries is turned off in General Settings', 'error');
     return;
   }
   _editingExpenseId = rec ? rec.id : null;
-  document.getElementById('expense-modal-title').textContent = rec ? 'Edit Expense Entry (Pending)' : 'Add Expense Entry';
+  const expIsPosted = rec && rec.status !== 'pending';
+  document.getElementById('expense-modal-title').textContent = rec
+    ? (expIsPosted ? 'Edit Expense Entry (Posted)' : 'Edit Expense Entry (Pending)')
+    : 'Add Expense Entry';
   document.getElementById('expense-modal-savebtn').textContent = rec ? '💾 Save Changes' : '💾 Save Entry';
   document.getElementById('exp-date').value = rec ? rec.date : today();
   document.getElementById('exp-cat-sel').innerHTML = getExpCats().map(c => `<option ${rec && c===rec.cat ? 'selected' : ''}>${c}</option>`).join('');
@@ -18691,6 +18777,11 @@ function saveExpense() {
   if (_editingExpenseId) {
     const rec = (db.expenses || []).find(r => r.id === _editingExpenseId);
     if (!rec) { _editingExpenseId = null; closeModal('expense-modal'); return; }
+    const wasPosted = rec.status !== 'pending';
+    if (wasPosted && !gsAllow('allowEditPostedTransaction')) {
+      toast('⛔ Editing posted transactions is turned off in General Settings', 'error');
+      return;
+    }
     Object.assign(rec, {
       date, desc, ref: document.getElementById('exp-ref').value,
       term: document.getElementById('exp-term-sel').value,
@@ -18698,13 +18789,19 @@ function saveExpense() {
       amount, notes: document.getElementById('exp-notes').value,
       editedBy: currentUser.username, editedAt: today()
     });
-    // Still pending — nothing posted to the ledger yet, so there's no
-    // journal entry to correct.
+    if (wasPosted) {
+      removeJournalEntriesFor('expense', rec.id);
+      const expAcct = findAccountByCategory(cat, 'Expense');
+      postJournalEntry(date, 'Expense: ' + desc, [
+        { account: expAcct ? expAcct.code : '5300', debit: amount, credit: 0 },
+        { account: cashAccountForMode(mode), debit: 0, credit: amount }
+      ], 'expense', rec.id);
+    }
     _editingExpenseId = null;
     saveDb();
     closeModal('expense-modal');
     renderExpenses();
-    toast('✅ Pending entry updated');
+    toast(wasPosted ? '✅ Posted expense updated — ledger corrected' : '✅ Pending entry updated');
     checkExpenseAnomalyOnSave(rec.id);
     return;
   }
@@ -18878,14 +18975,101 @@ function submitFeedingBudgetRequest() {
   const monthLabel = feedingPeriodLabel(date, month);
   if (!db.feedingBudgetRequests) db.feedingBudgetRequests = [];
 
-  // Resubmit an existing request that was returned for editing
+  // Edit existing: Returned → resubmit as Pending; Approved → update posted expense + ledger
   if (_fbEditingId) {
     const rec = db.feedingBudgetRequests.find(r => r.id === _fbEditingId);
-    if (!rec || rec.status !== 'Returned') {
+    if (!rec || (rec.status !== 'Returned' && rec.status !== 'Approved')) {
       toast('⛔ That request is no longer available for editing');
       _fbEditingId = null;
       return;
     }
+
+    // ── Posted (Approved) feeding budget: update request + linked expense + GL ──
+    if (rec.status === 'Approved') {
+      if (!gsAllow('allowEditPostedTransaction')) {
+        toast('⛔ Editing posted transactions is turned off in General Settings', 'error');
+        return;
+      }
+      if (!gsAllow('allowEditExpense')) {
+        toast('⛔ Editing expenses is turned off in General Settings', 'error');
+        return;
+      }
+      rec.date = date;
+      rec.dateFrom = date;
+      delete rec.dateTo;
+      rec.month = month;
+      rec.monthLabel = monthLabel;
+      rec.items = items;
+      rec.amount = amount;
+      rec.mode = mode;
+      rec.bankAccountId = bankAccountId;
+      rec.notes = notes;
+      rec.editedBy = currentUser.username || currentUser.role;
+      rec.editedAt = Date.now();
+
+      const itemsText = items.map(it => `${it.name} (${it.type}) — GHS ${fmt(it.amount)}`).join('\n');
+      const fullNotes = [itemsText, notes].filter(Boolean).join('\n\n');
+      const periodLbl = monthLabel || feedingPeriodLabel(date, month) || '';
+      let exp = rec.expenseId != null
+        ? (db.expenses || []).find(e => e.id === rec.expenseId)
+        : null;
+
+      if (exp) {
+        Object.assign(exp, {
+          date,
+          desc: `Feeding Expenditure Budget — ${periodLbl}`,
+          term: termForDate(date),
+          cat: 'Feeding Expenses',
+          mode,
+          bankAccountId: bankAccountId || null,
+          amount,
+          notes: fullNotes,
+          editedBy: currentUser.username || currentUser.role,
+          editedAt: today()
+        });
+        removeJournalEntriesFor('expense', exp.id);
+        const expAcct = findAccountByCategory('Feeding Expenses', 'Expense');
+        postJournalEntry(date, 'Expense: Feeding Expenditure Budget — ' + periodLbl, [
+          { account: expAcct ? expAcct.code : '5300', debit: amount, credit: 0 },
+          { account: cashAccountForMode(mode), debit: 0, credit: amount }
+        ], 'expense', exp.id);
+      } else {
+        // Linked expense missing (deleted?) — recreate so weekly report / GL stay consistent
+        const newId = db.nextExpId++;
+        db.expenses.push({
+          id: newId,
+          date,
+          desc: `Feeding Expenditure Budget — ${periodLbl}`,
+          ref: rec.id,
+          term: termForDate(date),
+          cat: 'Feeding Expenses',
+          mode,
+          bankAccountId: bankAccountId || null,
+          amount,
+          notes: fullNotes,
+          status: 'approved',
+          submittedBy: rec.requestedBy,
+          editedBy: currentUser.username || currentUser.role,
+          editedAt: today()
+        });
+        const expAcct = findAccountByCategory('Feeding Expenses', 'Expense');
+        postJournalEntry(date, 'Expense: Feeding Expenditure Budget — ' + periodLbl, [
+          { account: expAcct ? expAcct.code : '5300', debit: amount, credit: 0 },
+          { account: cashAccountForMode(mode), debit: 0, credit: amount }
+        ], 'expense', newId);
+        rec.expenseId = newId;
+      }
+
+      _fbEditingId = null;
+      saveDb();
+      fbResetItems();
+      renderFeedingBudget();
+      try { if (typeof renderExpenses === 'function') renderExpenses(); } catch (e) {}
+      toast('✅ Posted feeding budget updated — Feeding Expense and ledger corrected');
+      return;
+    }
+
+    // ── Returned: update and resubmit for approval ──
     rec.date = date;
     rec.dateFrom = date; // legacy alias
     delete rec.dateTo;
@@ -18946,9 +19130,30 @@ function cancelFeedingBudgetRequest(id) {
 function editFeedingBudgetRequest(id) {
   if (!canEditCurrentPage('feedingbudget')) { toast('⛔ You have view-only access to Feeding Expenditure Budget'); return; }
   const rec = (db.feedingBudgetRequests||[]).find(r => r.id === id);
-  if (!rec || rec.status !== 'Returned') { toast('⛔ Only returned requests can be edited'); return; }
+  if (!rec) { toast('⛔ Request not found'); return; }
+
+  const isReturned = rec.status === 'Returned';
+  const isApproved = rec.status === 'Approved';
+  if (!isReturned && !isApproved) {
+    toast('⛔ Only returned or approved feeding budgets can be edited');
+    return;
+  }
+  if (isApproved) {
+    if (!gsAllow('allowEditPostedTransaction')) {
+      toast('⛔ Editing posted feeding budgets is turned off — enable “Allow editing previous (posted) transactions” in General Settings', 'error');
+      return;
+    }
+    if (!gsAllow('allowEditExpense')) {
+      toast('⛔ Editing expenses is turned off in General Settings', 'error');
+      return;
+    }
+  }
   const isOwner = rec.requestedBy === (currentUser.username || currentUser.role);
-  if (!(isOwner || currentUser.role === 'Admin')) { toast('⛔ You can only edit your own requests'); return; }
+  // Returned: owner or Admin; Approved (posted): anyone who can edit the page + settings allow it
+  if (isReturned && !(isOwner || currentUser.role === 'Admin')) {
+    toast('⛔ You can only edit your own returned requests');
+    return;
+  }
 
   _fbEditingId = rec.id;
   _fbItems = (rec.items && rec.items.length)
@@ -18957,12 +19162,13 @@ function editFeedingBudgetRequest(id) {
 
   renderFeedingBudget();
 
-  // Scroll form into view after re-render
   setTimeout(() => {
     const formCard = document.querySelector('#fbe-inner .card');
     if (formCard) formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, 50);
-  toast('✏️ Request loaded — edit the details and resubmit');
+  toast(isApproved
+    ? '✏️ Posted feeding budget loaded — save to update the linked Feeding Expense and ledger'
+    : '✏️ Request loaded — edit the details and resubmit');
 }
 
 function approveFeedingBudgetRequest(id) {
@@ -19048,10 +19254,13 @@ function renderFeedingBudget() {
   const bankAccounts = db.bankAccounts || [];
   if (!_fbItems.length) fbResetItems();
 
-  // When editing a Returned request, pre-fill form defaults from that record
-  const editingRec = _fbEditingId ? all.find(r => r.id === _fbEditingId && r.status === 'Returned') : null;
+  // When editing a Returned or Approved (posted) request, pre-fill form defaults
+  const editingRec = _fbEditingId
+    ? all.find(r => r.id === _fbEditingId && (r.status === 'Returned' || r.status === 'Approved'))
+    : null;
   if (_fbEditingId && !editingRec) { _fbEditingId = null; } // stale id
   const isEditing = !!editingRec;
+  const isEditingPosted = isEditing && editingRec.status === 'Approved';
   // Single date; legacy month-only → first day of that month; legacy range → dateFrom or date
   let formDate = today();
   if (isEditing) {
@@ -19065,7 +19274,7 @@ function renderFeedingBudget() {
 
   const requestForm = canEdit ? `
     <div class="card" style="margin-bottom:16px">
-      <div class="card-header"><span class="card-title">${isEditing ? '✏️ Edit & Resubmit Feeding Budget' : '➕ Request a Feeding Expenditure Budget'}</span></div>
+      <div class="card-header"><span class="card-title">${isEditingPosted ? '✏️ Edit Posted Feeding Budget' : isEditing ? '✏️ Edit & Resubmit Feeding Budget' : '➕ Request a Feeding Expenditure Budget'}</span></div>
       <div style="padding:14px 20px;display:flex;gap:12px;flex-wrap:wrap">
         <div class="form-group"><label>Date</label><input type="date" id="fb-req-date" value="${formDate}"></div>
         <div class="form-group"><label>Payment Mode</label>
@@ -19091,8 +19300,8 @@ function renderFeedingBudget() {
 
       <div class="form-group full" style="padding:14px 20px 0"><label>Additional Notes</label><textarea id="fb-req-notes" rows="2" placeholder="e.g. supplier, occasion, anything else the approver should know">${esc(formNotes)}</textarea></div>
       <div style="padding:12px 20px 18px;display:flex;gap:8px;align-items:center">
-        <button class="btn btn-primary btn-sm" onclick="submitFeedingBudgetRequest()">${isEditing ? '💾 Update & Resubmit for Approval' : 'Submit for Approval'}</button>
-        ${isEditing ? `<button class="btn btn-outline btn-sm" onclick="fbResetItems(); renderFeedingBudget(); toast('Edit cancelled');">Cancel Edit</button>` : ''}
+        <button class="btn btn-primary btn-sm" onclick="submitFeedingBudgetRequest()">${isEditingPosted ? '💾 Save Posted Changes' : isEditing ? '💾 Update & Resubmit for Approval' : 'Submit for Approval'}</button>
+        ${isEditing ? `<button class="btn btn-outline btn-sm" onclick="_fbEditingId=null; fbResetItems(); renderFeedingBudget(); toast('Edit cancelled');">Cancel Edit</button>` : ''}
       </div>
     </div>` : '';
 
@@ -19139,6 +19348,8 @@ function renderFeedingBudget() {
                 ? `<button class="btn btn-sm btn-outline" onclick="cancelFeedingBudgetRequest('${r.id}')">Return for Editing</button>`
                 : r.status==='Returned' && canEdit && (r.requestedBy===(currentUser.username||currentUser.role) || currentUser.role==='Admin')
                 ? `<button class="btn btn-sm btn-gold" onclick="editFeedingBudgetRequest('${r.id}')">✏️ Edit & Resubmit</button>`
+                : r.status==='Approved' && canEdit && gsAllow('allowEditPostedTransaction') && gsAllow('allowEditExpense')
+                ? `<button class="btn btn-sm btn-gold" onclick="editFeedingBudgetRequest('${r.id}')" title="Edit date, items, amount — updates Feeding Expense and ledger">✏️ Edit</button>`
                 : ''
             }</td>
           </tr>`).join('')}
@@ -41725,7 +41936,8 @@ function postJournalEntry(date, narration, lines, source, sourceId) {
 // Maps a payment mode/method to its Cash/Bank/MoMo GL account code.
 function cashAccountForMode(mode) {
   if (mode === 'Bank') return '1020';
-  if (mode === 'MoMo') return '1030';
+  // Feeding budget and some forms use "Mobile Money"; trackers often use "MoMo"
+  if (mode === 'MoMo' || mode === 'Mobile Money') return '1030';
   return '1010'; // Cash
 }
 
