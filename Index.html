@@ -1237,6 +1237,36 @@
     box-shadow: var(--shadow-lg), 0 0 0 1px rgba(15,31,61,0.06);
     border: 1px solid rgba(224,216,200,0.5);
   }
+
+  /* Admission edit / register modal: wider, scroll left-right and up-down */
+  #admission-modal .modal {
+    width: min(960px, 96vw);
+    max-width: 96vw;
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* scroll lives on body, not whole modal */
+  }
+  #admission-modal .modal-header {
+    flex-shrink: 0;
+  }
+  #admission-modal .modal-body,
+  #admission-modal .adm-modal-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  #admission-modal .adm-modal-scroll .form-grid.four {
+    min-width: 720px; /* keep 4 readable columns; scroll horizontally if viewport narrower */
+  }
+  #admission-modal .modal-footer {
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    background: var(--white);
+  }
   .modal-header {
     padding: 18px 22px;
     border-bottom: 1px solid rgba(201,168,76,0.2);
@@ -5231,13 +5261,6 @@
   #page-dashboard #dash-section-kpis.kpi-grid {
     gap: 16px;
     margin-bottom: 22px;
-    grid-template-columns: repeat(5, 1fr);
-  }
-  @media (max-width: 1100px) {
-    #page-dashboard #dash-section-kpis.kpi-grid { grid-template-columns: repeat(3, 1fr); }
-  }
-  @media (max-width: 700px) {
-    #page-dashboard #dash-section-kpis.kpi-grid { grid-template-columns: repeat(2, 1fr); }
   }
   #page-dashboard #dash-section-kpis .kpi-card {
     padding: 22px 22px 20px;
@@ -6074,14 +6097,6 @@
             <div class="kpi-value" id="kpi-billed">0</div>
           </div>
           <div class="kpi-sub" id="kpi-billed-sub">Annual fee revenue</div>
-        </div>
-        <div class="kpi-card gold kpi-clickable" id="kpi-card-admission" onclick="navigate('admission')" title="Admission / registration fees collected (separate from tuition fees)">
-          <div class="kpi-icon" aria-hidden="true">🪪</div>
-          <div>
-            <div class="kpi-label">Admission Fees Collected (GHS)</div>
-            <div class="kpi-value" id="kpi-admission-fees">0</div>
-          </div>
-          <div class="kpi-sub" id="kpi-admission-sub">Registration · ledger 4020</div>
         </div>
       </div>
 
@@ -6984,6 +6999,7 @@
       <span class="modal-title" id="adm-modal-title">Register New Student</span>
       <button class="modal-close" onclick="closeModal('admission-modal')">✕</button>
     </div>
+    <div class="adm-modal-scroll">
     <div class="form-grid four" style="padding:20px">
       <div class="form-group"><label>Full Name *</label><input id="adm-name" placeholder="e.g. Ama Boateng"></div>
       <div class="form-group"><label>Date of Birth *</label><input type="date" id="adm-dob"></div>
@@ -7049,6 +7065,7 @@
         </div>
       </div>
     </div>
+    </div><!-- /.adm-modal-scroll -->
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('admission-modal')">Cancel</button>
       <button class="btn btn-primary" id="adm-save-btn" onclick="saveAdmission()">💾 Save Student</button>
@@ -11442,7 +11459,8 @@ function ensureDbShape() {
     'skillComments', 'attendance', 'staffAttendance', 'dutyRoster', 'feeding', 'feedingBudgetOverrides',
     'fixedAssets', 'approvalConfig', 'generalSettings', 'gradeCategories',
     'carryForwards', 'boardReportNotes', 'staffHrDetails', 'mgmtComments',
-    'grades', 'usageLog', 'fees', 'feedingFees', 'feedingDiscounts', 'teacherExternalParamOverrides'
+    'grades', 'usageLog', 'fees', 'feedingFees', 'feedingDiscounts', 'teacherExternalParamOverrides',
+    'anomalyInvestigations'
   ];
   OBJ_KEYS.forEach(k => {
     try { db[k] = ensureObject(db[k]); } catch (e) { db[k] = {}; }
@@ -14678,10 +14696,16 @@ function getSchoolConcerns() {
   const unpaidCount = admitted.filter(s => calcStudentStatus(s.id).status === 'Unpaid').length;
   if (unpaidCount > 0) push('💰', `${unpaidCount} student${unpaidCount!==1?'s':''} with no payment recorded yet`, 'payment', 'low');
 
-  // ── Anomaly Detection — flagged expense entries (outliers/duplicates/repeats) ──
-  const anomFlags = [...detectExpenseOutliers(), ...detectDuplicateExpenses()];
-  const anomHigh = anomFlags.filter(f => f.severity === 'high').length;
-  if (anomFlags.length > 0) push('🚨', `${anomFlags.length} expense entr${anomFlags.length!==1?'ies':'y'} flagged by Anomaly Detection`, 'anomalydetection', anomHigh > 0 ? 'high' : 'medium');
+  // ── Anomaly Detection — only OPEN flags count on dashboard ──
+  try {
+    const anomFlags = typeof collectAnomalyFlags === 'function'
+      ? collectAnomalyFlags().filter(f => (typeof getAnomalyInvestigationStatus === 'function' ? getAnomalyInvestigationStatus(f) : 'open') === 'open')
+      : [...detectExpenseOutliers(), ...detectDuplicateExpenses()];
+    const anomHigh = anomFlags.filter(f => f.severity === 'high').length;
+    if (anomFlags.length > 0) {
+      push('🚨', `${anomFlags.length} open anomal${anomFlags.length!==1?'ies':'y'} need investigation`, 'anomalydetection', anomHigh > 0 ? 'high' : 'medium');
+    }
+  } catch (e) {}
 
   const severityRank = { high: 0, medium: 1, low: 2 };
   concerns.sort((a,b) => severityRank[a.severity] - severityRank[b.severity]);
@@ -15878,23 +15902,6 @@ function renderDashboard() {
   document.getElementById('kpi-outstanding').textContent = fmt(outstanding);
   document.getElementById('kpi-billed').textContent = fmt(totalBilled);
   document.getElementById('kpi-coll-pct').textContent = pct(totalPaid, totalBilled) + ' collection rate';
-
-  // Admission fees collected (4020) — separate KPI; not included in Total Collected
-  try {
-    const admFeeTot = typeof getAdmissionFeeTotal === 'function' ? getAdmissionFeeTotal(db) : 0;
-    const admEl = document.getElementById('kpi-admission-fees');
-    if (admEl) admEl.textContent = fmt(admFeeTot);
-    const admSub = document.getElementById('kpi-admission-sub');
-    if (admSub) {
-      const nAdm = (db.admissions || []).filter(a => a.status === 'Admitted' && (a.fee || 0) > 0).length;
-      admSub.textContent = nAdm
-        ? (nAdm + ' new admit' + (nAdm === 1 ? '' : 's') + ' with fee · ledger 4020')
-        : 'Registration · ledger 4020';
-    }
-  } catch (e) {
-    const admEl = document.getElementById('kpi-admission-fees');
-    if (admEl) admEl.textContent = '0';
-  }
 
   // ── Target-achievement coloring: cards turn green the moment their stated target is met ──
   const STUDENT_TARGET = 120;
@@ -36508,66 +36515,244 @@ function showAnomalyAlert(flags) {
   document.body.appendChild(ov);
 }
 
-function renderAnomalyDetection() {
-  ensurePage('anomalydetection', 'anom-inner');
-  const el = document.getElementById('anom-inner');
-  if (!el) return;
-
-  const outliers = detectExpenseOutliers();
-  const duplicateFlags = detectDuplicateExpenses();
-  const duplicates = duplicateFlags.filter(f => f.type === 'duplicate');
-  const repeats = duplicateFlags.filter(f => f.type === 'repeat_entry');
-  const allFlags = [...outliers, ...duplicateFlags].sort((a, b) => (a.date < b.date ? 1 : -1));
-
-  el.innerHTML = `
-    <div class="anom-summary-row">
-      <div class="sr-stat-card"><div class="sr-stat-value">${allFlags.length}</div><div class="sr-stat-label">Total Flags</div></div>
-      <div class="sr-stat-card"><div class="sr-stat-value">${outliers.length}</div><div class="sr-stat-label">Statistical Outliers</div></div>
-      <div class="sr-stat-card"><div class="sr-stat-value">${duplicates.length}</div><div class="sr-stat-label">Exact Duplicates</div></div>
-      <div class="sr-stat-card"><div class="sr-stat-value">${repeats.length}</div><div class="sr-stat-label">Possible Repeat Entries</div></div>
-    </div>
-
-    ${allFlags.length === 0 ? `
-      <div class="sr-empty" style="padding:60px 0">✅ No anomalies flagged in current expense records.</div>
-    ` : `
-      <div style="margin:16px 0">
-        <button class="btn btn-outline btn-sm" id="anom-ai-btn" onclick="anomGenAiSummary()">✨ Summarize with AI</button>
-        <div id="anom-ai-narrative"></div>
-      </div>
-      <table class="sr-table">
-        <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th>Flag</th><th>Reason</th></tr></thead>
-        <tbody>
-          ${allFlags.map(f => `
-            <tr>
-              <td>${esc(f.date)}</td>
-              <td>${esc(f.desc || '—')}</td>
-              <td>${esc(f.cat || '—')}</td>
-              <td>GHS ${fmt(f.amount)}</td>
-              <td><span class="anom-badge anom-badge-${f.severity}">${f.type === 'outlier' ? '📊 Outlier' : f.type === 'repeat_entry' ? '🔁 Repeat Entry' : '🔁 Duplicate'}</span></td>
-              <td style="font-size:11.5px;color:var(--muted)">${esc(f.reason)}</td>
-            </tr>`).join('')}
-        </tbody>
-      </table>
-      <div class="sr-insight-disclaimer" style="margin-top:10px">These are statistical flags for review, not conclusions — a legitimate repeat cost or a rounded market price can trigger either check.</div>
-    `}`;
-
-  window.anomGenAiSummary = async function() {
-    const btn = document.getElementById('anom-ai-btn');
-    const out = document.getElementById('anom-ai-narrative');
-    if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
-    if (out) out.innerHTML = '<div class="sr-ai-loading">Thinking…</div>';
-
-    const data = allFlags.map(f => ({ type: f.type, date: f.date, desc: f.desc, cat: f.cat, amount: f.amount, reason: f.reason }));
-    const result = await callAiAssist('anomaly', data, null, 'anomaly_' + ACTIVE_YEAR + '_' + allFlags.length);
-
-    if (btn) { btn.disabled = false; btn.textContent = '🔄 Regenerate'; }
-    if (out) {
-      out.innerHTML = result.ok
-        ? `<div class="sr-ai-text">${esc(result.text)}</div>`
-        : `<div class="sr-ai-error">⚠ ${esc(result.error)}</div>`;
-    }
-  };
+function anomalyFlagKey(f) {
+  return String((f && f.type) || 'flag') + '|' + String((f && f.id) || '') + '|' + String((f && f.date) || '') + '|' + String((f && f.amount) || 0);
 }
+function collectAnomalyFlags() {
+  var outliers = [], dups = [];
+  try { outliers = detectExpenseOutliers() || []; } catch (e) {}
+  try { dups = detectDuplicateExpenses() || []; } catch (e) {}
+  return outliers.concat(dups).sort(function(a, b) { return a.date < b.date ? 1 : -1; });
+}
+function ensureAnomalyInvestigations() {
+  if (!db.anomalyInvestigations || typeof db.anomalyInvestigations !== 'object') db.anomalyInvestigations = {};
+  return db.anomalyInvestigations;
+}
+function getAnomalyInvestigation(f) {
+  var map = ensureAnomalyInvestigations();
+  var key = typeof f === 'string' ? f : anomalyFlagKey(f);
+  return map[key] || null;
+}
+function getAnomalyInvestigationStatus(f) {
+  var inv = getAnomalyInvestigation(f);
+  if (!inv || !inv.status) return 'open';
+  if (inv.status === 'closed' || inv.status === 'investigating' || inv.status === 'open') return inv.status;
+  return 'open';
+}
+function currentAnomUser() {
+  try {
+    if (typeof currentUser === 'function') {
+      var u = currentUser();
+      if (u && (u.name || u.email || u.id)) return String(u.name || u.email || u.id);
+    }
+  } catch (e) {}
+  return 'user';
+}
+function anomToday() {
+  try { if (typeof today === 'function') return today(); } catch (e) {}
+  return new Date().toISOString().slice(0, 10);
+}
+function anomEscAttr(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;');
+}
+function anomStatusBadge(status) {
+  if (status === 'closed') return '<span class="badge badge-paid">Closed</span>';
+  if (status === 'investigating') return '<span class="badge badge-partial">Investigating</span>';
+  return '<span class="badge badge-unpaid">Open</span>';
+}
+function anomStartInvestigation(flagKey) {
+  try {
+    if (!flagKey) return;
+    var map = ensureAnomalyInvestigations();
+    var prev = map[flagKey] || {};
+    if (prev.status === 'closed') { toast('Already closed — re-open first.', 'error'); return; }
+    map[flagKey] = { status: 'investigating', investigatingAt: anomToday(), investigatingBy: currentAnomUser(), reason: prev.reason || '', closeReason: prev.closeReason || '' };
+    try { saveDb(); } catch (e) {}
+    toast('Marked as under investigation');
+    renderAnomalyDetection();
+    try { renderSchoolConcerns(); } catch (e) {}
+  } catch (err) { console.error(err); toast('Could not start investigation', 'error'); }
+}
+function anomOpenCloseOut(flagKey) {
+  try {
+    if (!flagKey) return;
+    var map = ensureAnomalyInvestigations();
+    var inv = map[flagKey] || {};
+    var flag = null, all = collectAnomalyFlags();
+    for (var i = 0; i < all.length; i++) if (anomalyFlagKey(all[i]) === flagKey) { flag = all[i]; break; }
+    var existing = document.getElementById('anom-close-modal');
+    if (existing) existing.remove();
+    var ov = document.createElement('div');
+    ov.className = 'modal-overlay open';
+    ov.id = 'anom-close-modal';
+    ov.style.zIndex = '1200';
+    var flagLabel = !flag ? 'Anomaly' : (flag.type === 'outlier' ? 'Statistical Outlier' : flag.type === 'repeat_entry' ? 'Possible Repeat Entry' : 'Possible Duplicate');
+    var summary = flag ? (esc(flag.date || '') + ' · ' + esc(flag.desc || '—') + ' · GHS ' + fmt(flag.amount || 0) + ' · ' + esc(flag.cat || '')) : esc(String(flagKey));
+    var prior = inv.closeReason || inv.reason || '';
+    ov.innerHTML = '<div class="modal" style="width:520px;max-width:96vw">' +
+      '<div class="modal-header" style="background:var(--navy)"><span class="modal-title" style="color:var(--gold2)">Close out investigation</span><button type="button" class="modal-close" id="anom-close-x">✕</button></div>' +
+      '<div style="padding:18px 20px">' +
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Closing requires a <strong>solid written reason</strong> (min 25 characters).</div>' +
+      '<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--cream2);margin-bottom:12px">' +
+      '<div style="font-weight:600;color:var(--navy);font-size:13px">' + esc(flagLabel) + '</div>' +
+      '<div style="font-size:12px;color:var(--muted);margin-top:4px">' + summary + '</div>' +
+      (flag && flag.reason ? '<div style="font-size:11.5px;color:var(--muted);margin-top:6px">' + esc(flag.reason) + '</div>' : '') +
+      '</div>' +
+      '<label style="font-size:12px;font-weight:600;color:var(--navy);display:block;margin-bottom:6px">Close-out reason <span style="color:var(--red)">*</span></label>' +
+      '<textarea id="anom-close-reason" rows="4" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical">' + esc(prior) + '</textarea>' +
+      '<div id="anom-close-err" style="display:none;margin-top:8px;font-size:12px;color:var(--red)"></div></div>' +
+      '<div class="modal-footer"><button type="button" class="btn btn-outline" id="anom-close-cancel">Cancel</button>' +
+      '<button type="button" class="btn btn-primary" id="anom-close-confirm">Close out</button></div></div>';
+    document.body.appendChild(ov);
+    function closeModal() { var m = document.getElementById('anom-close-modal'); if (m) m.remove(); }
+    var x = document.getElementById('anom-close-x'); if (x) x.onclick = closeModal;
+    var c = document.getElementById('anom-close-cancel'); if (c) c.onclick = closeModal;
+    var ok = document.getElementById('anom-close-confirm'); if (ok) ok.onclick = function() { anomConfirmCloseOut(flagKey); };
+    setTimeout(function() { var ta = document.getElementById('anom-close-reason'); if (ta) ta.focus(); }, 30);
+  } catch (err) { console.error(err); toast('Could not open close-out form', 'error'); }
+}
+function anomConfirmCloseOut(flagKey) {
+  try {
+    var ta = document.getElementById('anom-close-reason');
+    var errEl = document.getElementById('anom-close-err');
+    var reason = (ta && ta.value ? ta.value : '').replace(/^\s+|\s+$/g, '');
+    if (reason.length < 25) {
+      if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Please enter a solid close-out reason (at least 25 characters).'; }
+      if (ta) ta.focus(); return;
+    }
+    if (reason.split(/\s+/).filter(Boolean).length < 4) {
+      if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Reason is too vague. Describe the evidence and conclusion.'; }
+      if (ta) ta.focus(); return;
+    }
+    var map = ensureAnomalyInvestigations();
+    var prev = map[flagKey] || {};
+    var todayStr = anomToday();
+    map[flagKey] = { status: 'closed', reason: reason, closeReason: reason, closedAt: todayStr, closedBy: currentAnomUser(), investigatingAt: prev.investigatingAt || todayStr, investigatingBy: prev.investigatingBy || currentAnomUser() };
+    try { saveDb(); } catch (e) {}
+    var ov = document.getElementById('anom-close-modal'); if (ov) ov.remove();
+    toast('Anomaly closed with investigation reason recorded');
+    renderAnomalyDetection();
+    try { renderSchoolConcerns(); } catch (e) {}
+  } catch (err) { console.error(err); toast('Could not close out anomaly', 'error'); }
+}
+function anomReopen(flagKey) {
+  try {
+    if (!flagKey || !confirm('Re-open this anomaly investigation?')) return;
+    var map = ensureAnomalyInvestigations();
+    var prev = map[flagKey] || {};
+    map[flagKey] = { status: 'open', reason: prev.reason || '', closeReason: prev.closeReason || '', reopenedAt: anomToday(), reopenedBy: currentAnomUser() };
+    try { saveDb(); } catch (e) {}
+    toast('Anomaly re-opened');
+    renderAnomalyDetection();
+    try { renderSchoolConcerns(); } catch (e) {}
+  } catch (err) { console.error(err); toast('Could not re-open', 'error'); }
+}
+function renderAnomalyDetection() {
+  try {
+    ensurePage('anomalydetection', 'anom-inner');
+    var el = document.getElementById('anom-inner');
+    if (!el) return;
+    ensureAnomalyInvestigations();
+    var allFlags = collectAnomalyFlags();
+    var outliers = allFlags.filter(function(f) { return f.type === 'outlier'; });
+    var duplicates = allFlags.filter(function(f) { return f.type === 'duplicate'; });
+    var repeats = allFlags.filter(function(f) { return f.type === 'repeat_entry'; });
+    var openFlags = allFlags.filter(function(f) { return getAnomalyInvestigationStatus(f) === 'open'; });
+    var invFlags = allFlags.filter(function(f) { return getAnomalyInvestigationStatus(f) === 'investigating'; });
+    var closedFlags = allFlags.filter(function(f) { return getAnomalyInvestigationStatus(f) === 'closed'; });
+    var filter = window._anomFilter || 'open';
+    var filtered = filter === 'all' ? allFlags : filter === 'closed' ? closedFlags : filter === 'investigating' ? invFlags : openFlags;
+    function tabBtn(id, label, count) {
+      return '<button type="button" class="btn btn-sm ' + (filter === id ? 'btn-primary' : 'btn-outline') + '" style="margin-right:6px" data-anom-filter="' + id + '">' + label + ' (' + count + ')</button>';
+    }
+    var rows = '';
+    for (var ri = 0; ri < filtered.length; ri++) {
+      var f = filtered[ri];
+      var key = anomalyFlagKey(f);
+      var st = getAnomalyInvestigationStatus(f);
+      var inv = getAnomalyInvestigation(f) || {};
+      var invNote = '<span style="color:var(--muted);font-size:11px">—</span>';
+      if (st === 'closed') {
+        var r = inv.reason || inv.closeReason || '';
+        invNote = '<div style="font-size:11px;color:var(--green);max-width:220px"><strong>Closed:</strong> ' + esc(String(r).slice(0, 120)) + (String(r).length > 120 ? '…' : '') +
+          '<div style="color:var(--muted);margin-top:2px">' + esc(inv.closedBy || '') + ' · ' + esc(inv.closedAt || '') + '</div></div>';
+      } else if (st === 'investigating') {
+        invNote = '<div style="font-size:11px;color:var(--amber)">Started ' + esc(inv.investigatingAt || '') + ' by ' + esc(inv.investigatingBy || '') + '</div>';
+      }
+      var dk = anomEscAttr(key);
+      var actions = st === 'closed'
+        ? '<button type="button" class="btn btn-outline btn-sm" data-anom-action="reopen" data-flag-key="' + dk + '">Re-open</button>'
+        : st === 'investigating'
+          ? '<button type="button" class="btn btn-primary btn-sm" data-anom-action="close" data-flag-key="' + dk + '">Close out…</button>'
+          : '<button type="button" class="btn btn-outline btn-sm" data-anom-action="investigate" data-flag-key="' + dk + '">Investigate</button> ' +
+            '<button type="button" class="btn btn-primary btn-sm" data-anom-action="close" data-flag-key="' + dk + '">Close out…</button>';
+      var flagTxt = f.type === 'outlier' ? 'Outlier' : f.type === 'repeat_entry' ? 'Repeat' : 'Duplicate';
+      rows += '<tr><td>' + esc(f.date || '') + '</td><td>' + esc(f.desc || '—') + '</td><td>' + esc(f.cat || '—') + '</td><td>GHS ' + fmt(f.amount) + '</td>' +
+        '<td><span class="anom-badge anom-badge-' + esc(f.severity || 'low') + '">' + flagTxt + '</span></td>' +
+        '<td style="font-size:11.5px;color:var(--muted);max-width:240px">' + esc(f.reason || '') + '</td>' +
+        '<td>' + anomStatusBadge(st) + '</td><td>' + invNote + '</td><td style="white-space:nowrap">' + actions + '</td></tr>';
+    }
+    el.innerHTML =
+      '<div class="section-header" style="margin-bottom:12px"><div><div class="section-title">Anomaly Detection</div>' +
+      '<div class="section-sub">Flags go through investigation and must be closed out with a solid written reason. Only <strong>open</strong> flags appear on the dashboard.</div></div></div>' +
+      '<div class="anom-summary-row">' +
+      '<div class="sr-stat-card"><div class="sr-stat-value" style="color:var(--red)">' + openFlags.length + '</div><div class="sr-stat-label">Open</div></div>' +
+      '<div class="sr-stat-card"><div class="sr-stat-value" style="color:var(--amber)">' + invFlags.length + '</div><div class="sr-stat-label">Investigating</div></div>' +
+      '<div class="sr-stat-card"><div class="sr-stat-value" style="color:var(--green)">' + closedFlags.length + '</div><div class="sr-stat-label">Closed</div></div>' +
+      '<div class="sr-stat-card"><div class="sr-stat-value">' + outliers.length + '</div><div class="sr-stat-label">Outliers</div></div>' +
+      '<div class="sr-stat-card"><div class="sr-stat-value">' + duplicates.length + '</div><div class="sr-stat-label">Duplicates</div></div>' +
+      '<div class="sr-stat-card"><div class="sr-stat-value">' + repeats.length + '</div><div class="sr-stat-label">Repeat Entries</div></div></div>' +
+      '<div style="margin:14px 0;display:flex;flex-wrap:wrap;align-items:center;gap:6px">' +
+      tabBtn('open', 'Open', openFlags.length) + tabBtn('investigating', 'Investigating', invFlags.length) +
+      tabBtn('closed', 'Closed', closedFlags.length) + tabBtn('all', 'All flags', allFlags.length) +
+      '<button type="button" class="btn btn-outline btn-sm" id="anom-ai-btn" style="margin-left:auto">Summarize open with AI</button></div><div id="anom-ai-narrative"></div>' +
+      (filtered.length === 0
+        ? '<div class="sr-empty" style="padding:48px 0">' + (filter === 'open' ? 'No open anomalies.' : 'No flags in this view.') + '</div>'
+        : '<table class="sr-table"><thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th>Flag</th><th>Detection reason</th><th>Status</th><th>Investigation</th><th>Actions</th></tr></thead><tbody>' + rows + '</tbody></table>');
+    var filterBtns = el.querySelectorAll('[data-anom-filter]');
+    for (var fi = 0; fi < filterBtns.length; fi++) {
+      (function(btn) {
+        btn.addEventListener('click', function() { window._anomFilter = btn.getAttribute('data-anom-filter') || 'open'; renderAnomalyDetection(); });
+      })(filterBtns[fi]);
+    }
+    var actionBtns = el.querySelectorAll('[data-anom-action]');
+    for (var ai = 0; ai < actionBtns.length; ai++) {
+      (function(btn) {
+        btn.addEventListener('click', function() {
+          var action = btn.getAttribute('data-anom-action');
+          var key = btn.getAttribute('data-flag-key') || '';
+          if (action === 'investigate') anomStartInvestigation(key);
+          else if (action === 'close') anomOpenCloseOut(key);
+          else if (action === 'reopen') anomReopen(key);
+        });
+      })(actionBtns[ai]);
+    }
+    var aiBtn = document.getElementById('anom-ai-btn');
+    if (aiBtn) {
+      aiBtn.addEventListener('click', function() {
+        var btn = document.getElementById('anom-ai-btn');
+        var out = document.getElementById('anom-ai-narrative');
+        if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+        if (out) out.innerHTML = '<div class="sr-ai-loading">Thinking…</div>';
+        var openOnly = collectAnomalyFlags().filter(function(f) { return getAnomalyInvestigationStatus(f) === 'open'; });
+        var data = openOnly.map(function(f) { return { type: f.type, date: f.date, desc: f.desc, cat: f.cat, amount: f.amount, reason: f.reason }; });
+        Promise.resolve(callAiAssist('anomaly', data, null, 'anomaly_' + ACTIVE_YEAR + '_' + openOnly.length)).then(function(result) {
+          if (btn) { btn.disabled = false; btn.textContent = 'Regenerate'; }
+          if (out) out.innerHTML = result && result.ok ? '<div class="sr-ai-text">' + esc(result.text) + '</div>' : '<div class="sr-ai-error">' + esc((result && result.error) || 'Failed') + '</div>';
+        }).catch(function(e) {
+          if (btn) { btn.disabled = false; btn.textContent = 'Summarize open with AI'; }
+          if (out) out.innerHTML = '<div class="sr-ai-error">' + esc(String(e && e.message ? e.message : e)) + '</div>';
+        });
+      });
+    }
+  } catch (err) { console.error(err); toast('Anomaly page failed to render', 'error'); }
+}
+window.anomStartInvestigation = anomStartInvestigation;
+window.anomOpenCloseOut = anomOpenCloseOut;
+window.anomConfirmCloseOut = anomConfirmCloseOut;
+window.anomReopen = anomReopen;
+window.collectAnomalyFlags = collectAnomalyFlags;
+window.getAnomalyInvestigationStatus = getAnomalyInvestigationStatus;
 
 // ══════════════ ACADEMIC INTELLIGENCE DASHBOARD ══════════════
 // Structured around four questions, in this order, every time:
