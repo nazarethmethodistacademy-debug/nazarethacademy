@@ -899,6 +899,15 @@
   .att-grid-table td, .att-grid-table th { border-bottom: 1px solid var(--border); }
   .att-grid-table tbody tr:last-child td { border-bottom: none; }
 
+  /* Horizontal scroll containers (desktop + mobile) */
+  .table-scroll, .h-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    max-width: 100%;
+  }
+  .h-scroll-hint { display: none; } /* shown only on mobile */
+
   tbody tr { border-bottom: 1px solid var(--border); transition: background 0.12s; }
   tbody tr:last-child { border-bottom: none; }
   tbody tr:hover { background: var(--cream); }
@@ -1267,6 +1276,57 @@
     gap: 10px;
     background: var(--cream);
     border-radius: 0 0 14px 14px;
+  }
+
+  /* ── Admission register/edit — full screen ── */
+  #admission-modal.open {
+    align-items: stretch;
+    justify-content: stretch;
+    padding: 0;
+    background: rgba(15, 31, 61, 0.55);
+  }
+  #admission-modal .modal.adm-modal-fullscreen {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: none;
+  }
+  #admission-modal .modal.adm-modal-fullscreen .modal-header {
+    flex-shrink: 0;
+    border-radius: 0;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  #admission-modal .modal.adm-modal-fullscreen .adm-modal-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 20px 24px 28px;
+  }
+  #admission-modal .modal.adm-modal-fullscreen .modal-footer {
+    flex-shrink: 0;
+    border-radius: 0;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+  }
+  @media (min-width: 900px) {
+    #admission-modal .modal.adm-modal-fullscreen .adm-modal-body.form-grid.four {
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px 18px;
+    }
+  }
+  @media (max-width: 700px) {
+    #admission-modal .modal.adm-modal-fullscreen .adm-modal-body {
+      padding: 14px 14px 24px;
+    }
   }
 
   /* ── DASHBOARD CHARTS ── */
@@ -4408,14 +4468,126 @@
       overflow-x: hidden !important; /* was auto — caused sideways scroll */
       max-width: 100%;
     }
-    /* Tables only scroll inside an explicit table-scroll wrapper */
-    .table-scroll {
+    /* Tables only scroll inside an explicit table-scroll / h-scroll wrapper */
+    .table-scroll,
+    .h-scroll,
+    .mobile-table-view.adm-table-wrap,
+    .mobile-table-view {
+      position: relative;
+      overflow-x: auto;
+      overflow-y: visible;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+      max-width: 100%;
+      margin: 0;
+      border-radius: 10px;
+      /* Subtle edge fades — signal that more columns exist */
+      background:
+        linear-gradient(to right, var(--white) 30%, transparent) left center / 28px 100% no-repeat,
+        linear-gradient(to left, var(--white) 30%, transparent) right center / 28px 100% no-repeat,
+        var(--white);
+      background-attachment: local, local, scroll;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(15,31,61,0.25) transparent;
+    }
+    .table-scroll::-webkit-scrollbar,
+    .h-scroll::-webkit-scrollbar,
+    .mobile-table-view::-webkit-scrollbar {
+      height: 6px;
+    }
+    .table-scroll::-webkit-scrollbar-thumb,
+    .h-scroll::-webkit-scrollbar-thumb,
+    .mobile-table-view::-webkit-scrollbar-thumb {
+      background: rgba(15,31,61,0.22);
+      border-radius: 6px;
+    }
+    .table-scroll table,
+    .h-scroll table,
+    .mobile-table-view table {
+      min-width: min(720px, max(100%, 560px));
+      width: max-content;
+      max-width: none;
+      margin: 0;
+    }
+    .table-scroll thead th,
+    .h-scroll thead th,
+    .mobile-table-view thead th,
+    .table-scroll tbody td,
+    .h-scroll tbody td,
+    .mobile-table-view tbody td {
+      white-space: nowrap;
+    }
+    /* Sticky first column while swiping sideways */
+    .table-scroll.sticky-first table,
+    .h-scroll.sticky-first table,
+    .mobile-table-view.sticky-first table {
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+    .table-scroll.sticky-first thead th:first-child,
+    .h-scroll.sticky-first thead th:first-child,
+    .mobile-table-view.sticky-first thead th:first-child,
+    .table-scroll.sticky-first tbody td:first-child,
+    .h-scroll.sticky-first tbody td:first-child,
+    .mobile-table-view.sticky-first tbody td:first-child,
+    .table-scroll .sticky-col,
+    .h-scroll .sticky-col {
+      position: sticky;
+      left: 0;
+      z-index: 3;
+      background: var(--white);
+      box-shadow: 4px 0 10px rgba(12, 26, 51, 0.08);
+    }
+    .table-scroll.sticky-first thead th:first-child,
+    .h-scroll.sticky-first thead th:first-child,
+    .mobile-table-view.sticky-first thead th:first-child,
+    .table-scroll thead .sticky-col,
+    .h-scroll thead .sticky-col {
+      background: var(--navy);
+      color: var(--gold2);
+      z-index: 4;
+    }
+    /* Swipe cue chip */
+    .h-scroll-hint {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      padding: 6px 10px 2px;
+      letter-spacing: 0.02em;
+    }
+    .h-scroll-hint span {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--cream2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 3px 10px;
+    }
+    /* KPI / filter strips that scroll sideways */
+    .kpi-grid,
+    .adm-stats-strip,
+    .anom-summary-row,
+    .sr-stat-row,
+    .mhs-kpi-row,
+    .toolbar {
+      max-width: 100%;
+    }
+    .adm-stats-strip,
+    .sr-stat-row,
+    .anom-summary-row {
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
-      max-width: 100%;
-      margin: 0 -2px;
+      overscroll-behavior-x: contain;
+      scrollbar-width: none;
     }
-    .table-scroll table { min-width: 640px; }
+    .adm-stats-strip::-webkit-scrollbar,
+    .sr-stat-row::-webkit-scrollbar,
+    .anom-summary-row::-webkit-scrollbar { display: none; }
 
     /* 2) One thumb-friendly primary action per page */
     .section-header {
@@ -7021,12 +7193,12 @@
 
 <!-- ══ ADMISSION MODAL ══ -->
 <div class="modal-overlay" id="admission-modal">
-  <div class="modal">
+  <div class="modal adm-modal-fullscreen">
     <div class="modal-header">
       <span class="modal-title" id="adm-modal-title">Register New Student</span>
-      <button class="modal-close" onclick="closeModal('admission-modal')">✕</button>
+      <button class="modal-close" onclick="closeModal('admission-modal')" title="Close">✕</button>
     </div>
-    <div class="form-grid four" style="padding:20px">
+    <div class="form-grid four adm-modal-body">
       <div class="form-group"><label>Full Name *</label><input id="adm-name" placeholder="e.g. Ama Boateng"></div>
       <div class="form-group"><label>Date of Birth *</label><input type="date" id="adm-dob"></div>
       <div class="form-group"><label>Gender *</label>
@@ -7172,6 +7344,7 @@
           <option value="">— Select method —</option>
           <option value="Cash">Cash</option>
           <option value="Bank">Bank</option>
+          <option value="MoMo">Mobile Money</option>
         </select>
       </div>
       <div class="form-group" id="edit-pay-bankacct-wrap" style="display:none"><label>Bank Account</label>
@@ -8795,6 +8968,8 @@ function populateTermSelects() {
   });
 
   // edit-pay-t* inputs and labels — rebuild from TERMS count
+  // IMPORTANT: keep method + bank account fields — saveEditedPayment requires them.
+  // An earlier rebuild dropped those controls and caused null-reference errors on edit.
   const wrap = document.getElementById('edit-pay-fields-wrap');
   if (wrap) {
     wrap.innerHTML = TERMS.map((t, i) => {
@@ -8802,9 +8977,21 @@ function populateTermSelects() {
       return `
         <div class="form-group">
           <label>${t} — Fee: <span id="edit-pay-t${n}-fee" style="color:var(--navy);font-weight:600"></span> <span id="edit-pay-t${n}-tag"></span></label>
-          <input type="number" id="edit-pay-t${n}" placeholder="0.00" min="0">
+          <input type="number" id="edit-pay-t${n}" placeholder="0.00" min="0" step="0.01">
         </div>`;
     }).join('') + `
+      <div class="form-group">
+        <label>If this changes the total paid — received/refunded via *</label>
+        <select id="edit-pay-method" onchange="toggleBankAcctField('edit-pay-method','edit-pay-bankacct-wrap','edit-pay-bankacct-sel')">
+          <option value="">— Select method —</option>
+          <option value="Cash">Cash</option>
+          <option value="Bank">Bank</option>
+          <option value="MoMo">Mobile Money</option>
+        </select>
+      </div>
+      <div class="form-group" id="edit-pay-bankacct-wrap" style="display:none"><label>Bank Account</label>
+        <select id="edit-pay-bankacct-sel"></select>
+      </div>
       <div class="form-group full">
         <label>Notes (applies to all terms)</label>
         <input id="edit-pay-notes" placeholder="Receipt number, method, remarks…">
@@ -15473,7 +15660,94 @@ function initMobileVersion() {
   syncMobileVersionClass();
   rebuildBottomNavForMobile();
   try { renderMobileHomeShell(); } catch (e) { console.warn('mobile home', e); }
+  try { enhanceMobileHorizontalScroll(); } catch (e) { console.warn('h-scroll', e); }
 }
+
+/**
+ * Mobile horizontal-scroll UX for wide tables / KPI strips.
+ * - Wraps bare <table> nodes (not already in .table-scroll / .h-scroll / cards list) so the
+ *   page body never scrolls sideways — only the table container does.
+ * - Adds a light "swipe" hint above scrollable tables.
+ * - Marks wrappers sticky-first so the first column stays visible while swiping.
+ */
+function enhanceMobileHorizontalScroll() {
+  const isMobile = typeof isMobileViewport === 'function'
+    ? isMobileViewport()
+    : (window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
+  if (!isMobile) {
+    // Remove mobile-only hints when back on desktop
+    document.querySelectorAll('.h-scroll-hint[data-auto-hint="1"]').forEach(h => h.remove());
+    return;
+  }
+
+  const root = document.querySelector('.main') || document.body;
+  const tables = root.querySelectorAll('table');
+  tables.forEach(table => {
+    if (!table || !table.parentNode) return;
+    // Skip tiny / layout tables
+    if (table.closest('.mobile-card-list, .home-shortcuts, .mss-row, .login-card')) return;
+    if (table.classList.contains('no-h-scroll')) return;
+
+    let wrap = table.closest('.table-scroll, .h-scroll, .mobile-table-view, .adm-table-wrap');
+    if (!wrap) {
+      // Don't wrap tables inside modals that are already constrained
+      if (table.closest('.modal-overlay .form-grid')) return;
+      wrap = document.createElement('div');
+      wrap.className = 'table-scroll h-scroll sticky-first';
+      wrap.setAttribute('data-auto-h-scroll', '1');
+      table.parentNode.insertBefore(wrap, table);
+      wrap.appendChild(table);
+    } else {
+      wrap.classList.add('h-scroll');
+      if (!wrap.classList.contains('sticky-first') && !wrap.classList.contains('no-sticky-first')) {
+        wrap.classList.add('sticky-first');
+      }
+    }
+
+    // Swipe hint once per wrapper (only if content is actually wider)
+    requestAnimationFrame(() => {
+      try {
+        if (!wrap || wrap.scrollWidth <= wrap.clientWidth + 8) {
+          const old = wrap.querySelector(':scope > .h-scroll-hint[data-auto-hint="1"]');
+          if (old) old.remove();
+          return;
+        }
+        if (wrap.querySelector('.h-scroll-hint')) return;
+        const hint = document.createElement('div');
+        hint.className = 'h-scroll-hint';
+        hint.setAttribute('data-auto-hint', '1');
+        hint.innerHTML = '<span>← Swipe for more columns →</span>';
+        wrap.parentNode.insertBefore(hint, wrap);
+      } catch (e) {}
+    });
+  });
+
+  // Horizontal KPI / stat strips
+  document.querySelectorAll('.sr-stat-row, .anom-summary-row, .adm-stats-strip, .mhs-kpi-row').forEach(el => {
+    el.classList.add('h-scroll');
+  });
+}
+
+// Re-run after page navigations that re-render HTML
+(function bindMobileHScrollOnNavigate() {
+  const _nav = typeof navigate === 'function' ? navigate : null;
+  // Hook via MutationObserver on active page content — light and resilient
+  try {
+    let t = null;
+    const run = () => {
+      clearTimeout(t);
+      t = setTimeout(() => { try { enhanceMobileHorizontalScroll(); } catch (e) {} }, 120);
+    };
+    const obs = new MutationObserver(run);
+    if (document.body) {
+      obs.observe(document.body, { childList: true, subtree: true });
+    } else {
+      document.addEventListener('DOMContentLoaded', () => {
+        obs.observe(document.body, { childList: true, subtree: true });
+      });
+    }
+  } catch (e) {}
+})();
 
 // Keep shell in sync on rotate / resize
 try {
@@ -18204,57 +18478,87 @@ let _editPayStudentId = null;
 function openEditPaymentModal(sid) {
   if (!canEditCurrentPage('payment')) { toast('⛔ You have view-only access to Payment Tracker'); return; }
   if (!gsAllow('allowEditPayment')) { toast('⛔ Editing payments is turned off in General Settings', 'error'); return; }
-  const s = db.admissions.find(a => a.id === sid);
-  if (!s) return;
+  const s = (db.admissions || []).find(a => a && String(a.id) === String(sid));
+  if (!s) { toast('⚠ Student not found', 'error'); return; }
   _editPayStudentId = sid;
-  document.getElementById('edit-pay-modal-title').textContent = '✏️ Edit Payments — ' + s.name + ' (' + s.id + ')';
+
+  // Ensure term fields + method/bank controls exist (populateTermSelects may have run)
+  if (!document.getElementById('edit-pay-method') || !document.getElementById('edit-pay-t1')) {
+    try { populateTermSelects(); } catch (e) { console.warn(e); }
+  }
+
+  const titleEl = document.getElementById('edit-pay-modal-title');
+  if (titleEl) titleEl.textContent = '✏️ Edit Payments — ' + s.name + ' (' + s.id + ')';
 
   const isAdmitted = s.status === 'Admitted' || s.status === 'Pending';
   const isScholarship = s.status === 'Scholarship';
-  const admNum = TERM_ORDER[s.feeTerm] || 1;
+  const admNum = (typeof TERM_ORDER !== 'undefined' && TERM_ORDER[s.feeTerm]) || 1;
+
+  // Populate bank account dropdown when present
+  try {
+    const bankSel = document.getElementById('edit-pay-bankacct-sel');
+    if (bankSel && typeof populateBankAccountSelect === 'function') {
+      populateBankAccountSelect('edit-pay-bankacct-sel');
+    } else if (bankSel) {
+      const accts = db.bankAccounts || [];
+      bankSel.innerHTML = accts.map(b => `<option value="${b.id}">${esc(b.name || b.id)}</option>`).join('')
+        || '<option value="">— No bank accounts —</option>';
+    }
+  } catch (e) {}
 
   TERMS.forEach((t, i) => {
     const termNum = i + 1;
     const key = sid + '|' + t;
-    const fee = getStudentFee(sid, t);
-    const paid = (db.payments[key] || {paid:0}).paid;
-    const notes = (db.payments[key] || {notes:''}).notes || '';
-    const isWaived = isScholarship || (isAdmitted && (TERM_ORDER[t] || 0) <= admNum);
+    const fee = typeof getStudentFee === 'function' ? getStudentFee(sid, t) : 0;
+    const paid = (db.payments && db.payments[key] || { paid: 0 }).paid;
+    const notes = (db.payments && db.payments[key] || { notes: '' }).notes || '';
+    const isWaived = isScholarship || (isAdmitted && ((typeof TERM_ORDER !== 'undefined' && TERM_ORDER[t]) || 0) <= admNum);
     const waivedLabel = isScholarship ? 'SCHOLARSHIP — All Fees Waived' : 'WAIVED — Admission Term';
 
-    document.getElementById('edit-pay-t' + termNum + '-fee').textContent = 'GHS ' + fmt(fee);
-    document.getElementById('edit-pay-t' + termNum).value = paid || '';
-
-    // Tag: Waived (admission term) or Billed
+    const feeEl = document.getElementById('edit-pay-t' + termNum + '-fee');
+    const inputEl = document.getElementById('edit-pay-t' + termNum);
     const tagEl = document.getElementById('edit-pay-t' + termNum + '-tag');
-    if (isWaived) {
-      tagEl.innerHTML = `<span style="background:${isScholarship?'#f3e8fe':'var(--red-light)'};color:${isScholarship?'#6b21a8':'var(--red)'};font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;letter-spacing:0.4px">${waivedLabel}</span>`;
-      document.getElementById('edit-pay-t' + termNum).disabled = true;
-      document.getElementById('edit-pay-t' + termNum).style.background = 'var(--cream)';
-      document.getElementById('edit-pay-t' + termNum).style.color = 'var(--muted)';
-    } else {
-      tagEl.innerHTML = '';
-      document.getElementById('edit-pay-t' + termNum).disabled = false;
-      document.getElementById('edit-pay-t' + termNum).style.background = '';
-      document.getElementById('edit-pay-t' + termNum).style.color = '';
+    if (feeEl) feeEl.textContent = 'GHS ' + fmt(fee);
+    if (inputEl) {
+      inputEl.value = paid || '';
+      if (isWaived) {
+        inputEl.disabled = true;
+        inputEl.style.background = 'var(--cream)';
+        inputEl.style.color = 'var(--muted)';
+      } else {
+        inputEl.disabled = false;
+        inputEl.style.background = '';
+        inputEl.style.color = '';
+      }
+    }
+    if (tagEl) {
+      tagEl.innerHTML = isWaived
+        ? `<span style="background:${isScholarship?'#f3e8fe':'var(--red-light)'};color:${isScholarship?'#6b21a8':'var(--red)'};font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;letter-spacing:0.4px">${waivedLabel}</span>`
+        : '';
     }
 
-    if (i === 0) { document.getElementById('edit-pay-notes').value = notes; document.getElementById('edit-pay-method').value = ''; document.getElementById('edit-pay-bankacct-wrap').style.display = 'none'; }
+    if (i === 0) {
+      const notesEl = document.getElementById('edit-pay-notes');
+      const methodEl = document.getElementById('edit-pay-method');
+      const bankWrap = document.getElementById('edit-pay-bankacct-wrap');
+      if (notesEl) notesEl.value = notes;
+      if (methodEl) methodEl.value = '';
+      if (bankWrap) bankWrap.style.display = 'none';
+    }
   });
 
   updateEditPaySummary();
 
-  // Live summary on input change
   TERMS.forEach((_, i) => {
-    const el = document.getElementById('edit-pay-t' + (i+1));
+    const el = document.getElementById('edit-pay-t' + (i + 1));
     if (el) el.oninput = updateEditPaySummary;
   });
 
-  document.getElementById('edit-payment-modal').classList.add('open');
-  // Focus first non-disabled input
-  const termIds = TERMS.map((_, i) => 'edit-pay-t' + (i+1));
-  const firstActive = termIds.find(id => { const el=document.getElementById(id); return el && !el.disabled; });
-  if (firstActive) setTimeout(() => document.getElementById(firstActive).focus(), 80);
+  const modal = document.getElementById('edit-payment-modal');
+  if (modal) modal.classList.add('open');
+  const termIds = TERMS.map((_, i) => 'edit-pay-t' + (i + 1));
+  const firstActive = termIds.find(id => { const el = document.getElementById(id); return el && !el.disabled; });
+  if (firstActive) setTimeout(() => { const el = document.getElementById(firstActive); if (el) el.focus(); }, 80);
 }
 
 function updateEditPaySummary() {
@@ -18263,51 +18567,79 @@ function updateEditPaySummary() {
   let totalFee = 0, totalPaid = 0;
   TERMS.forEach((t, i) => {
     const termNum = i + 1;
-    const fee = getStudentFee(sid, t);
-    const paid = parseFloat(document.getElementById('edit-pay-t' + termNum).value) || 0;
+    const fee = typeof getStudentFee === 'function' ? getStudentFee(sid, t) : 0;
+    const inputEl = document.getElementById('edit-pay-t' + termNum);
+    const paid = inputEl ? (parseFloat(inputEl.value) || 0) : 0;
     totalFee += fee;
     totalPaid += paid;
   });
   const bal = totalFee - totalPaid;
   let status;
-  if (bal < 0) status = 'Overpayment';
-  else if (bal === 0) status = 'Paid';
+  if (bal < -0.005) status = 'Overpayment';
+  else if (Math.abs(bal) < 0.005) status = 'Paid';
   else if (totalPaid === 0) status = 'Unpaid';
   else status = 'Partial';
   const statusColors = {Paid:'var(--green)',Partial:'var(--amber)',Unpaid:'var(--red)',Overpayment:'#1a56b0'};
-  document.getElementById('edit-pay-summary').innerHTML =
-    `<span style="margin-right:16px">Total Billed: <b>GHS ${fmt(totalFee)}</b></span>` +
-    `<span style="margin-right:16px">Total Paid: <b>GHS ${fmt(totalPaid)}</b></span>` +
-    `<span style="margin-right:16px">Balance: <b style="color:${bal>0?'var(--red)':'var(--green)'}">GHS ${fmt(Math.abs(bal))}${bal<0?' (over)':''}</b></span>` +
-    `<span>Status: <b style="color:${statusColors[status]}">${status}</b></span>`;
+  const sumEl = document.getElementById('edit-pay-summary');
+  if (sumEl) {
+    sumEl.innerHTML =
+      `<span style="margin-right:16px">Total Billed: <b>GHS ${fmt(totalFee)}</b></span>` +
+      `<span style="margin-right:16px">Total Paid: <b>GHS ${fmt(totalPaid)}</b></span>` +
+      `<span style="margin-right:16px">Balance: <b style="color:${bal>0?'var(--red)':'var(--green)'}">GHS ${fmt(Math.abs(bal))}${bal<0?' (over)':''}</b></span>` +
+      `<span>Status: <b style="color:${statusColors[status]}">${status}</b></span>`;
+  }
 }
 
 function saveEditedPayment() {
   if (!canEditCurrentPage('payment')) { toast('⛔ You have view-only access to Payment Tracker'); return; }
   if (!gsAllow('allowEditPayment')) { toast('⛔ Editing payments is turned off in General Settings', 'error'); return; }
-  if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_','/') + ' is locked — ask an admin to unlock it first', 'error'); return; }
+  if (typeof isYearLocked === 'function' && isYearLocked()) {
+    toast('🔒 ' + String(ACTIVE_YEAR || '').replace('_', '/') + ' is locked — ask an admin to unlock it first', 'error');
+    return;
+  }
   const sid = _editPayStudentId;
-  if (!sid) return;
-  const notes = document.getElementById('edit-pay-notes').value;
-  const method = document.getElementById('edit-pay-method').value;
-  const bankAccountId = method === 'Bank' ? document.getElementById('edit-pay-bankacct-sel').value : null;
-  const s = db.admissions.find(a => a.id === sid);
+  if (!sid) { toast('⚠ No student selected', 'error'); return; }
 
-  const diffs = TERMS.map(t => {
+  // Re-ensure method field exists if populateTermSelects had stripped it earlier
+  if (!document.getElementById('edit-pay-method')) {
+    try { populateTermSelects(); openEditPaymentModal(sid); } catch (e) {}
+    toast('⚠ Payment method field was missing and has been restored — set amounts again and choose Cash/Bank/MoMo', 'error');
+    return;
+  }
+
+  const notesEl = document.getElementById('edit-pay-notes');
+  const methodEl = document.getElementById('edit-pay-method');
+  const bankSel = document.getElementById('edit-pay-bankacct-sel');
+  const notes = notesEl ? notesEl.value : '';
+  const method = methodEl ? methodEl.value : '';
+  const bankAccountId = method === 'Bank' && bankSel ? bankSel.value : null;
+  const s = (db.admissions || []).find(a => a && String(a.id) === String(sid));
+
+  const diffs = TERMS.map((t, i) => {
     const key = sid + '|' + t;
-    const newPaid = parseFloat(document.getElementById('edit-pay-t' + (TERMS.indexOf(t) + 1)).value) || 0;
-    const oldPaid = db.payments[key] ? db.payments[key].paid : 0;
-    return { t, key, newPaid, oldPaid, diff: newPaid - oldPaid };
+    const inputEl = document.getElementById('edit-pay-t' + (i + 1));
+    const newPaid = inputEl ? (parseFloat(inputEl.value) || 0) : 0;
+    const oldPaid = (db.payments && db.payments[key]) ? (db.payments[key].paid || 0) : 0;
+    return { t, key, newPaid, oldPaid, diff: Math.round((newPaid - oldPaid) * 100) / 100 };
   });
-  const anyChange = diffs.some(d => d.diff !== 0);
-  if (anyChange && !method) { toast('⚠ Select how the difference was received or refunded (Cash or Bank)', 'error'); return; }
-  if (anyChange && method === 'Bank' && !bankAccountId) { toast('⚠ Select a bank account'); return; }
+  const anyChange = diffs.some(d => Math.abs(d.diff) > 0.004);
+  if (anyChange && !method) {
+    toast('⚠ Select how the difference was received or refunded (Cash, Bank, or Mobile Money)', 'error');
+    return;
+  }
+  if (anyChange && method === 'Bank' && !bankAccountId) {
+    toast('⚠ Select a bank account', 'error');
+    return;
+  }
 
-  const needsApproval = feePaymentNeedsApproval();
+  if (!db.payments) db.payments = {};
+  if (!db.txHistory) db.txHistory = [];
+
+  const needsApproval = typeof feePaymentNeedsApproval === 'function' && feePaymentNeedsApproval();
   let queued = 0;
 
   diffs.forEach(({ t, key, newPaid, diff }) => {
-    if (diff === 0) return;
+    if (Math.abs(diff) < 0.005) return;
     const entry = pushTxEntry({
       studentId: sid, term: t,
       amount: Math.abs(diff),
@@ -18319,7 +18651,6 @@ function saveEditedPayment() {
     });
     if (needsApproval) {
       queued++;
-      // Do not touch payments[key] or journal until approved
     } else {
       if (!db.payments[key]) db.payments[key] = { paid: 0, notes: '' };
       db.payments[key].paid = newPaid;
@@ -18338,17 +18669,30 @@ function saveEditedPayment() {
       }
     }
   });
+
+  // Notes-only update (no amount change)
+  if (!anyChange && notes) {
+    TERMS.forEach(t => {
+      const key = sid + '|' + t;
+      if (!db.payments[key]) db.payments[key] = { paid: 0, notes: '' };
+      db.payments[key].notes = notes;
+    });
+  }
+
   saveDb();
   closeModal('edit-payment-modal');
-  renderPayments();
-  renderDashboard();
-  try { updateWorkflowNavBadge(); } catch(e) {}
+  try { renderPayments(); } catch (e) {}
+  try { renderDashboard(); } catch (e) {}
+  try { updateWorkflowNavBadge(); } catch (e) {}
   if (queued > 0) {
     toast('⏳ ' + queued + ' fee adjustment(s) submitted — awaiting approval before balances update');
-  } else {
+  } else if (anyChange || notes) {
     toast('✅ Payments updated');
+  } else {
+    toast('No changes to save');
   }
 }
+
 
 function clearStudentPayments() {
   if (!canEditCurrentPage('payment')) { toast('⛔ You have view-only access to Payment Tracker'); return; }
