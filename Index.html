@@ -1329,6 +1329,13 @@
     }
   }
 
+  /* ── Mobile: Manage Users modal must fit the phone (2-col inline grid overflowed) ── */
+  @media (max-width: 768px) {
+    #manage-users-modal .modal [style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+    #manage-users-modal .form-group { min-width: 0; }
+    #manage-users-modal input, #manage-users-modal select { width: 100%; max-width: 100%; box-sizing: border-box; }
+  }
+
   /* ── DASHBOARD CHARTS ── */
   .bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 100px; padding: 0 20px 16px; }
   .bar-group { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
@@ -14384,7 +14391,7 @@ function openTxHistoryModal(sid) {
   if (!s) return;
   _txHistorySid = sid;
   // Header
-  const initials = s.name.trim().split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const initials = String(s.name||'').trim().split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('tx-avatar').textContent = initials;
   document.getElementById('tx-student-name').textContent = s.name;
   document.getElementById('tx-student-meta').textContent = s.id + ' · ' + s.cls + ' · ' + ACTIVE_YEAR.replace('_','/');
@@ -15997,7 +16004,7 @@ function runMobileStudentSearch(q) {
     return;
   }
   const list = (db.admissions || []).filter(s => {
-    const blob = [s.name, s.id, s.cls, s.status, s.parentName, s.guardianName, s.phone]
+    const blob = [s.name, s.id, s.cls, s.status, s.parent, s.parentName, s.guardianName, s.phone1, s.phone2, s.phone, s.email]
       .filter(Boolean).join(' ').toLowerCase();
     return blob.includes(query);
   }).slice(0, 30);
@@ -16008,7 +16015,7 @@ function runMobileStudentSearch(q) {
   results.innerHTML = list.map(s => {
     const st = typeof calcStudentStatus === 'function' ? calcStudentStatus(s.id) : null;
     const bal = st ? (st.bal > 0.02 ? 'Owes ' + (typeof fmt === 'function' ? fmt(st.bal) : st.bal) : 'Paid up') : '';
-    return `<button type="button" class="mss-row" onclick="openStudentFromSearch('${String(s.id).replace(/'/g, "\\'")}')">
+    return `<button type="button" class="mss-row" onclick="openStudentFromSearch(${esc(JSON.stringify(String(s.id)))})">
       <div class="mss-name">${esc(s.name || s.id)}</div>
       <div class="mss-meta">${esc(s.cls || '—')} · ${esc(s.status || '')}${bal ? ' · ' + esc(bal) : ''}</div>
     </button>`;
@@ -17962,6 +17969,8 @@ function isEligibleForSkillsReportRow(studentId) {
 
 // Null-safe lowercase for search/filter code: student records can be missing a name, id or class.
 function _lc(v) { return String(v == null ? '' : v).toLowerCase(); }
+// Null-safe string compare for sorting records that may lack a name/class.
+function _cmp(a, b) { return String(a == null ? '' : a).localeCompare(String(b == null ? '' : b)); }
 
 function ssActiveStudents(prefix) {
   if (prefix === 'rev') {
@@ -31408,9 +31417,9 @@ function skdRows() {
   const dir = S.sortDir === 'desc' ? -1 : 1;
   rows = rows.slice().sort((a, b) => {
     if (S.sortBy === 'avg') { const av = a.avg === null ? -1 : a.avg, bv = b.avg === null ? -1 : b.avg; return (av - bv) * dir; }
-    if (S.sortBy === 'cls') return (a.cls.localeCompare(b.cls) || a.name.localeCompare(b.name)) * dir;
+    if (S.sortBy === 'cls') return (_cmp(a.cls, b.cls) || _cmp(a.name, b.name)) * dir;
     if (S.sortBy === 'month') return (skillMonths().indexOf(a.month) - skillMonths().indexOf(b.month)) * dir;
-    return a.name.localeCompare(b.name) * dir;
+    return _cmp(a.name, b.name) * dir;
   });
   return rows;
 }
@@ -31704,7 +31713,7 @@ function getStaffBirthdaysUpcoming(windowDays) {
       isToday: daysUntil === 0
     });
   });
-  out.sort((a, b) => a.daysUntil - b.daysUntil || a.name.localeCompare(b.name));
+  out.sort((a, b) => a.daysUntil - b.daysUntil || _cmp(a.name, b.name));
   return out;
 }
 
@@ -33127,7 +33136,7 @@ function renderAttendanceReport() {
       return { ...s, ...sm };
     }).sort((a,b) => (b.A||0) - (a.A||0)).slice(0,10);
 
-    const barLabels = ranked.map(s=>s.name.split(' ')[0]);
+    const barLabels = ranked.map(s=>String(s.name||'').split(' ')[0]);
     const barPresent = ranked.map(s=>s.P||0);
     const barAbsent  = ranked.map(s=>s.A||0);
     const barLate    = ranked.map(s=>s.L||0);
@@ -33215,7 +33224,7 @@ function renderAttendanceReport() {
         drawLine('ar-cls-trend', classTrend(cls));
         drawDonut('ar-cls-donut', cs.P, cs.A, cs.L);
         const students = (db.admissions||[]).filter(s=>s.cls===cls);
-        const stuLabels = students.map(s=>s.name.split(' ')[0]);
+        const stuLabels = students.map(s=>String(s.name||'').split(' ')[0]);
         const stuRates  = students.map(s=>{ const sm=studentSummary(s.id,cls); return sm.rate??0; });
         drawHBar('ar-stu-bar', stuLabels, stuRates);
       } else if (activeTab==='bystudent') {
@@ -33223,7 +33232,7 @@ function renderAttendanceReport() {
         const ranked = allStudents.map(s=>{
           const sm=studentSummary(s.id,s.cls); return {...s,...sm};
         }).sort((a,b)=>(b.A||0)-(a.A||0)).slice(0,10);
-        const names = ranked.map(s=>s.name.split(' ')[0]);
+        const names = ranked.map(s=>String(s.name||'').split(' ')[0]);
         const aData = ranked.map(s=>s.A||0);
         drawHBar('ar-absent-hbar', names, aData.map((_,i)=>ranked[i].rate??0));
         // stacked bar
@@ -33775,7 +33784,7 @@ function renderStaffAttendance() {
   }
 
   // ── Back-office overview: full staff table for the selected date ──
-  const staff = (db.employees || []).filter(e => e.status === 'Active').sort((a,b) => a.name.localeCompare(b.name));
+  const staff = (db.employees || []).filter(e => e.status === 'Active').sort((a,b) => _cmp(a.name, b.name));
   const presentCount = staff.filter(e => (dayRecords[e.id]||{}).status === 'Present').length;
   const lateCount = staff.filter(e => (dayRecords[e.id]||{}).status === 'Late').length;
   const absentCount = staff.filter(e => (dayRecords[e.id]||{}).status === 'Absent').length;
@@ -34106,7 +34115,7 @@ function renderStaffAttendanceReport() {
   }
 
   function activeStaff() {
-    return (db.employees || []).filter(e => e.status === 'Active').sort((a,b) => a.name.localeCompare(b.name));
+    return (db.employees || []).filter(e => e.status === 'Active').sort((a,b) => _cmp(a.name, b.name));
   }
 
   function getRec(date, empId) {
@@ -34415,7 +34424,7 @@ function renderStaffAttendanceReport() {
       return { ...e, ...sm };
     }).sort((a,b) => ((b.L||0)+(b.A||0)) - ((a.L||0)+(a.A||0))).slice(0,10);
 
-    const barLabels = ranked.map(e=>e.name.split(' ')[0]);
+    const barLabels = ranked.map(e=>String(e.name||'').split(' ')[0]);
 
     return `
       <div class="ar-chart-row">
@@ -34497,7 +34506,7 @@ function renderStaffAttendanceReport() {
         drawLine('satr-dept-trend', overallTrend(dept));
         drawDonut('satr-dept-donut', ds.P, ds.L, ds.A);
         const staff = activeStaff().filter(e => deptOf(e) === dept);
-        const staffLabels = staff.map(e=>e.name.split(' ')[0]);
+        const staffLabels = staff.map(e=>String(e.name||'').split(' ')[0]);
         const staffRates  = staff.map(e=>{ const sm=empSummary(e.id); return sm.rate??0; });
         drawHBar('satr-staff-bar', staffLabels, staffRates);
       } else if (activeTab==='bystaff') {
@@ -34505,7 +34514,7 @@ function renderStaffAttendanceReport() {
         const ranked = allStaff.map(e=>{
           const sm=empSummary(e.id); return {...e,...sm};
         }).sort((a,b)=>((b.L||0)+(b.A||0))-((a.L||0)+(a.A||0))).slice(0,10);
-        const names = ranked.map(e=>e.name.split(' ')[0]);
+        const names = ranked.map(e=>String(e.name||'').split(' ')[0]);
         drawHBar('satr-issues-hbar', names, ranked.map(e=>e.rate??0));
         const canvas = document.getElementById('satr-staff-stacked');
         if (canvas && window.Chart) {
@@ -35579,7 +35588,7 @@ function renderReportCard() {
           <div class="rc-grade ${gcls}">${grade}</div>
         </div>`;
       }).join('');
-      const initials = s.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+      const initials = String(s.name||'').split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
       const avgDisplay = s.avg !== null ? s.avg + '%' : 'N/A';
       const remark = overallRemark(s.avg);
 
@@ -35780,7 +35789,7 @@ function renderStudentRecords() {
     return scores.length ? scores.reduce((a, v) => a + v, 0) / scores.length : null;
   }
 
-  function initials(name) { return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(); }
+  function initials(name) { return String(name || '').split(' ').map(n => n[0] || '').join('').slice(0, 2).toUpperCase() || '?'; }
 
   function draw() {
     const students = (db.admissions || []).filter(s => {
@@ -35790,7 +35799,7 @@ function renderStudentRecords() {
         if (!_lc(s.name).includes(q) && !_lc(s.id).includes(q)) return false;
       }
       return true;
-    }).sort((a, b) => a.name.localeCompare(b.name));
+    }).sort((a, b) => _cmp(a.name, b.name));
 
     const selected = selectedId ? (db.admissions || []).find(s => s.id === selectedId) : null;
 
@@ -35809,7 +35818,7 @@ function renderStudentRecords() {
               : students.map(s => {
                 const missing = getMissingFields(s);
                 return `
-                <div class="sr-student-item ${s.id === selectedId ? 'active' : ''}" onclick="srSelect('${s.id}')">
+                <div class="sr-student-item ${s.id === selectedId ? 'active' : ''}" onclick="srSelect(${esc(JSON.stringify(String(s.id)))})">
                   <div class="sr-student-avatar">${esc(initials(s.name))}</div>
                   <div>
                     <div class="sr-student-name">${esc(s.name)} ${missing.length ? `<span title="Incomplete record — missing: ${esc(missing.join(', '))}">⚠️</span>` : ''}</div>
@@ -36205,7 +36214,7 @@ function renderStudentRecords() {
     return `
       <div class="sr-insight-banner sr-insight-${overallSev}">
         <div class="sr-insight-banner-label">${overallLabel}</div>
-        <div class="sr-insight-banner-sub">Automated summary generated from ${esc(s.name.split(' ')[0])}'s fee, attendance, and academic records</div>
+        <div class="sr-insight-banner-sub">Automated summary generated from ${esc(String(s.name||'').split(' ')[0])}'s fee, attendance, and academic records</div>
       </div>
       <div class="sr-insight-list">
         ${insights.map(i => `
@@ -36392,7 +36401,7 @@ function renderStudentRecords() {
     // Minimal aggregated summary only — first name + numbers, no phone/address/
     // parent info/account numbers. See callAiAssist() notes on why this matters.
     const summary = {
-      firstName: s.name.split(' ')[0],
+      firstName: String(s.name||'').split(' ')[0],
       className: s.cls,
       feeBalance: f.balance,
       attendanceRate: a.rate,
@@ -39858,7 +39867,7 @@ function aidStaffAttendanceReport() {
     return { ...r, rate };
   }).sort((a, b) => {
     // worst attendance first among those with marks
-    if (a.rate === null && b.rate === null) return a.name.localeCompare(b.name);
+    if (a.rate === null && b.rate === null) return _cmp(a.name, b.name);
     if (a.rate === null) return 1;
     if (b.rate === null) return -1;
     return a.rate - b.rate;
@@ -41856,7 +41865,7 @@ function renderAcademicIntelligence() {
         chartInstances.mlProba = new Chart(mlProba, {
           type: 'bar',
           data: {
-            labels: top.map(r => r.name.split(' ')[0]),
+            labels: top.map(r => String(r.name||'').split(' ')[0]),
             datasets: [{ data: top.map(r => r.pct),
               backgroundColor: top.map(r => r.pct >= 60 ? '#b84040' : r.pct >= 40 ? '#c9a84c' : '#1a56b0') }]
           },
@@ -43012,7 +43021,7 @@ function renderClassAnalytics() {
       const maxScore = students.find(s=>s.avg!==null)?.avg || 100;
       const topRows = students.slice(0,10).map(s=>`
         <div class="ca-bar-row">
-          <div class="ca-bar-name">${s.name.split(' ')[0]}</div>
+          <div class="ca-bar-name">${String(s.name||'').split(' ')[0]}</div>
           <div class="ca-bar-track"><div class="ca-bar-fill" style="width:${s.avg!==null?Math.round(s.avg/maxScore*100):0}%"></div></div>
           <div style="width:44px;text-align:right;font-size:12px;color:var(--navy);font-weight:600">${s.avg!==null?s.avg+'%':'—'}</div>
         </div>`).join('');
