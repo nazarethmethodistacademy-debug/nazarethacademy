@@ -6448,11 +6448,12 @@
           </select>
           <select id="adm-status-filter" onchange="renderAdmissions()">
             <option value="">All statuses</option>
-            <option>Admitted</option>
-            <option>Continuing</option>
-            <option>Pending</option>
-            <option>Scholarship</option>
-            <option>Withdrawn</option>
+            <option value="__ENROLLED__">Enrolled (active)</option>
+            <option value="Admitted">Admitted (new)</option>
+            <option value="Continuing">Continuing</option>
+            <option value="Scholarship">Scholarship</option>
+            <option value="Pending">Pending</option>
+            <option value="Withdrawn">Withdrawn</option>
           </select>
           <div class="spacer"></div>
           <span id="adm-count" style="font-size:12px;color:var(--muted)"></span>
@@ -6469,13 +6470,14 @@
               <option value="">All classes</option>
             </select>
             <select id="adm-status-filter-mobile" onchange="document.getElementById('adm-status-filter').value=this.value; renderAdmissions()">
-              <option value="">All statuses</option>
-              <option>Admitted</option>
-              <option>Continuing</option>
-              <option>Pending</option>
-              <option>Scholarship</option>
-              <option>Withdrawn</option>
-            </select>
+            <option value="">All statuses</option>
+            <option value="__ENROLLED__">Enrolled (active)</option>
+            <option value="Admitted">Admitted (new)</option>
+            <option value="Continuing">Continuing</option>
+            <option value="Scholarship">Scholarship</option>
+            <option value="Pending">Pending</option>
+            <option value="Withdrawn">Withdrawn</option>
+          </select>
           </div>
           <div class="adm-stats-strip" id="adm-stats-strip"></div>
         </div>
@@ -8372,6 +8374,50 @@
           </label>
         </div>
       </div>
+      <div class="card" style="padding:14px 16px;margin-top:12px">
+        <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:6px">📶 School network only — Staff clock-in / out</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+          Phones cannot report the Wi‑Fi name to a website. Instead, require staff to be on the
+          <strong>school Wi‑Fi</strong> by checking the school’s <strong>public IP address</strong>
+          (the address the internet sees for everyone on that Wi‑Fi). Staff on mobile data or home Wi‑Fi
+          will be blocked from self clock-in/out. Admin corrections still work from anywhere.
+        </div>
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin-bottom:12px">
+          <input type="checkbox" id="gs-require-school-network-clock" style="width:18px;height:18px;accent-color:var(--navy);flex-shrink:0;margin-top:2px">
+          <span style="font-size:12.5px;font-weight:600;color:var(--navy)">Require school network for staff self clock-in / out</span>
+        </label>
+        <div class="form-group full" style="margin-bottom:8px">
+          <label>Allowed school public IP address(es)</label>
+          <input id="gs-school-network-ips" placeholder="e.g. 41.189.12.34, 154.160.55.10" style="width:100%">
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Comma-separated. Stand on the school Wi‑Fi and use “Use my current IP” below.</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <button type="button" class="btn btn-outline btn-sm" onclick="captureSchoolNetworkIp()">📡 Use my current IP</button>
+          <span id="gs-school-network-ip-status" style="font-size:11.5px;color:var(--muted)"></span>
+        </div>
+      </div>
+      <div class="card" style="padding:14px 16px;margin-top:12px">
+        <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:6px">📍 GPS geofence — Staff clock-in / out</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+          Staff must be <strong>physically at the school</strong> (within the radius below) to self clock-in or out.
+          Stand in the school compound, allow location access, then use <strong>Use my current location</strong>.
+          Works with or without school Wi‑Fi. Admin corrections still work from anywhere.
+        </div>
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin-bottom:12px">
+          <input type="checkbox" id="gs-require-school-geofence-clock" style="width:18px;height:18px;accent-color:var(--navy);flex-shrink:0;margin-top:2px">
+          <span style="font-size:12.5px;font-weight:600;color:var(--navy)">Require GPS geofence for staff self clock-in / out</span>
+        </label>
+        <div class="form-grid two" style="gap:10px;margin-bottom:8px">
+          <div class="form-group"><label>School latitude</label><input id="gs-school-geo-lat" type="number" step="any" placeholder="e.g. 5.6037"></div>
+          <div class="form-group"><label>School longitude</label><input id="gs-school-geo-lng" type="number" step="any" placeholder="e.g. -0.1870"></div>
+          <div class="form-group"><label>Allowed radius (metres)</label><input id="gs-school-geo-radius" type="number" min="30" max="5000" step="10" placeholder="150"></div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <button type="button" class="btn btn-outline btn-sm" onclick="captureSchoolGeofenceLocation()">📍 Use my current location</button>
+          <span id="gs-school-geo-status" style="font-size:11.5px;color:var(--muted)"></span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5">Tip: 100–200 m covers a typical compound. Larger radius if GPS is weak indoors. Staff must allow location permission when clocking.</div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('general-settings-modal')">Cancel</button>
@@ -9275,6 +9321,10 @@ const DB_SEED = {
   // date is the single budget date; dateFrom is a legacy alias; month (YYYY-MM)
   // is derived from date for monthly views. Older records may only have month.
   feedingBudgetRequests: [],
+  // Failed remote clock-in/out attempts (outside school network or geofence)
+  // [{id, at, empId, empName, username, action:'in'|'out', reason, networkIp, lat, lng, distanceM, accuracyM, date}]
+  staffClockAttemptLog: [],
+  nextStaffClockAttemptId: 1,
   nextFeedingBudgetId: 1,
   // ── STUDENT SKILLS ASSESSMENT — keyed studentId|term, each a {skillKey: 1-5} rating ──
   skillsAssessments: {},
@@ -9324,7 +9374,15 @@ const DB_SEED = {
     // Withdrawn students are not active school enrolment
     excludeWithdrawnFromActivities: true,  // attendance, feeding, grades, skills, duty lists
     includeWithdrawnOnReportCards: false,  // when false, report cards exclude all withdrawn
-    showWithdrawnByTerm: false             // when on, term reports include students withdrawn during that term
+    showWithdrawnByTerm: false,            // when on, term reports include students withdrawn during that term
+    // Staff must be on school network (public IP of school Wi‑Fi) to self clock-in/out
+    requireSchoolNetworkForStaffClock: false,
+    schoolNetworkIps: '',                  // comma-separated public IPs, e.g. "41.189.x.x, 154.160.x.x"
+    // GPS geofence — staff must be within radius of school coordinates to self clock-in/out
+    requireSchoolGeofenceForStaffClock: false,
+    schoolGeoLat: null,
+    schoolGeoLng: null,
+    schoolGeoRadiusM: 150                  // metres from pin (default ~ school compound)
   },
   // ── APPROVAL WORKFLOW CONFIG — which roles submit-for-approval vs approve, per workflow ──
   approvalConfig: {
@@ -10464,6 +10522,22 @@ function openGeneralSettingsModal() {
   if (rc) rc.checked = !!db.generalSettings.includeWithdrawnOnReportCards;
   const sw = document.getElementById('gs-show-withdrawn-by-term');
   if (sw) sw.checked = !!db.generalSettings.showWithdrawnByTerm;
+  const netCk = document.getElementById('gs-require-school-network-clock');
+  if (netCk) netCk.checked = !!db.generalSettings.requireSchoolNetworkForStaffClock;
+  const netIps = document.getElementById('gs-school-network-ips');
+  if (netIps) netIps.value = db.generalSettings.schoolNetworkIps || '';
+  const netSt = document.getElementById('gs-school-network-ip-status');
+  if (netSt) netSt.textContent = '';
+  const geoCk = document.getElementById('gs-require-school-geofence-clock');
+  if (geoCk) geoCk.checked = !!db.generalSettings.requireSchoolGeofenceForStaffClock;
+  const geoLat = document.getElementById('gs-school-geo-lat');
+  if (geoLat) geoLat.value = db.generalSettings.schoolGeoLat != null ? db.generalSettings.schoolGeoLat : '';
+  const geoLng = document.getElementById('gs-school-geo-lng');
+  if (geoLng) geoLng.value = db.generalSettings.schoolGeoLng != null ? db.generalSettings.schoolGeoLng : '';
+  const geoR = document.getElementById('gs-school-geo-radius');
+  if (geoR) geoR.value = db.generalSettings.schoolGeoRadiusM != null ? db.generalSettings.schoolGeoRadiusM : 150;
+  const geoSt = document.getElementById('gs-school-geo-status');
+  if (geoSt) geoSt.textContent = '';
   document.getElementById('general-settings-modal').classList.add('open');
 }
 
@@ -10496,6 +10570,33 @@ function saveGeneralSettings() {
   if (rcEl) db.generalSettings.includeWithdrawnOnReportCards = !!rcEl.checked;
   const swEl = document.getElementById('gs-show-withdrawn-by-term');
   if (swEl) db.generalSettings.showWithdrawnByTerm = !!swEl.checked;
+  const netCkSave = document.getElementById('gs-require-school-network-clock');
+  if (netCkSave) db.generalSettings.requireSchoolNetworkForStaffClock = !!netCkSave.checked;
+  const netIpsSave = document.getElementById('gs-school-network-ips');
+  if (netIpsSave) {
+    db.generalSettings.schoolNetworkIps = String(netIpsSave.value || '')
+      .split(/[,\s]+/)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .join(', ');
+  }
+  const geoCkSave = document.getElementById('gs-require-school-geofence-clock');
+  if (geoCkSave) db.generalSettings.requireSchoolGeofenceForStaffClock = !!geoCkSave.checked;
+  const geoLatSave = document.getElementById('gs-school-geo-lat');
+  const geoLngSave = document.getElementById('gs-school-geo-lng');
+  const geoRSave = document.getElementById('gs-school-geo-radius');
+  if (geoLatSave) {
+    const v = parseFloat(geoLatSave.value);
+    db.generalSettings.schoolGeoLat = Number.isFinite(v) ? v : null;
+  }
+  if (geoLngSave) {
+    const v = parseFloat(geoLngSave.value);
+    db.generalSettings.schoolGeoLng = Number.isFinite(v) ? v : null;
+  }
+  if (geoRSave) {
+    const v = parseFloat(geoRSave.value);
+    db.generalSettings.schoolGeoRadiusM = Number.isFinite(v) && v > 0 ? v : 150;
+  }
   saveDb();
   toast('✅ General settings saved');
   closeModal('general-settings-modal');
@@ -11621,8 +11722,21 @@ function normalizeAdmissionRecord(s) {
   if (!s || typeof s !== 'object') return s;
   if (s.id == null && s.admId != null) s.id = s.admId;
   if (typeof s.name !== 'string') s.name = s.name != null ? String(s.name) : '';
-  if (typeof s.cls !== 'string') s.cls = s.cls != null ? String(s.cls) : '';
+  if (typeof s.cls !== 'string') s.cls = s.cls != null ? String(s.cls).trim() : '';
+  else s.cls = String(s.cls).trim();
+  if (s.cls && typeof canonicalClassName === 'function') {
+    try { s.cls = canonicalClassName(s.cls); } catch (e) {}
+  }
+  // Canonical status labels (fixes missing students from "admitted" vs "Admitted")
+  const STATUS_CANON = {
+    admitted: 'Admitted', continuing: 'Continuing', pending: 'Pending',
+    scholarship: 'Scholarship', withdrawn: 'Withdrawn'
+  };
   if (!s.status) s.status = 'Admitted';
+  else {
+    const key = String(s.status).trim().toLowerCase();
+    if (STATUS_CANON[key]) s.status = STATUS_CANON[key];
+  }
   if (s.withdrawnDate === undefined) s.withdrawnDate = null;
   if (s.gender === undefined) s.gender = s.gender || '';
   if (s.phone1 === undefined && s.phone !== undefined) s.phone1 = s.phone;
@@ -11659,7 +11773,8 @@ function ensureDbShape() {
     'shopItems', 'shopTransactions', 'complianceItems', 'statutoryFilings',
     'departments', 'houses', 'appraisals', 'teacherExternalAssessments', 'trainings', 'trainingLinkAuditLog',
     'skillSubmissions', 'promotionLists', 'pendingSmsQueue', 'subjects',
-    'users', 'roles', 'staffHrRecords', 'staffLeave', 'externalAssessmentParams'
+    'users', 'roles', 'staffHrRecords', 'staffLeave', 'externalAssessmentParams',
+    'feedingBudgetRequests', 'anomalyCases', 'staffClockAttemptLog'
   ];
   ARR_KEYS.forEach(k => {
     try { db[k] = ensureArray(db[k]); } catch (e) { db[k] = []; }
@@ -11683,7 +11798,7 @@ function ensureDbShape() {
     'nextAssetId', 'nextBankId', 'nextJournalId', 'nextShopItemId', 'nextShopTxId',
     'nextComplianceId', 'nextFilingId', 'nextDeptId', 'nextHouseId',
     'nextAppraisalId', 'nextExternalAssessmentId', 'nextExternalParamId', 'nextTrainingId', 'nextPcId', 'nextTxId',
-    'feedingMonthlyBudget', 'inventory'
+    'nextAnomalyCaseId', 'nextStaffClockAttemptId', 'feedingMonthlyBudget', 'inventory'
   ];
   NUM_KEYS.forEach(k => {
     const n = parseInt(db[k], 10);
@@ -11826,7 +11941,13 @@ function ensureGeneralSettingsDefaults() {
     allowDeleteClass: true,
     excludeWithdrawnFromActivities: true,
     includeWithdrawnOnReportCards: false,
-    showWithdrawnByTerm: false
+    showWithdrawnByTerm: false,
+    requireSchoolNetworkForStaffClock: false,
+    schoolNetworkIps: '',
+    requireSchoolGeofenceForStaffClock: false,
+    schoolGeoLat: null,
+    schoolGeoLng: null,
+    schoolGeoRadiusM: 150
   };
   Object.keys(defaults).forEach(k => {
     if (g[k] === undefined) g[k] = defaults[k];
@@ -12083,6 +12204,10 @@ function initDb(callback) {
       db.staffLeave = data.staffLeave || [];
       db.nextLeaveId = data.nextLeaveId ?? 1;
       db.feedingBudgetRequests = data.feedingBudgetRequests || [];
+      db.anomalyCases = data.anomalyCases || db.anomalyCases || [];
+      db.nextAnomalyCaseId = data.nextAnomalyCaseId ?? db.nextAnomalyCaseId ?? 1;
+      db.staffClockAttemptLog = data.staffClockAttemptLog || [];
+      db.nextStaffClockAttemptId = data.nextStaffClockAttemptId ?? 1;
       db.nextFeedingBudgetId = data.nextFeedingBudgetId ?? 1;
       db.skillSubmissions = data.skillSubmissions || [];
       db.skillScales = data.skillScales || {};
@@ -16478,11 +16603,66 @@ function renderDashboard() {
 }
 
 // ══════════════ ADMISSIONS ══════════════
+/** Collapse class labels so "Basic 4", "Basic4", "basic  4" match. */
+function normalizeClassKey(cls) {
+  return String(cls || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function classesMatch(a, b) {
+  if (a == null || b == null || a === '' || b === '') return false;
+  if (String(a).trim() === String(b).trim()) return true;
+  return normalizeClassKey(a) === normalizeClassKey(b);
+}
+
+/** Map a free-typed class to the official CLASSES label when close enough. */
+function canonicalClassName(cls) {
+  const raw = String(cls || '').trim();
+  if (!raw) return raw;
+  const list = (typeof CLASSES !== 'undefined' && CLASSES.length) ? CLASSES : [];
+  const hit = list.find(c => classesMatch(c, raw));
+  return hit || raw;
+}
+
 function populateClassFilter(selectId) {
   const sel = document.getElementById(selectId);
   if (!sel) return;
   const cur = sel.value;
-  sel.innerHTML = '<option value="">All classes</option>' + CLASSES.map(c => `<option ${c===cur?'selected':''}>${c}</option>`).join('');
+  // Include official CLASSES plus any class names already on student records
+  // so learners are never hidden just because their class label was custom-typed.
+  const fromData = new Set();
+  (db.admissions || []).forEach(a => {
+    if (a && a.cls) fromData.add(String(a.cls).trim());
+  });
+  const list = [];
+  const seen = new Set();
+  const seenKey = new Set();
+  (typeof CLASSES !== 'undefined' ? CLASSES : []).forEach(c => {
+    if (c && !seen.has(c)) {
+      seen.add(c);
+      seenKey.add(normalizeClassKey(c));
+      list.push(c);
+    }
+  });
+  Array.from(fromData).sort().forEach(c => {
+    if (!c) return;
+    const k = normalizeClassKey(c);
+    // Skip variants that already match an official class (avoid duplicate "Basic4")
+    if (seenKey.has(k)) return;
+    if (!seen.has(c)) {
+      seen.add(c);
+      seenKey.add(k);
+      list.push(c);
+    }
+  });
+  // Prefer matching current selection by normalized key
+  let selected = cur;
+  if (cur && !list.includes(cur)) {
+    const match = list.find(c => classesMatch(c, cur));
+    if (match) selected = match;
+  }
+  sel.innerHTML = '<option value="">All classes</option>' + list.map(c =>
+    `<option value="${String(c).replace(/"/g, '&quot;')}" ${classesMatch(c, selected) ? 'selected' : ''}>${c}</option>`
+  ).join('');
 }
 
 
@@ -16605,12 +16785,19 @@ function getAdmissionsPrintRows() {
   const search = ((document.getElementById('adm-search') || {}).value || '').toLowerCase();
   const cls = ((document.getElementById('adm-class-filter') || {}).value || '');
   const st = ((document.getElementById('adm-status-filter') || {}).value || '');
-  return (db.admissions || []).filter(a =>
-    a &&
-    (!search || String(a.name || '').toLowerCase().includes(search) || String(a.id || '').toLowerCase().includes(search)) &&
-    (!cls || a.cls === cls) &&
-    (!st || a.status === st)
-  ).slice().sort((a, b) => {
+  return (db.admissions || []).filter(a => {
+    if (!a) return false;
+    if (search) {
+      const blob = [a.name, a.id, a.parent, a.phone1, a.phone2].filter(Boolean).join(' ').toLowerCase();
+      if (!blob.includes(search)) return false;
+    }
+    if (cls && !classesMatch(a.cls, cls)) return false;
+    const status = String(a.status || '').trim();
+    if (st === '__ENROLLED__') {
+      if (!['Admitted', 'Continuing', 'Scholarship'].includes(status)) return false;
+    } else if (st && status !== st) return false;
+    return true;
+  }).slice().sort((a, b) => {
     const c = String(a.cls || '').localeCompare(String(b.cls || ''));
     if (c) return c;
     return String(a.name || '').localeCompare(String(b.name || ''));
@@ -17026,13 +17213,25 @@ function renderAdmissions() {
   const newBtn = document.getElementById('adm-new-btn');
   if (newBtn) newBtn.style.display = canEdit ? '' : 'none';
   populateClassFilter('adm-class-filter');
-  const search = (document.getElementById('adm-search') || { value: '' }).value.toLowerCase();
+  const search = (document.getElementById('adm-search') || { value: '' }).value.toLowerCase().trim();
   const cls = (document.getElementById('adm-class-filter') || { value: '' }).value;
   const st = (document.getElementById('adm-status-filter') || { value: '' }).value;
-  const rows = (db.admissions || []).filter(a =>
-    (!search || (a.name || '').toLowerCase().includes(search) || (a.id || '').toLowerCase().includes(search)) &&
-    (!cls || a.cls === cls) && (!st || a.status === st)
-  );
+  const rows = (db.admissions || []).filter(a => {
+    if (!a) return false;
+    const status = String(a.status || '').trim();
+    if (search) {
+      const blob = [a.name, a.id, a.parent, a.phone1, a.phone2, a.cls]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!blob.includes(search)) return false;
+    }
+    if (cls && !classesMatch(a.cls, cls)) return false;
+    if (st === '__ENROLLED__') {
+      if (!['Admitted', 'Continuing', 'Scholarship'].includes(status)) return false;
+    } else if (st && status !== st) {
+      return false;
+    }
+    return true;
+  });
   const countEl = document.getElementById('adm-count');
   if (countEl) countEl.textContent = rows.length + ' records';
 
@@ -17387,7 +17586,7 @@ function saveAdmission() {
       dob:     document.getElementById('adm-dob').value,
       gender:  document.getElementById('adm-gender').value,
       nat:     document.getElementById('adm-nat').value,
-      cls:     document.getElementById('adm-class-sel').value,
+      cls:     canonicalClassName(document.getElementById('adm-class-sel').value),
       house:   document.getElementById('adm-house-sel').value || null,
       year:    document.getElementById('adm-year').value,
       appdate: document.getElementById('adm-appdate').value,
@@ -17421,7 +17620,7 @@ function saveAdmission() {
     // ── CREATE new student ──
     const id = 'NAZ-' + String(db.nextAdmId).padStart(3,'0');
     db.nextAdmId++;
-    const cls = document.getElementById('adm-class-sel').value;
+    const cls = canonicalClassName(document.getElementById('adm-class-sel').value);
     const s = {
       id, name,
       dob:     document.getElementById('adm-dob').value,
@@ -17571,8 +17770,8 @@ function renderPayments() {
 
   const admitted = db.admissions.filter(a => a.status === 'Admitted' || a.status === 'Continuing' || a.status === 'Scholarship');
   let rows = admitted.filter(s =>
-    (!search || s.name.toLowerCase().includes(search) || s.id.toLowerCase().includes(search)) &&
-    (!cls || s.cls === cls)
+    (!search || (s.name || '').toLowerCase().includes(search) || (s.id || '').toLowerCase().includes(search)) &&
+    (!cls || classesMatch(s.cls, cls))
   );
 
   let gTotB=0,gTotPaid=0,gTotBal=0,gTotCF=0;
@@ -17761,6 +17960,9 @@ function isEligibleForSkillsReportRow(studentId) {
   return false;
 }
 
+// Null-safe lowercase for search/filter code: student records can be missing a name, id or class.
+function _lc(v) { return String(v == null ? '' : v).toLowerCase(); }
+
 function ssActiveStudents(prefix) {
   if (prefix === 'rev') {
     return (db.admissions || []).filter(a => a.status === 'Admitted');
@@ -17776,19 +17978,20 @@ function ssFilter(prefix) {
 
   // Typing again after a student was already picked means they're searching
   // for someone else — clear the previous selection until they pick again.
-  document.getElementById(prefix + '-student-sel').value = '';
+  const _selEl = document.getElementById(prefix + '-student-sel');
+  if (_selEl) _selEl.value = '';
 
   const pool = ssActiveStudents(prefix);
   const matches = q
     ? pool.filter(a =>
-        a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q) || (a.cls||'').toLowerCase().includes(q)
+        _lc(a.name).includes(q) || _lc(a.id).includes(q) || _lc(a.cls).includes(q)
       ).slice(0, 30)
     : pool.slice(0, 30);
 
   list.innerHTML = matches.length
-    ? matches.map(a => `<div class="ss-item" onmousedown="ssPick('${prefix}','${a.id}')">
-         <div class="ss-name">${esc(a.name)}</div>
-         <div class="ss-meta">${a.id} · ${esc(a.cls)}</div>
+    ? matches.map(a => `<div class="ss-item" onmousedown="ssPick('${prefix}','${esc(a.id)}')">
+         <div class="ss-name">${esc(a.name || '(no name)')}</div>
+         <div class="ss-meta">${esc(a.id)} · ${esc(a.cls || '—')}</div>
        </div>`).join('')
     : (prefix === 'rev'
         ? `<div class="ss-empty">No matching "Admitted" students — Admission Fees only apply to students in Admitted status</div>`
@@ -27773,9 +27976,9 @@ function fdFilterStudents() {
   const sel = document.getElementById('fd-student-select');
   const store = fdStore();
   const admitted = (db.admissions || []).filter(s => ['Admitted','Continuing','Scholarship'].includes(s.status));
-  const filtered = q ? admitted.filter(s => s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q)) : admitted;
+  const filtered = q ? admitted.filter(s => _lc(s.name).includes(q) || _lc(s.id).includes(q)) : admitted;
   sel.innerHTML = filtered.slice(0, 100).map(s => {
-    return `<option value="${s.id}">${store[s.id] ? '🎟️ ' : ''}${esc(s.name)} — ${esc(s.cls)} (${s.id})</option>`;
+    return `<option value="${esc(s.id)}">${store[s.id] ? '🎟️ ' : ''}${esc(s.name || '(no name)')} — ${esc(s.cls || '—')} (${esc(s.id)})</option>`;
   }).join('') || '<option disabled>No matching students</option>';
 }
 
@@ -31200,7 +31403,7 @@ function skdRows() {
   let rows = scoped.flatMap(skRows);
   if (S.q.trim()) {
     const q = S.q.trim().toLowerCase();
-    rows = rows.filter(r => r.name.toLowerCase().includes(q) || String(r.id).toLowerCase().includes(q));
+    rows = rows.filter(r => _lc(r.name).includes(q) || _lc(r.id).includes(q));
   }
   const dir = S.sortDir === 'desc' ? -1 : 1;
   rows = rows.slice().sort((a, b) => {
@@ -33099,29 +33302,369 @@ function welcomeInitials() {
   return name.slice(0, 2).toUpperCase();
 }
 
-function staffClockIn(empId, dateStr) {
+/** Normalize IPv4/IPv6 strings for comparison. */
+function normalizePublicIp(ip) {
+  if (!ip) return '';
+  return String(ip).trim().toLowerCase().replace(/^::ffff:/, '');
+}
+
+function getConfiguredSchoolNetworkIps() {
+  ensureGeneralSettingsDefaults();
+  const raw = (db.generalSettings && db.generalSettings.schoolNetworkIps) || '';
+  return String(raw).split(/[,\s]+/).map(normalizePublicIp).filter(Boolean);
+}
+
+/**
+ * Fetch this device's public IP (what the internet sees).
+ * On school Wi‑Fi, everyone usually shares the same public IP.
+ * On mobile data / home Wi‑Fi, the IP is different — that is how we block remote clock-ins.
+ * Browsers cannot read the Wi‑Fi SSID for security reasons.
+ */
+async function fetchClientPublicIp() {
+  const endpoints = [
+    'https://api.ipify.org?format=json',
+    'https://api64.ipify.org?format=json'
+  ];
+  let lastErr = null;
+  for (const url of endpoints) {
+    try {
+      const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = ctrl ? setTimeout(() => ctrl.abort(), 8000) : null;
+      const res = await fetch(url, { method: 'GET', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined });
+      if (timer) clearTimeout(timer);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const ip = normalizePublicIp(data && (data.ip || data.query));
+      if (ip) return ip;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error('Could not determine network IP');
+}
+
+async function captureSchoolNetworkIp() {
+  const status = document.getElementById('gs-school-network-ip-status');
+  if (status) status.textContent = 'Checking…';
+  try {
+    const ip = await fetchClientPublicIp();
+    const input = document.getElementById('gs-school-network-ips');
+    if (input) {
+      const existing = getConfiguredSchoolNetworkIps();
+      if (!existing.includes(ip)) existing.push(ip);
+      input.value = existing.join(', ');
+    }
+    if (status) status.textContent = 'Captured ' + ip + ' — save settings to apply';
+    toast('📡 Current public IP: ' + ip + ' — add it to the allowed list and Save');
+  } catch (e) {
+    if (status) status.textContent = 'Could not read IP — check internet';
+    toast('⚠ Could not detect public IP. Connect to school Wi‑Fi and try again.', 'error');
+  }
+}
+
+/** Haversine distance in metres between two WGS84 points. */
+function haversineDistanceM(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = d => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+function getSchoolGeofenceConfig() {
+  ensureGeneralSettingsDefaults();
+  const g = db.generalSettings || {};
+  const lat = parseFloat(g.schoolGeoLat);
+  const lng = parseFloat(g.schoolGeoLng);
+  const radius = parseFloat(g.schoolGeoRadiusM);
+  return {
+    enabled: !!g.requireSchoolGeofenceForStaffClock,
+    lat: Number.isFinite(lat) ? lat : null,
+    lng: Number.isFinite(lng) ? lng : null,
+    radiusM: Number.isFinite(radius) && radius > 0 ? radius : 150
+  };
+}
+
+/** Read device GPS once (high accuracy). */
+function getDevicePosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('Geolocation is not supported on this device/browser'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve(pos),
+      err => reject(err),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+  });
+}
+
+async function captureSchoolGeofenceLocation() {
+  const status = document.getElementById('gs-school-geo-status');
+  if (status) status.textContent = 'Getting GPS… allow location if prompted';
+  try {
+    const pos = await getDevicePosition();
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    const acc = Math.round(pos.coords.accuracy || 0);
+    const latEl = document.getElementById('gs-school-geo-lat');
+    const lngEl = document.getElementById('gs-school-geo-lng');
+    if (latEl) latEl.value = lat.toFixed(6);
+    if (lngEl) lngEl.value = lng.toFixed(6);
+    if (status) {
+      status.textContent = 'Pinned ' + lat.toFixed(5) + ', ' + lng.toFixed(5) +
+        (acc ? ' (±' + acc + ' m)' : '') + ' — save settings to apply';
+    }
+    toast('📍 School location captured (±' + acc + ' m). Save settings.');
+  } catch (e) {
+    const msg = (e && e.code === 1)
+      ? 'Location permission denied — allow location in browser/phone settings'
+      : ((e && e.message) || 'Could not get GPS');
+    if (status) status.textContent = msg;
+    toast('⚠ ' + msg, 'error');
+  }
+}
+
+/**
+ * Returns { ok, lat, lng, distanceM, accuracyM } or blocks with toast.
+ * Admin corrections skip this.
+ */
+async function assertSchoolGeofenceForStaffClock(actionLabel) {
+  const cfg = getSchoolGeofenceConfig();
+  if (!cfg.enabled) return { ok: true, skipped: true };
+  if (cfg.lat == null || cfg.lng == null) {
+    toast('⛔ GPS geofence is on, but school location is not set. Ask Admin to pin it in General Settings (on campus).', 'error');
+    return { ok: false, reason: 'geofence_not_configured' };
+  }
+  toast('📍 Checking you are at the school…');
+  try {
+    const pos = await getDevicePosition();
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    const accuracyM = pos.coords.accuracy != null ? pos.coords.accuracy : null;
+    const distanceM = haversineDistanceM(lat, lng, cfg.lat, cfg.lng);
+    const slack = accuracyM != null ? Math.min(Math.max(accuracyM, 0), 80) : 25;
+    const allowed = cfg.radiusM + slack;
+    if (distanceM <= allowed) {
+      return { ok: true, lat, lng, distanceM, accuracyM };
+    }
+    toast(
+      '🚫 ' + (actionLabel || 'Clock-in') + ' only allowed on school grounds.\n' +
+      'You are about ' + Math.round(distanceM) + ' m from the school pin (limit ' + Math.round(cfg.radiusM) + ' m).\n' +
+      'Move into the compound, turn on high-accuracy location, and try again.',
+      'error'
+    );
+    return { ok: false, reason: 'outside_geofence', lat, lng, distanceM, accuracyM, radiusM: cfg.radiusM };
+  } catch (e) {
+    const msg = (e && e.code === 1)
+      ? 'Location permission is required for clock-in. Allow location for this site, then try again.'
+      : ('Could not read GPS: ' + ((e && e.message) || 'unknown error'));
+    toast('⚠ ' + msg, 'error');
+    return { ok: false, reason: (e && e.code === 1) ? 'location_denied' : 'gps_error', error: msg };
+  }
+}
+
+/**
+ * Returns { ok, networkIp?, reason? }.
+ * Admin/Bursar/Headteacher corrections use staffMarkAbsent etc. and skip this.
+ */
+async function assertSchoolNetworkForStaffClock(actionLabel) {
+  ensureGeneralSettingsDefaults();
+  if (!(db.generalSettings && db.generalSettings.requireSchoolNetworkForStaffClock)) {
+    return { ok: true, skipped: true };
+  }
+  const allowed = getConfiguredSchoolNetworkIps();
+  if (!allowed.length) {
+    toast('⛔ School network restriction is on, but no allowed IP is configured. Ask Admin to set it in General Settings (while on school Wi‑Fi).', 'error');
+    return { ok: false, reason: 'network_not_configured' };
+  }
+  toast('📶 Checking you are on the school network…');
+  try {
+    const ip = await fetchClientPublicIp();
+    if (allowed.includes(ip)) return { ok: true, networkIp: ip };
+    toast(
+      '🚫 ' + (actionLabel || 'Clock-in') + ' only allowed on school Wi‑Fi.\n' +
+      'Your network IP is ' + ip + ' — not in the school list.\n' +
+      'Connect to the school Wi‑Fi (turn off mobile data) and try again.',
+      'error'
+    );
+    return { ok: false, reason: 'outside_network', networkIp: ip };
+  } catch (e) {
+    toast('⚠ Could not verify school network. Stay on school Wi‑Fi with internet access and try again.', 'error');
+    return { ok: false, reason: 'network_check_failed' };
+  }
+}
+
+function ensureStaffClockAttemptLog() {
+  if (!Array.isArray(db.staffClockAttemptLog)) db.staffClockAttemptLog = [];
+  if (!db.nextStaffClockAttemptId || db.nextStaffClockAttemptId < 1) db.nextStaffClockAttemptId = 1;
+}
+
+/** Log a blocked clock-in/out attempt (outside school). Kept for admin review. */
+function logStaffClockAttemptOutside(empId, action, detail) {
+  ensureStaffClockAttemptLog();
+  const emp = (db.employees || []).find(e => e && String(e.id) === String(empId));
+  const entry = {
+    id: 'SCA' + (db.nextStaffClockAttemptId++),
+    at: Date.now(),
+    date: today(),
+    empId: empId,
+    empName: emp ? emp.name : String(empId),
+    staffId: emp ? (emp.staffId || '') : '',
+    username: (currentUser && (currentUser.username || currentUser.role)) || '',
+    action: action === 'out' || action === 'Clock-out' ? 'out' : 'in',
+    reason: (detail && detail.reason) || 'blocked',
+    networkIp: (detail && detail.networkIp) || null,
+    lat: detail && detail.lat != null ? detail.lat : null,
+    lng: detail && detail.lng != null ? detail.lng : null,
+    distanceM: detail && detail.distanceM != null ? Math.round(detail.distanceM) : null,
+    accuracyM: detail && detail.accuracyM != null ? Math.round(detail.accuracyM) : null,
+    radiusM: detail && detail.radiusM != null ? detail.radiusM : null,
+    note: (detail && detail.error) || null
+  };
+  db.staffClockAttemptLog.push(entry);
+  // Cap log size so the DB does not grow forever
+  if (db.staffClockAttemptLog.length > 500) {
+    db.staffClockAttemptLog = db.staffClockAttemptLog.slice(-500);
+  }
+  try { saveDb(); } catch (e) {}
+  return entry;
+}
+
+function reasonLabelStaffClock(reason) {
+  const map = {
+    outside_geofence: 'Outside GPS geofence',
+    outside_network: 'Not on school network (IP)',
+    location_denied: 'Location permission denied',
+    gps_error: 'GPS error',
+    network_check_failed: 'Network check failed',
+    geofence_not_configured: 'Geofence not configured',
+    network_not_configured: 'Network IPs not configured'
+  };
+  return map[reason] || reason || 'Blocked';
+}
+
+async function staffClockIn(empId, dateStr) {
   const date = dateStr || today();
-  // Respect the Academic Calendar — no self clock-in on a Holiday/Vacation or
-  // Mid-Term Break day (same rule student Attendance already follows).
   const nsd = getNonSchoolDayEvent(date);
   if (nsd) { toast(`🚫 No clock-in — ${CAL_CAT_LABELS[nsd.category]}: ${nsd.title}`, 'error'); return; }
+
+  const net = await assertSchoolNetworkForStaffClock('Clock-in');
+  if (!net.ok) {
+    logStaffClockAttemptOutside(empId, 'in', net);
+    return;
+  }
+  const geoIn = await assertSchoolGeofenceForStaffClock('Clock-in');
+  if (!geoIn.ok) {
+    logStaffClockAttemptOutside(empId, 'in', Object.assign({}, geoIn, { networkIp: net.networkIp || null }));
+    return;
+  }
+
   if (!db.staffAttendance) db.staffAttendance = {};
   if (!db.staffAttendance[date]) db.staffAttendance[date] = {};
   const time = nowTimeStr();
   const status = time > STAFF_ATTENDANCE_LATE_AFTER ? 'Late' : 'Present';
   const existing = db.staffAttendance[date][empId] || {};
-  db.staffAttendance[date][empId] = { ...existing, in: time, status };
+  let networkIp = net.networkIp || null;
+  if (!networkIp) { try { networkIp = await fetchClientPublicIp(); } catch (e) {} }
+  db.staffAttendance[date][empId] = {
+    ...existing,
+    in: time,
+    status,
+    inNetworkIp: networkIp || existing.inNetworkIp || null,
+    inLat: geoIn.lat != null ? geoIn.lat : (existing.inLat || null),
+    inLng: geoIn.lng != null ? geoIn.lng : (existing.inLng || null),
+    inDistanceM: geoIn.distanceM != null ? Math.round(geoIn.distanceM) : (existing.inDistanceM || null)
+  };
   saveDb();
+  const bits = [];
+  if (networkIp) bits.push('network OK');
+  if (geoIn.lat != null) bits.push('GPS OK');
+  toast('✅ Clocked in at ' + time + (bits.length ? ' · ' + bits.join(' · ') : ''));
 }
 
-function staffClockOut(empId, dateStr) {
+async function staffClockOut(empId, dateStr) {
   const date = dateStr || today();
+  const net = await assertSchoolNetworkForStaffClock('Clock-out');
+  if (!net.ok) {
+    logStaffClockAttemptOutside(empId, 'out', net);
+    return;
+  }
+  const geoOut = await assertSchoolGeofenceForStaffClock('Clock-out');
+  if (!geoOut.ok) {
+    logStaffClockAttemptOutside(empId, 'out', Object.assign({}, geoOut, { networkIp: net.networkIp || null }));
+    return;
+  }
   if (!db.staffAttendance) db.staffAttendance = {};
   if (!db.staffAttendance[date]) db.staffAttendance[date] = {};
   const existing = db.staffAttendance[date][empId] || {};
   if (!existing.in) { toast('⚠ Clock in first before clocking out'); return; }
-  db.staffAttendance[date][empId] = { ...existing, out: nowTimeStr() };
+  let networkIp = net.networkIp || null;
+  if (!networkIp) { try { networkIp = await fetchClientPublicIp(); } catch (e) {} }
+  db.staffAttendance[date][empId] = {
+    ...existing,
+    out: nowTimeStr(),
+    outNetworkIp: networkIp || existing.outNetworkIp || null,
+    outLat: geoOut.lat != null ? geoOut.lat : (existing.outLat || null),
+    outLng: geoOut.lng != null ? geoOut.lng : (existing.outLng || null),
+    outDistanceM: geoOut.distanceM != null ? Math.round(geoOut.distanceM) : (existing.outDistanceM || null)
+  };
   saveDb();
+  const bits = [];
+  if (networkIp) bits.push('network OK');
+  if (geoOut.lat != null) bits.push('GPS OK');
+  toast('✅ Clocked out' + (bits.length ? ' · ' + bits.join(' · ') : ''));
+}
+
+function clearStaffClockAttemptLog() {
+  if (!requireRole('Admin', 'Bursar', 'Headteacher')) return;
+  if (!confirm('Clear all outside-school clock attempt logs?')) return;
+  db.staffClockAttemptLog = [];
+  saveDb();
+  try { renderStaffAttendance(); } catch (e) {}
+  toast('🗑 Attempt log cleared');
+}
+
+function renderStaffClockAttemptLogHtml() {
+  ensureStaffClockAttemptLog();
+  const rows = (db.staffClockAttemptLog || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 80);
+  if (!rows.length) {
+    return `<div class="card" style="margin-top:16px;padding:16px;font-size:12.5px;color:var(--muted)">No outside-school clock attempts logged yet.</div>`;
+  }
+  return `
+    <div class="card" style="margin-top:16px">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <span class="card-title">🚫 Outside-school clock attempts</span>
+        <button class="btn btn-sm btn-outline" onclick="clearStaffClockAttemptLog()">Clear log</button>
+      </div>
+      <div class="table-scroll sticky-first h-scroll">
+        <table class="sticky-header">
+          <thead><tr>
+            <th>When</th><th>Staff</th><th>Action</th><th>Reason</th><th>Distance</th><th>IP</th><th>GPS</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => {
+              const when = r.at ? new Date(r.at).toLocaleString('en-GH', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : (r.date || '—');
+              const dist = r.distanceM != null ? (r.distanceM + ' m') : '—';
+              const gps = (r.lat != null && r.lng != null) ? (Number(r.lat).toFixed(4) + ', ' + Number(r.lng).toFixed(4)) : '—';
+              return `<tr>
+                <td style="white-space:nowrap;font-size:11.5px">${esc(when)}</td>
+                <td><strong>${esc(r.empName || r.empId)}</strong>${r.staffId ? '<div style="font-size:10px;color:var(--muted)">' + esc(r.staffId) + '</div>' : ''}${r.username ? '<div style="font-size:10px;color:var(--muted)">@' + esc(r.username) + '</div>' : ''}</td>
+                <td>${r.action === 'out' ? 'Clock out' : 'Clock in'}</td>
+                <td style="font-size:11.5px;color:var(--red)">${esc(reasonLabelStaffClock(r.reason))}</td>
+                <td>${esc(dist)}</td>
+                <td style="font-size:11px">${esc(r.networkIp || '—')}</td>
+                <td style="font-size:10.5px;color:var(--muted)">${esc(gps)}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div style="padding:8px 14px;font-size:11px;color:var(--muted)">Showing latest ${rows.length} blocked attempts. Successful clock-ins on campus are not listed here.</div>
+    </div>`;
 }
 
 // Admin/Bursar/Headteacher correction tools — for staff who forgot to clock
@@ -33205,8 +33748,8 @@ function renderStaffAttendance() {
             ? `<div style="margin-left:auto;font-size:11px;color:var(--red)">🚫 ${esc(CAL_CAT_LABELS[nsd.category])}: ${esc(nsd.title)} — no clock-in on this date</div>`
             : canClockForDate ? `
             <div style="margin-left:auto;display:flex;gap:8px">
-              ${!mine.in ? `<button class="btn btn-gold" onclick="staffClockIn('${myEmp.id}','${_satDate}'); renderStaffAttendance();">🕘 Clock In${!isToday ? ' — ' + esc(_satDate) : ''}</button>` : ''}
-              ${mine.in && !mine.out ? `<button class="btn btn-outline" onclick="staffClockOut('${myEmp.id}','${_satDate}'); renderStaffAttendance();">🚪 Clock Out</button>` : ''}
+              ${!mine.in ? `<button class="btn btn-gold" onclick="staffClockIn('${myEmp.id}','${_satDate}').then(function(){ renderStaffAttendance(); })">🕘 Clock In${!isToday ? ' — ' + esc(_satDate) : ''}</button>` : ''}
+              ${mine.in && !mine.out ? `<button class="btn btn-outline" onclick="staffClockOut('${myEmp.id}','${_satDate}').then(function(){ renderStaffAttendance(); })">🚪 Clock Out</button>` : ''}
               ${mine.in && mine.out ? `<span style="font-size:12px;color:var(--green);font-weight:600">✔ Done for ${isToday ? 'today' : esc(_satDate)}</span>` : ''}
             </div>` : `<div style="margin-left:auto;font-size:11px;color:var(--muted)">Viewing a past date — clock in/out only works for today</div>`}
         </div>
@@ -33277,7 +33820,8 @@ function renderStaffAttendance() {
           }).join('')}
         </tbody>
       </table>
-    </div>`;
+    </div>
+    ${typeof renderStaffClockAttemptLogHtml === 'function' ? renderStaffClockAttemptLogHtml() : ''}`;
 }
 
 // ══════════════ STAFF LEAVE ══════════════
@@ -35001,7 +35545,7 @@ function renderReportCard() {
     let students = (db.admissions || []).filter(s => {
       if (!isEligibleForTermReport(s, filterTerm)) return false;
       if (filterClass && s.cls!==filterClass) return false;
-      if (searchQ && !s.name.toLowerCase().includes(searchQ.toLowerCase())) return false;
+      if (searchQ && !_lc(s.name).includes(searchQ.toLowerCase())) return false;
       if (!classHasReportCard(s.cls)) return false; // Creche — no report cards issued
       return true;
     }).map(s => {
@@ -35243,7 +35787,7 @@ function renderStudentRecords() {
       if (filterClass && s.cls !== filterClass) return false;
       if (searchQ) {
         const q = searchQ.toLowerCase();
-        if (!s.name.toLowerCase().includes(q) && !s.id.toLowerCase().includes(q)) return false;
+        if (!_lc(s.name).includes(q) && !_lc(s.id).includes(q)) return false;
       }
       return true;
     }).sort((a, b) => a.name.localeCompare(b.name));
@@ -51037,7 +51581,7 @@ function renderReport(type, mgmtDateFrom, mgmtDateTo) {
                                   : pct > 0   ? '<span class="badge badge-partial">Partial</span>'
                                               : '<span class="badge badge-unpaid">Unpaid</span>';
                 const statusVal   = pct >= 100 ? 'paid' : pct > 0 ? 'partial' : 'unpaid';
-                return `<tr data-name="${esc(s.name.toLowerCase())}" data-class="${esc(s.cls)}" data-status="${statusVal}">
+                return `<tr data-name="${esc(_lc(s.name))}" data-class="${esc(s.cls || '')}" data-status="${statusVal}">
                   <td style="color:var(--muted)">${i+1}</td>
                   <td>${esc(s.name)}</td>
                   <td>${esc(s.cls)}</td>
@@ -51269,11 +51813,11 @@ window.mgmtSaveComments = function() {
 };
 
 window.filterStudentPaymentRecords = function() {
-  const search = (document.getElementById('spr-search')?.value || '').toLowerCase();
+  const search = (document.getElementById('spr-search')?.value || '').trim().toLowerCase();
   const cls    = (document.getElementById('spr-class-filter')?.value || '');
   const status = (document.getElementById('spr-status-filter')?.value || '');
   document.querySelectorAll('#spr-body tr').forEach(row => {
-    const nameMatch   = !search || (row.dataset.name || '').includes(search);
+    const nameMatch   = !search || (row.dataset.name || '').includes(search) || (row.dataset.class || '').toLowerCase().includes(search);
     const clsMatch    = !cls    || row.dataset.class === cls;
     const statusMatch = !status || row.dataset.status === status;
     row.style.display = (nameMatch && clsMatch && statusMatch) ? '' : 'none';
