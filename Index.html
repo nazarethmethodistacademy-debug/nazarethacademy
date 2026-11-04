@@ -15836,15 +15836,30 @@ function enhanceMobileHorizontalScroll() {
       }
     }
 
-    // Swipe hint once per wrapper (only if content is actually wider)
+    // Swipe hint: exactly ONE per wrapper, placed directly before it (only if content is wider).
+    // (Previously the existing-hint check looked INSIDE the wrapper while the hint was inserted
+    // BEFORE it, so a new hint was added on every run — and the page-wide observer re-ran on
+    // each insertion, stacking dozens of hints.)
+    if (wrap._hintQueued) return;
+    wrap._hintQueued = true;
     requestAnimationFrame(() => {
+      wrap._hintQueued = false;
       try {
-        if (!wrap || wrap.scrollWidth <= wrap.clientWidth + 8) {
-          const old = wrap.querySelector(':scope > .h-scroll-hint[data-auto-hint="1"]');
-          if (old) old.remove();
+        if (!wrap.isConnected || !wrap.parentNode) return;
+        const prev = wrap.previousElementSibling;
+        const existing = prev && prev.classList && prev.classList.contains('h-scroll-hint') ? prev : null;
+        // remove any extra stacked hints left directly above this one
+        if (existing) {
+          let extra = existing.previousElementSibling;
+          while (extra && extra.classList && extra.classList.contains('h-scroll-hint')) {
+            const rm = extra; extra = extra.previousElementSibling; rm.remove();
+          }
+        }
+        if (wrap.scrollWidth <= wrap.clientWidth + 8) {
+          if (existing && existing.getAttribute('data-auto-hint') === '1') existing.remove();
           return;
         }
-        if (wrap.querySelector('.h-scroll-hint')) return;
+        if (existing) return;
         const hint = document.createElement('div');
         hint.className = 'h-scroll-hint';
         hint.setAttribute('data-auto-hint', '1');
@@ -15870,7 +15885,20 @@ function enhanceMobileHorizontalScroll() {
       clearTimeout(t);
       t = setTimeout(() => { try { enhanceMobileHorizontalScroll(); } catch (e) {} }, 120);
     };
-    const obs = new MutationObserver(run);
+    const _isOwn = n => !!(n && n.nodeType === 1 && (
+      (n.classList && n.classList.contains('h-scroll-hint')) ||
+      (n.getAttribute && n.getAttribute('data-auto-h-scroll') === '1') ||
+      (n.tagName === 'TABLE' && n.parentNode && n.parentNode.getAttribute && n.parentNode.getAttribute('data-auto-h-scroll') === '1')
+    ));
+    const obs = new MutationObserver(muts => {
+      // Only react to real content changes, never to the hints/wrappers this code adds itself
+      const real = muts.some(m => {
+        if (m.type !== 'childList') return false;
+        const nodes = Array.prototype.slice.call(m.addedNodes).concat(Array.prototype.slice.call(m.removedNodes));
+        return nodes.some(n => !_isOwn(n) && !(n.nodeType === 3 && !n.textContent.trim()));
+      });
+      if (real) run();
+    });
     if (document.body) {
       obs.observe(document.body, { childList: true, subtree: true });
     } else {
