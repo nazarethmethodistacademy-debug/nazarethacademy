@@ -2517,6 +2517,27 @@
   .sr-chart-canvas-wrap { position:relative;height:220px; }
   .sr-chart-row { display:flex;gap:16px;flex-wrap:wrap; }
   .sr-chart-row .sr-chart-block { min-width:240px; }
+  /* Phones: stack the student list above the detail pane (side-by-side squeezed the detail —
+     report card, comprehensive report and every tab — to ~60px wide so nothing showed). */
+  @media (max-width: 768px) {
+    .sr-layout { flex-direction: column !important; align-items: stretch !important; gap: 12px !important; }
+    .sr-sidebar { width: 100% !important; position: static !important; flex-shrink: 1 !important; box-sizing: border-box; }
+    .sr-student-list { max-height: 220px !important; }
+    .sr-detail { width: 100% !important; flex: none !important; padding: 12px !important; box-sizing: border-box; min-width: 0 !important; }
+    .sr-detail-header { flex-wrap: wrap; gap: 10px; }
+    .sr-detail-header > div:last-child { margin-left: 0 !important; width: 100%; flex-wrap: wrap; }
+    .sr-tabs { flex-wrap: nowrap !important; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+    .sr-tab { white-space: nowrap; flex: 0 0 auto; padding: 7px 12px !important; }
+    .sr-tab-content { min-width: 0; }
+    .sr-chart-row .sr-chart-block { min-width: 0 !important; flex: 1 1 100% !important; }
+    .kg-rc-card { padding: 14px 10px !important; overflow-x: auto; }
+    .kg-rc-table { font-size: 10.5px; }
+    .kg-rc-table th, .kg-rc-table td { padding: 4px 3px; }
+    .kg-rc-table th { color: var(--navy) !important; }
+    .kg-rc-table th:first-child { color: var(--gold2) !important; }
+    .kg-rc-info-row { flex-direction: column; gap: 4px; }
+    .kg-rc-info-row .kg-rc-info-col { text-align: left !important; }
+  }
   .sr-insight-banner { border-radius:10px;padding:16px;margin-bottom:16px; }
   .sr-insight-good { background:rgba(46,125,82,0.1);border:1px solid rgba(46,125,82,0.3); }
   .sr-insight-warn { background:rgba(184,122,16,0.1);border:1px solid rgba(184,122,16,0.3); }
@@ -8408,22 +8429,44 @@
         <div style="font-size:11.5px;color:var(--muted);margin-bottom:12px;line-height:1.6">
           Staff must be <strong>physically at the school</strong> (within the radius below) to self clock-in or out.
           Stand in the school compound, allow location access, then use <strong>Use my current location</strong>.
-          Works with or without school Wi‑Fi. Admin corrections still work from anywhere.
+          The system will show the <strong>town / area name</strong> of the pin so you can confirm it is the school.
+          Admin corrections still work from anywhere.
         </div>
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin-bottom:12px">
           <input type="checkbox" id="gs-require-school-geofence-clock" style="width:18px;height:18px;accent-color:var(--navy);flex-shrink:0;margin-top:2px">
           <span style="font-size:12.5px;font-weight:600;color:var(--navy)">Require GPS geofence for staff self clock-in / out</span>
         </label>
+        <div class="form-group full" style="margin-bottom:10px">
+          <label>School location (search town / area)</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:stretch">
+            <input id="gs-school-geo-label" placeholder="e.g. Tarkwa, Western Region, Ghana" style="flex:1;min-width:200px">
+            <button type="button" class="btn btn-primary btn-sm" onclick="searchSchoolGeofenceByPlaceName()">🔍 Search &amp; set pin</button>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">
+            <b>Recommended in Ghana:</b> type your town (e.g. <i>Takoradi</i>, <i>Tarkwa</i>, <i>Sekondi</i>) + region, then Search.
+            Browser “current location” often wrongly shows <b>Greater Accra</b> because of ISP/IP location.
+          </div>
+        </div>
+        <div id="gs-school-geo-search-results" style="display:none;margin-bottom:10px;max-height:160px;overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--white)"></div>
+        <div id="gs-school-geo-place-box" style="display:none;margin-bottom:10px;padding:10px 12px;border-radius:8px;background:var(--cream2);border:1px solid var(--border);font-size:12px;line-height:1.5">
+          <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--muted);margin-bottom:2px">Pinned place</div>
+          <div id="gs-school-geo-place-detail" style="font-weight:600;color:var(--navy)"></div>
+        </div>
         <div class="form-grid two" style="gap:10px;margin-bottom:8px">
-          <div class="form-group"><label>School latitude</label><input id="gs-school-geo-lat" type="number" step="any" placeholder="e.g. 5.6037"></div>
-          <div class="form-group"><label>School longitude</label><input id="gs-school-geo-lng" type="number" step="any" placeholder="e.g. -0.1870"></div>
+          <div class="form-group"><label>School latitude</label><input id="gs-school-geo-lat" type="number" step="any" placeholder="e.g. 5.3000"></div>
+          <div class="form-group"><label>School longitude</label><input id="gs-school-geo-lng" type="number" step="any" placeholder="e.g. -1.9900"></div>
           <div class="form-group"><label>Allowed radius (metres)</label><input id="gs-school-geo-radius" type="number" min="30" max="5000" step="10" placeholder="150"></div>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-          <button type="button" class="btn btn-outline btn-sm" onclick="captureSchoolGeofenceLocation()">📍 Use my current location</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="captureSchoolGeofenceLocation()">📍 Try device GPS</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="refreshSchoolGeofencePlaceName()">🏙 Reverse look-up</button>
           <span id="gs-school-geo-status" style="font-size:11.5px;color:var(--muted)"></span>
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5">Tip: 100–200 m covers a typical compound. Larger radius if GPS is weak indoors. Staff must allow location permission when clocking.</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5">
+          <b>Western Region tip:</b> Do <u>not</u> rely on “current location” on desktop — Ghana ISP addresses often resolve to Accra.
+          Use <b>Search &amp; set pin</b> with your town, or paste coordinates from Google Maps (open school on Maps → right‑click → copy lat, lng).
+          Then open the map link to confirm the pin, set radius 100–200 m, and Save.
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -9389,7 +9432,9 @@ const DB_SEED = {
     requireSchoolGeofenceForStaffClock: false,
     schoolGeoLat: null,
     schoolGeoLng: null,
-    schoolGeoRadiusM: 150                  // metres from pin (default ~ school compound)
+    schoolGeoRadiusM: 150,                 // metres from pin (default ~ school compound)
+    schoolGeoLabel: '',                    // human place name e.g. town / suburb / school area
+    schoolGeoPlaceDetail: ''               // fuller reverse-geocoded address line
   },
   // ── APPROVAL WORKFLOW CONFIG — which roles submit-for-approval vs approve, per workflow ──
   approvalConfig: {
@@ -10543,8 +10588,11 @@ function openGeneralSettingsModal() {
   if (geoLng) geoLng.value = db.generalSettings.schoolGeoLng != null ? db.generalSettings.schoolGeoLng : '';
   const geoR = document.getElementById('gs-school-geo-radius');
   if (geoR) geoR.value = db.generalSettings.schoolGeoRadiusM != null ? db.generalSettings.schoolGeoRadiusM : 150;
+  const geoLabel = document.getElementById('gs-school-geo-label');
+  if (geoLabel) geoLabel.value = db.generalSettings.schoolGeoLabel || '';
   const geoSt = document.getElementById('gs-school-geo-status');
   if (geoSt) geoSt.textContent = '';
+  updateSchoolGeoPlaceDisplay(db.generalSettings.schoolGeoPlaceDetail || db.generalSettings.schoolGeoLabel || '');
   document.getElementById('general-settings-modal').classList.add('open');
 }
 
@@ -10603,6 +10651,12 @@ function saveGeneralSettings() {
   if (geoRSave) {
     const v = parseFloat(geoRSave.value);
     db.generalSettings.schoolGeoRadiusM = Number.isFinite(v) && v > 0 ? v : 150;
+  }
+  const geoLabelSave = document.getElementById('gs-school-geo-label');
+  if (geoLabelSave) db.generalSettings.schoolGeoLabel = String(geoLabelSave.value || '').trim();
+  const placeBox = document.getElementById('gs-school-geo-place-detail');
+  if (placeBox && placeBox.textContent) {
+    db.generalSettings.schoolGeoPlaceDetail = String(placeBox.textContent || '').trim();
   }
   saveDb();
   toast('✅ General settings saved');
@@ -11781,17 +11835,29 @@ function ensureDbShape() {
     'departments', 'houses', 'appraisals', 'teacherExternalAssessments', 'trainings', 'trainingLinkAuditLog',
     'skillSubmissions', 'promotionLists', 'pendingSmsQueue', 'subjects',
     'users', 'roles', 'staffHrRecords', 'staffLeave', 'externalAssessmentParams',
-    'feedingBudgetRequests', 'anomalyCases', 'staffClockAttemptLog'
+    'feedingBudgetRequests', 'anomalyCases', 'staffClockAttemptLog', 'gradeCategories'
   ];
   ARR_KEYS.forEach(k => {
     try { db[k] = ensureArray(db[k]); } catch (e) { db[k] = []; }
   });
 
+  // gradeCategories must always be a real array — Firebase / older saves sometimes
+  // store it as an object map, which breaks .filter() on Report Cards.
+  try {
+    if (!Array.isArray(db.gradeCategories)) {
+      if (db.gradeCategories && typeof db.gradeCategories === 'object') {
+        db.gradeCategories = Object.keys(db.gradeCategories).map(k => db.gradeCategories[k]).filter(c => c && typeof c === 'object');
+      } else {
+        db.gradeCategories = [];
+      }
+    }
+  } catch (e) { db.gradeCategories = []; }
+
   // Objects (maps)
   const OBJ_KEYS = [
     'payments', 'budgets', 'htComments', 'timetable', 'skillsAssessments',
     'skillComments', 'attendance', 'staffAttendance', 'dutyRoster', 'feeding', 'feedingBudgetOverrides',
-    'fixedAssets', 'approvalConfig', 'generalSettings', 'gradeCategories',
+    'fixedAssets', 'approvalConfig', 'generalSettings',
     'carryForwards', 'boardReportNotes', 'staffHrDetails', 'mgmtComments',
     'grades', 'usageLog', 'fees', 'feedingFees', 'feedingDiscounts', 'teacherExternalParamOverrides'
   ];
@@ -11954,7 +12020,9 @@ function ensureGeneralSettingsDefaults() {
     requireSchoolGeofenceForStaffClock: false,
     schoolGeoLat: null,
     schoolGeoLng: null,
-    schoolGeoRadiusM: 150
+    schoolGeoRadiusM: 150,
+    schoolGeoLabel: '',
+    schoolGeoPlaceDetail: ''
   };
   Object.keys(defaults).forEach(k => {
     if (g[k] === undefined) g[k] = defaults[k];
@@ -12219,7 +12287,13 @@ function initDb(callback) {
       db.skillSubmissions = data.skillSubmissions || [];
       db.skillScales = data.skillScales || {};
       db.gradingSetup = data.gradingSetup || null;
-      db.gradeCategories = Array.isArray(data.gradeCategories) ? data.gradeCategories : null;
+      if (Array.isArray(data.gradeCategories)) {
+        db.gradeCategories = data.gradeCategories;
+      } else if (data.gradeCategories && typeof data.gradeCategories === 'object') {
+        db.gradeCategories = Object.keys(data.gradeCategories).map(k => data.gradeCategories[k]).filter(c => c && typeof c === 'object');
+      } else {
+        db.gradeCategories = db.gradeCategories || null;
+      }
       db.skillParams = Array.isArray(data.skillParams) ? data.skillParams : null; // seeded lazily by getSkillParams()
       db.nextSkillSubId = data.nextSkillSubId ?? 1;
       db.promotionLists = data.promotionLists || [];
@@ -12430,16 +12504,19 @@ function initDb(callback) {
   if (window.__ecoleErrorHandlersInstalled) return;
   window.__ecoleErrorHandlersInstalled = true;
   let lastToast = 0;
-  function softFail(msg, err) {
+  function softFail(msg, err, where) {
     try { console.error(msg, err); } catch (e) {}
     const now = Date.now();
     if (now - lastToast > 4000 && typeof toast === 'function') {
       lastToast = now;
-      try { toast('⚠ Unexpected error — your data should still be safe. Refresh if the screen looks wrong.', 'error'); } catch (e2) {}
+      // Include the real error text so the cause can be identified from a screenshot
+      let detail = '';
+      try { detail = String((err && err.message) || err || '').slice(0, 140) + (where ? ' [' + where + ']' : ''); } catch (e3) {}
+      try { toast('⚠ Unexpected error — your data should still be safe. Refresh if the screen looks wrong.' + (detail ? ' (' + detail + ')' : ''), 'error'); } catch (e2) {}
     }
   }
   window.addEventListener('error', function (ev) {
-    softFail('window.error', ev && (ev.error || ev.message));
+    softFail('window.error', ev && (ev.error || ev.message), ev && ev.lineno ? 'line ' + ev.lineno : '');
   });
   window.addEventListener('unhandledrejection', function (ev) {
     softFail('unhandledrejection', ev && ev.reason);
@@ -13724,10 +13801,12 @@ function getBillingReason(studentId, term) {
 // Records to surface incomplete registrations so staff can follow up.
 function getMissingFields(s) {
   const missing = [];
+  // Values may be numbers (e.g. phone numbers from an Excel import) — never assume strings
+  const blank = v => v === null || v === undefined || String(v).trim() === '';
   if (!s.dob) missing.push('Date of Birth');
-  if (!s.parent || !s.parent.trim()) missing.push('Parent/Guardian');
-  if (!s.phone1 || !s.phone1.trim()) missing.push('Phone Number');
-  if (!s.address || !s.address.trim()) missing.push('Home Address');
+  if (blank(s.parent)) missing.push('Parent/Guardian');
+  if (blank(s.phone1)) missing.push('Phone Number');
+  if (blank(s.address)) missing.push('Home Address');
   if (!s.photo) missing.push('Photo');
   return missing;
 }
@@ -28702,7 +28781,7 @@ function blendedTermScore(studentId, subjectId, term, rawGrade) {
     // have enough to compute a Class Score — still count it.
     add('Class Score', 'Class Score', autoClassScore, gs.classScoreMax, w.classPct);
   }
-  (db.gradeCategories || []).filter(c => !c.core && c.feedsReport && c.weight > 0 && (c.classes || []).includes(student.cls)).forEach(c => {
+  (typeof getGradeCategories === 'function' ? getGradeCategories() : []).filter(c => !c.core && c.feedsReport && c.weight > 0 && (c.classes || []).includes(student.cls)).forEach(c => {
     const comp = (db.gradeComponents || {})[gradeComponentKey(studentId, subjectId, term, c.key)];
     if (comp) add(c.key, c.name, comp.score, c.max > 0 ? c.max : 100, c.weight);
   });
@@ -28739,11 +28818,13 @@ function setGrade(studentId, subjectId, term, score, remarks, classScore, examSc
   saveDb();
 }
 
-// Classes that use the traditional bordered "Terminal Report" template (the
-// digitized version of the school's printed report card) instead of the
-// standard navy-card design — every class, Creche through Basic 6.
+// Classes that use the traditional bordered "Terminal Report" template
+// (digitized school printed card). Early years (Nursery / KG) use this layout
+// with Class/Exam columns and remarks. Basic 1–6 use the standard navy card
+// that shows subject codes (ENG, MATH, …) and letter grades (A+, A, B, …).
 function usesTerminalReportTemplate(cls) {
-  return true;
+  const c = String(cls || '').trim();
+  return c === 'Nursery 1' || c === 'Nursery 2' || c === 'KG 1' || c === 'KG 2';
 }
 
 // Creche does not receive a report card at all — no academic scoring/remarks
@@ -28872,7 +28953,7 @@ function ordinal(n) {
 function kgAttendanceSummary(studentId, cls, term) {
   const termInfo = (db.academicCalendar && db.academicCalendar.terms && db.academicCalendar.terms[term]) || {};
   const att = db.attendance || {};
-  const prefix = cls.replace(/\s/g,'_') + '|';
+  const prefix = String(cls || '').replace(/\s/g,'_') + '|';
   let present = 0, total = 0;
   Object.keys(att).forEach(k => {
     if (!k.startsWith(prefix)) return;
@@ -28932,7 +29013,7 @@ function renderKGReportCard(s, term, opts) {
   });
   // Assessment Categories ticked "Feeds the report card" get their own columns
   // (points earned out of their weight) so the card still adds up visibly.
-  const feedCats = (db.gradeCategories || []).filter(c => !c.core && c.feedsReport && c.weight > 0 && (c.classes || []).includes(s.cls));
+  const feedCats = (typeof getGradeCategories === 'function' ? getGradeCategories() : []).filter(c => !c.core && c.feedsReport && c.weight > 0 && (c.classes || []).includes(s.cls));
   const rw = reportWeights();
   const classHead = rw.active ? Math.round(rw.classPct * 10) / 10 : 50;
   const examHead  = rw.active ? Math.round(rw.examPct * 10) / 10 : 50;
@@ -30055,13 +30136,28 @@ function seedGradeCategories() {
   ];
 }
 function getGradeCategories() {
-  if (!Array.isArray(db.gradeCategories)) db.gradeCategories = seedGradeCategories();
+  if (!Array.isArray(db.gradeCategories)) {
+    if (db.gradeCategories && typeof db.gradeCategories === 'object') {
+      try {
+        db.gradeCategories = Object.keys(db.gradeCategories)
+          .map(k => db.gradeCategories[k])
+          .filter(c => c && typeof c === 'object' && c.key);
+      } catch (e) {
+        db.gradeCategories = [];
+      }
+    } else {
+      db.gradeCategories = [];
+    }
+  }
+  if (!db.gradeCategories.length) {
+    db.gradeCategories = seedGradeCategories();
+  }
   // Migration for installs saved before "Classwork" existed — add it once so it's
   // available as a Class Score Composition ingredient without disturbing anything
   // already configured (existing weights, custom categories, etc. are untouched).
-  if (!db.gradeCategories.some(c => c.key === 'Classwork')) {
-    db.gradeCategories.push({ key: 'Classwork', name: 'Classwork', classes: [...CLASSES], max: 100 });
-    saveDb();
+  if (!db.gradeCategories.some(c => c && c.key === 'Classwork')) {
+    db.gradeCategories.push({ key: 'Classwork', name: 'Classwork', classes: [...(typeof CLASSES !== 'undefined' ? CLASSES : [])], max: 100 });
+    try { saveDb(); } catch (e) {}
   }
   return db.gradeCategories;
 }
@@ -33420,12 +33516,13 @@ function getSchoolGeofenceConfig() {
     enabled: !!g.requireSchoolGeofenceForStaffClock,
     lat: Number.isFinite(lat) ? lat : null,
     lng: Number.isFinite(lng) ? lng : null,
-    radiusM: Number.isFinite(radius) && radius > 0 ? radius : 150
+    radiusM: Number.isFinite(radius) && radius > 0 ? radius : 150,
+    label: String(g.schoolGeoLabel || g.schoolGeoPlaceDetail || '').trim()
   };
 }
 
-/** Read device GPS once (high accuracy). */
-function getDevicePosition() {
+/** One GPS reading (high accuracy, no cache). */
+function getDevicePositionOnce(timeoutMs) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('Geolocation is not supported on this device/browser'));
@@ -33434,28 +33531,208 @@ function getDevicePosition() {
     navigator.geolocation.getCurrentPosition(
       pos => resolve(pos),
       err => reject(err),
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: timeoutMs || 25000, maximumAge: 0 }
     );
   });
+}
+
+/** Single reading — used for staff clock-in checks. */
+function getDevicePosition() {
+  return getDevicePositionOnce(25000);
+}
+
+/**
+ * Take several GPS readings and keep the most accurate fix.
+ * Desktop Wi‑Fi/IP location is often wrong by kilometres; a phone outdoors is best.
+ */
+async function getBestDevicePosition(opts) {
+  opts = opts || {};
+  const samples = Math.max(1, opts.samples || 4);
+  const status = opts.statusEl || null;
+  const readings = [];
+  let lastErr = null;
+  for (let i = 0; i < samples; i++) {
+    if (status) {
+      status.textContent = 'Reading GPS ' + (i + 1) + ' of ' + samples + '… stay outdoors, GPS on';
+    }
+    try {
+      const pos = await getDevicePositionOnce(20000);
+      readings.push(pos);
+      const acc = pos.coords.accuracy != null ? Math.round(pos.coords.accuracy) : '?';
+      if (status) {
+        status.textContent = 'Reading ' + (i + 1) + '/' + samples + ': ±' + acc + ' m';
+      }
+      // Good enough for a school pin — stop early
+      if (pos.coords.accuracy != null && pos.coords.accuracy <= 40) break;
+    } catch (e) {
+      lastErr = e;
+    }
+    if (i < samples - 1) await new Promise(r => setTimeout(r, 800));
+  }
+  if (!readings.length) throw lastErr || new Error('Could not get GPS');
+  readings.sort((a, b) => (a.coords.accuracy || 99999) - (b.coords.accuracy || 99999));
+  return readings[0];
+}
+
+function updateSchoolGeoPlaceDisplay(detailText, extraHtml) {
+  const box = document.getElementById('gs-school-geo-place-box');
+  const detail = document.getElementById('gs-school-geo-place-detail');
+  const t = String(detailText || '').trim();
+  if (detail) {
+    detail.innerHTML = '';
+    if (t) detail.appendChild(document.createTextNode(t));
+    if (extraHtml) {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'margin-top:6px;font-size:11.5px;font-weight:500';
+      wrap.innerHTML = extraHtml;
+      detail.appendChild(wrap);
+    }
+  }
+  if (box) box.style.display = (t || extraHtml) ? '' : 'none';
+}
+
+function mapsLinkHtml(lat, lng) {
+  const q = encodeURIComponent(Number(lat) + ',' + Number(lng));
+  const g = 'https://www.google.com/maps?q=' + q + '&z=17';
+  const o = 'https://www.openstreetmap.org/?mlat=' + encodeURIComponent(lat) + '&mlon=' + encodeURIComponent(lng) + '#map=17/' + encodeURIComponent(lat) + '/' + encodeURIComponent(lng);
+  return 'Verify pin: <a href="' + g + '" target="_blank" rel="noopener">Google Maps</a> · <a href="' + o + '" target="_blank" rel="noopener">OpenStreetMap</a>';
+}
+
+/**
+ * Reverse-geocode lat/lng → town / area (no API key).
+ * Tries BigDataCloud first, then OpenStreetMap Nominatim.
+ */
+async function reverseGeocodePlace(lat, lng) {
+  // 1) BigDataCloud (browser-friendly)
+  try {
+    const url = 'https://api.bigdatacloud.net/data/reverse-geocode-client'
+      + '?latitude=' + encodeURIComponent(lat)
+      + '&longitude=' + encodeURIComponent(lng)
+      + '&localityLanguage=en';
+    const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      const locality = data.locality || data.city || '';
+      const region = data.principalSubdivision || '';
+      const country = data.countryName || '';
+      const town = locality || region || country;
+      const parts = [locality, region, country].filter((v, i, a) => v && a.indexOf(v) === i);
+      return {
+        shortLabel: town,
+        detail: parts.join(', ') || (Number(lat).toFixed(5) + ', ' + Number(lng).toFixed(5)),
+        source: 'BigDataCloud',
+        raw: data
+      };
+    }
+  } catch (e) {}
+
+  // 2) OpenStreetMap Nominatim
+  try {
+    const url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2'
+      + '&lat=' + encodeURIComponent(lat)
+      + '&lon=' + encodeURIComponent(lng)
+      + '&zoom=16&addressdetails=1';
+    const res = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: { 'Accept': 'application/json' }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const a = data.address || {};
+      const town = a.suburb || a.neighbourhood || a.village || a.town || a.city || a.county || '';
+      const region = a.state || a.region || '';
+      const country = a.country || '';
+      const parts = [town, region, country].filter((v, i, arr) => v && arr.indexOf(v) === i);
+      return {
+        shortLabel: town || region || country,
+        detail: (data.display_name || parts.join(', ')),
+        source: 'OpenStreetMap',
+        raw: data
+      };
+    }
+  } catch (e) {}
+
+  throw new Error('Place lookup failed');
+}
+
+async function applyGeocodeToSettingsForm(lat, lng, opts) {
+  opts = opts || {};
+  const status = document.getElementById('gs-school-geo-status');
+  try {
+    if (status) status.textContent = 'Looking up town / area name…';
+    const place = await reverseGeocodePlace(lat, lng);
+    const labelEl = document.getElementById('gs-school-geo-label');
+    // Only auto-fill empty label — never overwrite a name the admin typed
+    if (labelEl && !String(labelEl.value || '').trim() && place.shortLabel) {
+      labelEl.value = place.shortLabel;
+    }
+    const accNote = opts.accuracyM != null
+      ? '<div style="color:' + (opts.accuracyM > 100 ? 'var(--red)' : 'var(--muted)') + ';margin-top:4px">GPS accuracy: ±'
+        + Math.round(opts.accuracyM) + ' m'
+        + (opts.accuracyM > 100
+          ? ' — weak fix. Prefer a phone outdoors; desktop Wi‑Fi location is often wrong.'
+          : '')
+        + '</div>'
+      : '';
+    updateSchoolGeoPlaceDisplay(
+      place.detail || place.shortLabel,
+      mapsLinkHtml(lat, lng) + accNote
+    );
+    if (status) {
+      status.textContent = (place.detail || place.shortLabel)
+        + (opts.accuracyM != null ? ' · ±' + Math.round(opts.accuracyM) + ' m' : '');
+    }
+    return place;
+  } catch (e) {
+    updateSchoolGeoPlaceDisplay(
+      'Coordinates only — place name unavailable',
+      mapsLinkHtml(lat, lng)
+    );
+    if (status) status.textContent = 'GPS saved — could not look up place name (check internet)';
+    return null;
+  }
 }
 
 async function captureSchoolGeofenceLocation() {
   const status = document.getElementById('gs-school-geo-status');
   if (status) status.textContent = 'Getting GPS… allow location if prompted';
   try {
-    const pos = await getDevicePosition();
+    // Prefer several samples so a single bad Wi‑Fi/IP fix is less likely
+    const pos = await getBestDevicePosition({ samples: 4, statusEl: status });
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
-    const acc = Math.round(pos.coords.accuracy || 0);
+    const acc = pos.coords.accuracy != null ? pos.coords.accuracy : null;
     const latEl = document.getElementById('gs-school-geo-lat');
     const lngEl = document.getElementById('gs-school-geo-lng');
     if (latEl) latEl.value = lat.toFixed(6);
     if (lngEl) lngEl.value = lng.toFixed(6);
-    if (status) {
-      status.textContent = 'Pinned ' + lat.toFixed(5) + ', ' + lng.toFixed(5) +
-        (acc ? ' (±' + acc + ' m)' : '') + ' — save settings to apply';
+
+    if (acc != null && acc > 150) {
+      toast('⚠ GPS accuracy is weak (±' + Math.round(acc) + ' m). Use a phone outdoors at the school, or type coordinates from Google Maps.', 'error');
     }
-    toast('📍 School location captured (±' + acc + ' m). Save settings.');
+
+    if (status) {
+      status.textContent = 'Pinned ' + lat.toFixed(5) + ', ' + lng.toFixed(5)
+        + (acc != null ? ' (±' + Math.round(acc) + ' m)' : '')
+        + ' — resolving place name…';
+    }
+    const place = await applyGeocodeToSettingsForm(lat, lng, { accuracyM: acc });
+    const placeText = ((place && (place.detail || place.shortLabel)) || '').toLowerCase();
+    const looksAccra = /accra|greater accra|tema|madina|adenta|legon/.test(placeText);
+    if (looksAccra) {
+      toast('⚠ Device location looks like Greater Accra — often wrong for Western Region. Use “Search & set pin” with your town name instead.', 'error');
+      if (status) {
+        status.textContent = '⚠ Accra-area fix detected — prefer Search by town (Western Region)';
+      }
+    } else {
+      toast(
+        '📍 Pin set'
+        + (place && place.shortLabel ? ': ' + place.shortLabel : '')
+        + (acc != null ? ' (±' + Math.round(acc) + ' m)' : '')
+        + '. Open the map link to verify, then Save.'
+      );
+    }
   } catch (e) {
     const msg = (e && e.code === 1)
       ? 'Location permission denied — allow location in browser/phone settings'
@@ -33464,6 +33741,115 @@ async function captureSchoolGeofenceLocation() {
     toast('⚠ ' + msg, 'error');
   }
 }
+
+async function refreshSchoolGeofencePlaceName() {
+  const latEl = document.getElementById('gs-school-geo-lat');
+  const lngEl = document.getElementById('gs-school-geo-lng');
+  const lat = parseFloat(latEl && latEl.value);
+  const lng = parseFloat(lngEl && lngEl.value);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    toast('⚠ Enter or capture latitude & longitude first', 'error');
+    return;
+  }
+  const place = await applyGeocodeToSettingsForm(lat, lng);
+  if (place && place.shortLabel) {
+    const labelEl = document.getElementById('gs-school-geo-label');
+    if (labelEl && !String(labelEl.value || '').trim()) labelEl.value = place.shortLabel;
+    toast('🏙 Place: ' + (place.detail || place.shortLabel));
+  }
+}
+
+/**
+ * Search by town / place name and set school pin (preferred in Ghana).
+ * Avoids ISP geolocation that wrongly centres on Greater Accra.
+ */
+async function searchSchoolGeofenceByPlaceName() {
+  const labelEl = document.getElementById('gs-school-geo-label');
+  const status = document.getElementById('gs-school-geo-status');
+  const resultsEl = document.getElementById('gs-school-geo-search-results');
+  let q = String(labelEl && labelEl.value || '').trim();
+  if (!q) {
+    toast('⚠ Type a town or area first (e.g. “Tarkwa, Western Region, Ghana”)', 'error');
+    return;
+  }
+  // Bias search toward Ghana if user didn't mention it
+  if (!/ghana/i.test(q)) q = q + ', Ghana';
+
+  if (status) status.textContent = 'Searching places…';
+  if (resultsEl) {
+    resultsEl.style.display = '';
+    resultsEl.innerHTML = '<div style="padding:10px;color:var(--muted);font-size:12px">Searching…</div>';
+  }
+
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=json'
+      + '&q=' + encodeURIComponent(q)
+      + '&addressdetails=1&limit=6&countrycodes=gh';
+    const res = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: { 'Accept': 'application/json' }
+    });
+    if (!res.ok) throw new Error('Search failed (' + res.status + ')');
+    const list = await res.json();
+    if (!Array.isArray(list) || !list.length) {
+      if (resultsEl) {
+        resultsEl.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--red)">No places found. Try “Town, Western Region, Ghana” or paste coordinates from Google Maps.</div>';
+      }
+      if (status) status.textContent = 'No places found';
+      toast('⚠ No places found for that name', 'error');
+      return;
+    }
+
+    window._schoolGeoSearchHits = list;
+    if (resultsEl) {
+      resultsEl.innerHTML = list.map((item, idx) => {
+        const lat = item.lat;
+        const lon = item.lon;
+        const name = String(item.display_name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return '<button type="button" class="btn btn-outline" style="display:block;width:100%;text-align:left;padding:10px 12px;border:none;border-bottom:1px solid var(--border);border-radius:0;font-size:12px;line-height:1.4" '
+          + 'onclick="applySchoolGeofenceSearchResult(' + idx + ')">'
+          + '<span style="font-weight:600;color:var(--navy)">' + name + '</span>'
+          + '<div style="font-size:10.5px;color:var(--muted);margin-top:2px">' + Number(lat).toFixed(5) + ', ' + Number(lon).toFixed(5) + '</div>'
+          + '</button>';
+      }).join('');
+    }
+    if (status) status.textContent = list.length + ' place(s) found — pick the correct one';
+    toast('Select the correct place from the list');
+  } catch (e) {
+    if (resultsEl) {
+      resultsEl.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--red)">Search failed. Check internet, or paste latitude/longitude from Google Maps.</div>';
+    }
+    if (status) status.textContent = 'Search failed';
+    toast('⚠ Place search failed — use Google Maps coordinates instead', 'error');
+  }
+}
+
+function applySchoolGeofenceSearchResult(idx) {
+  const hits = window._schoolGeoSearchHits || [];
+  const item = hits[idx];
+  if (!item) return;
+  const lat = parseFloat(item.lat);
+  const lng = parseFloat(item.lon);
+  const displayName = item.display_name || '';
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  const latEl = document.getElementById('gs-school-geo-lat');
+  const lngEl = document.getElementById('gs-school-geo-lng');
+  const labelEl = document.getElementById('gs-school-geo-label');
+  const resultsEl = document.getElementById('gs-school-geo-search-results');
+  const status = document.getElementById('gs-school-geo-status');
+  if (latEl) latEl.value = lat.toFixed(6);
+  if (lngEl) lngEl.value = lng.toFixed(6);
+  if (labelEl && displayName) {
+    const short = String(displayName).split(',').slice(0, 3).join(',').trim();
+    labelEl.value = short || displayName;
+  }
+  if (resultsEl) resultsEl.style.display = 'none';
+  updateSchoolGeoPlaceDisplay(displayName || (lat.toFixed(5) + ', ' + lng.toFixed(5)), mapsLinkHtml(lat, lng));
+  if (status) status.textContent = 'Pin set from search — verify on map, then Save';
+  toast('📍 Pin set. Open map link to confirm, then Save settings.');
+}
+
 
 /**
  * Returns { ok, lat, lng, distanceM, accuracyM } or blocks with toast.
@@ -33488,8 +33874,9 @@ async function assertSchoolGeofenceForStaffClock(actionLabel) {
     if (distanceM <= allowed) {
       return { ok: true, lat, lng, distanceM, accuracyM };
     }
+    const where = cfg.label ? (' (' + cfg.label + ')') : '';
     toast(
-      '🚫 ' + (actionLabel || 'Clock-in') + ' only allowed on school grounds.\n' +
+      '🚫 ' + (actionLabel || 'Clock-in') + ' only allowed on school grounds' + where + '.\n' +
       'You are about ' + Math.round(distanceM) + ' m from the school pin (limit ' + Math.round(cfg.radiusM) + ' m).\n' +
       'Move into the compound, turn on high-accuracy location, and try again.',
       'error'
@@ -35569,21 +35956,56 @@ function saveBoardReportNotes() {
 }
 
 function renderReportCard() {
+  // Always ensure the dynamic page shell exists (navigate creates it, but
+  // Student Record / deep links / refresh can call this without going through navigate).
+  try {
+    if (typeof ensurePage === 'function') ensurePage('reportcard', 'rc-inner');
+  } catch (e) {}
   const el = document.getElementById('rc-inner');
+  if (!el) {
+    console.warn('renderReportCard: #rc-inner missing');
+    try { toast('⚠ Report Cards page could not load — refresh and try again', 'error'); } catch (e) {}
+    return;
+  }
   const lockedClass = lockedClassFor();
-  let filterClass = lockedClass || '', filterTerm=TERMS[0], searchQ='';
+  let filterClass = lockedClass || '', filterTerm = (typeof TERMS !== 'undefined' && TERMS[0]) ? TERMS[0] : 'Term 1', searchQ = '';
 
   function draw() {
+    const host = document.getElementById('rc-inner');
+    if (!host) return;
+    try {
+      _drawReportCards(host);
+    } catch (err) {
+      console.error('renderReportCard', err);
+      host.innerHTML = `<div class="section-header"><div><div class="section-title">Report Cards</div>
+        <div class="section-sub" style="color:var(--red)">Could not render cards: ${esc(String(err && err.message || err))}</div></div>
+        <button class="btn btn-outline btn-sm" onclick="renderReportCard()">🔄 Retry</button></div>
+        <div class="empty-state"><div class="icon">📝</div>Fix the error above or refresh. Your student data is safe.</div>`;
+      try { toast('⚠ Report Cards: ' + (err && err.message || err), 'error'); } catch (e) {}
+    }
+  }
+
+  function _drawReportCards(host) {
     const subs = filterClass
       ? subjectsForClass(filterClass)
       : getSubjects();
 
     // Soft withdrawal: enrolled + mid-term withdrawn still get a card for this term
     let students = (db.admissions || []).filter(s => {
-      if (!isEligibleForTermReport(s, filterTerm)) return false;
-      if (filterClass && s.cls!==filterClass) return false;
-      if (searchQ && !_lc(s.name).includes(searchQ.toLowerCase())) return false;
-      if (!classHasReportCard(s.cls)) return false; // Creche — no report cards issued
+      if (!s) return false;
+      if (typeof isEligibleForTermReport === 'function' && !isEligibleForTermReport(s, filterTerm)) return false;
+      if (filterClass) {
+        const matchCls = (typeof classesMatch === 'function')
+          ? classesMatch(s.cls, filterClass)
+          : String(s.cls || '').trim() === String(filterClass).trim();
+        if (!matchCls) return false;
+      }
+      if (searchQ) {
+        const q = searchQ.toLowerCase().trim();
+        const blob = [s.name, s.id, s.parent, s.cls].filter(Boolean).join(' ').toLowerCase();
+        if (!blob.includes(q)) return false;
+      }
+      if (typeof classHasReportCard === 'function' && !classHasReportCard(s.cls)) return false; // Creche — no report cards issued
       return true;
     }).map(s => {
       const studentSubs = subjectsForClass(s.cls);
@@ -35698,7 +36120,7 @@ function renderReportCard() {
       </div>`;
     }).join('');
 
-    el.innerHTML = `
+    host.innerHTML = `
       <div class="section-header">
         <div><div class="section-title">Report Cards</div><div class="section-sub">Academic performance — ${ACTIVE_YEAR} · <a href="#" onclick="navigate('grades')" style="color:var(--gold)">Enter grades →</a></div></div>
         <div style="display:flex;gap:8px">
@@ -35746,6 +36168,62 @@ function saveHtComment(key, text) {
 // exists elsewhere in the app (admissions, payments, attendance, grades,
 // report card helpers). Nothing new is stored here; this page is purely a
 // consolidated read view over existing records.
+// ── Comprehensive Student Report: self-contained styles (used in the tab AND in the print window) ──
+const SR_COMP_CSS = `
+.cr-doc{font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:#1a2233;background:#fff;max-width:860px;margin:0 auto;padding:18px 22px;font-size:12px;line-height:1.45;box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.cr-doc *{box-sizing:border-box}
+.cr-head{display:flex;align-items:center;gap:14px;border-bottom:3px solid #12284c;padding-bottom:10px;margin-bottom:12px}
+.cr-head img{width:62px;height:62px;object-fit:contain}
+.cr-head-text{flex:1;text-align:center}
+.cr-school{font-size:19px;font-weight:800;color:#12284c;letter-spacing:.3px}
+.cr-motto{font-style:italic;color:#555;font-size:11px}
+.cr-sub{font-size:10.5px;color:#555}
+.cr-title{background:#12284c;color:#fff;text-align:center;font-weight:700;letter-spacing:1.2px;font-size:13px;padding:6px 10px;margin-bottom:12px;border-radius:4px}
+.cr-sec{margin-bottom:14px;page-break-inside:avoid;break-inside:avoid}
+.cr-sec-title{font-size:12.5px;font-weight:800;color:#12284c;border-bottom:1.5px solid #c9a227;padding-bottom:3px;margin-bottom:7px;text-transform:uppercase;letter-spacing:.6px}
+.cr-bio{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 14px}
+.cr-bio div{min-width:0}
+.cr-lbl{display:block;font-size:9.5px;color:#777;text-transform:uppercase;letter-spacing:.5px}
+.cr-val{display:block;font-weight:600;overflow-wrap:anywhere}
+.cr-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.cr-kpi{border:1px solid #d6dbe6;border-radius:6px;padding:7px 6px;text-align:center;background:#f6f8fc}
+.cr-kpi b{display:block;font-size:16px;color:#12284c}
+.cr-kpi span{font-size:9.5px;color:#666;text-transform:uppercase;letter-spacing:.4px}
+.cr-doc table{width:100%;border-collapse:collapse;font-size:11.5px}
+.cr-doc th{background:#12284c;color:#fff;text-align:left;padding:5px 7px;font-weight:700}
+.cr-doc td{border-bottom:1px solid #e3e7ef;padding:4px 7px;vertical-align:top}
+.cr-doc td.c,.cr-doc th.c{text-align:center}
+.cr-doc tr.cr-total td{background:#eef2f9;font-weight:800;border-top:1.5px solid #12284c}
+.cr-neg{color:#b3261e;font-weight:700}.cr-pos{color:#1b7a43;font-weight:700}
+.cr-note{font-size:11.5px;margin:3px 0}
+.cr-muted{color:#777}
+.cr-sign{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;margin-top:26px}
+.cr-sign div{border-top:1px solid #333;padding-top:4px;text-align:center;font-size:10.5px;color:#444}
+.cr-foot{margin-top:10px;font-size:9.5px;color:#888;text-align:center}
+.cr-scroll{overflow-x:auto}
+.cr-month{border:1px solid #d6dbe6;border-radius:6px;margin-bottom:8px;overflow:hidden;page-break-inside:avoid;break-inside:avoid}
+.cr-month-head{display:flex;justify-content:space-between;gap:8px;background:#eef2f9;padding:5px 9px;font-size:11.5px;color:#12284c}
+.cr-month-head span{font-weight:600}
+.cr-bar{display:inline-block;width:70px;height:7px;background:#e3e7ef;border-radius:4px;overflow:hidden;vertical-align:middle;margin-right:6px}
+.cr-bar i{display:block;height:100%;background:#12284c}
+.cr-bar.lo i{background:#b3261e}.cr-bar.mid i{background:#c9a227}.cr-bar.hi i{background:#1b7a43}
+.cr-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}
+.cr-chart{border:1px solid #d6dbe6;border-radius:6px;padding:8px;background:#fff;min-width:0}
+.cr-chart-title{font-size:11px;font-weight:700;color:#12284c;margin-bottom:4px}
+.cr-chart svg{width:100%;height:auto;display:block}
+.cr-doc svg text{font-family:inherit}
+.cr-notes p{margin:0 0 6px;font-size:12px}
+.cr-list{margin:0;padding:0;list-style:none}
+.cr-list li{display:flex;gap:7px;padding:5px 8px;border-left:3px solid #c9a227;background:#fbf8ee;margin-bottom:5px;font-size:11.5px;page-break-inside:avoid;break-inside:avoid}
+.cr-list li.rec{border-left-color:#12284c;background:#f2f5fb}
+.cr-list li.str{border-left-color:#1b7a43;background:#f0f8f3}
+.cr-list li.hi{border-left-color:#b3261e;background:#fdf2f1}
+.cr-list b{color:#12284c}
+.cr-page-break{page-break-after:always;break-after:page}
+.cr-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+@media (max-width:640px){.cr-charts{grid-template-columns:1fr}.cr-bio{grid-template-columns:repeat(2,1fr)}.cr-kpis{grid-template-columns:repeat(2,1fr)}.cr-doc{padding:12px}.cr-sign{grid-template-columns:1fr}}
+`;
+
 function renderStudentRecords() {
   ensurePage('studentrecords', 'sr-inner');
   const el = document.getElementById('sr-inner');
@@ -35763,7 +36241,7 @@ function renderStudentRecords() {
   // no separate attendance store, just reading db.attendance directly. ──
   function attendanceSummary(s) {
     const att = db.attendance || {};
-    const prefix = s.cls.replace(/\s/g, '_') + '|';
+    const prefix = String(s.cls || '').replace(/\s/g, '_') + '|';
     let P = 0, A = 0, L = 0;
     const recent = [];
     Object.keys(att).sort().forEach(k => {
@@ -35840,6 +36318,7 @@ function renderStudentRecords() {
               <option value="">All Classes</option>
               ${CLASSES.map(c => `<option value="${esc(c)}" ${c === filterClass ? 'selected' : ''}>${esc(c)}</option>`).join('')}
             </select>` : ''}
+          ${students.length ? `<button class="btn btn-outline btn-sm" style="width:100%;margin:0 0 8px" onclick="srPrintAllComprehensive()" title="One comprehensive report per student, one per page">📑 Print all reports (${students.length})</button>` : ''}
           <div class="sr-student-list">
             ${students.length === 0
               ? '<div class="sr-empty">No students found</div>'
@@ -35870,6 +36349,7 @@ function renderStudentRecords() {
   function renderDetail(s) {
     const tabs = [
       { key: 'profile',     label: '👤 Profile' },
+      { key: 'comprehensive', label: '📑 Comprehensive Report' },
       { key: 'fees',        label: '💳 School Fees' },
       { key: 'attendance',  label: '📅 Attendance' },
       { key: 'performance', label: '📊 Performance' },
@@ -35879,14 +36359,24 @@ function renderStudentRecords() {
       { key: 'academic',    label: '🧠 Academic Intelligence' }
     ];
     let body = '';
-    if (activeTab === 'profile')      body = renderProfileTab(s);
-    if (activeTab === 'fees')         body = renderFeesTab(s);
-    if (activeTab === 'attendance')   body = renderAttendanceTab(s);
-    if (activeTab === 'performance')  body = renderPerformanceTab(s);
-    if (activeTab === 'reportcard')   body = renderReportCardTab(s);
-    if (activeTab === 'analysis')     body = renderAnalysisTab(s);
-    if (activeTab === 'insights')     body = renderInsightsTab(s);
-    if (activeTab === 'academic')     body = renderAcademicIntelTab(s);
+    // A tab that fails must never leave the screen stuck on the previous tab with a vague toast:
+    // show what went wrong right here instead.
+    try {
+      if (activeTab === 'profile')      body = renderProfileTab(s);
+      if (activeTab === 'comprehensive') body = renderComprehensiveTab(s);
+      if (activeTab === 'fees')         body = renderFeesTab(s);
+      if (activeTab === 'attendance')   body = renderAttendanceTab(s);
+      if (activeTab === 'performance')  body = renderPerformanceTab(s);
+      if (activeTab === 'reportcard')   body = renderReportCardTab(s);
+      if (activeTab === 'analysis')     body = renderAnalysisTab(s);
+      if (activeTab === 'insights')     body = renderInsightsTab(s);
+      if (activeTab === 'academic')     body = renderAcademicIntelTab(s);
+    } catch (err) {
+      try { console.error('Student Records tab "' + activeTab + '" failed for ' + s.id, err); } catch (e) {}
+      body = `<div class="aid-callout aid-callout-danger" style="margin:8px 0">⚠️ This tab could not be displayed for <b>${esc(s.name || s.id)}</b>.
+        <div style="font-size:12px;margin-top:6px">Cause: <code>${esc(String((err && err.message) || err))}</code></div>
+        <div style="font-size:12px;margin-top:6px">Check this student's record (class, name, phone, grades) in Admissions, or send this message so it can be fixed.</div></div>`;
+    }
 
     return `
       <div class="sr-detail-header">
@@ -35897,7 +36387,9 @@ function renderStudentRecords() {
         </div>
         <div style="margin-left:auto;display:flex;gap:8px">
           ${activeTab === 'reportcard' && classHasReportCard(s.cls) ? `<button class="btn btn-outline btn-sm" onclick="exportOneReportCardPDF('${s.id}')">📄 Export PDF</button>` : ''}
-          <button class="btn btn-outline btn-sm" onclick="printReportSmart()">🖨️ Print</button>
+          ${activeTab === 'comprehensive'
+            ? `<button class="btn btn-gold btn-sm" onclick="srPrintComprehensive()">🖨️ Print / Save PDF</button>`
+            : `<button class="btn btn-outline btn-sm" onclick="printReportSmart()">🖨️ Print</button>`}
         </div>
       </div>
       ${(() => { const missing = getMissingFields(s); return missing.length ? `
@@ -36447,6 +36939,361 @@ function renderStudentRecords() {
     }
   };
 
+  // ══ Comprehensive report: everything on record for one student, in one printable document ══
+  function buildComprehensiveReportHTML(s) {
+    const f = feeSummary(s);
+    const a = attendanceSummary(s);
+    const subs = subjectsForClass(s.cls) || [];
+    const perf = TERMS.map(term => ({ term, p: performanceSummary(s, term) }));
+    const classmates = (db.admissions || []).filter(x => x.cls === s.cls);
+    const position = term => {
+      const ranked = classmates.map(x => ({ id: x.id, avg: performanceSummary(x, term).avg })).filter(r => r.avg !== null).sort((x, y) => y.avg - x.avg);
+      const mine = ranked.find(r => r.id === s.id);
+      if (!mine) return null;
+      return { pos: ranked.findIndex(r => r.avg === mine.avg) + 1, of: ranked.length };
+    };
+    const termAvgs = perf.map(x => x.p.avg).filter(v => v !== null);
+    const overall = termAvgs.length ? Math.round(termAvgs.reduce((x, y) => x + y, 0) / termAvgs.length) : null;
+    const lastIdx = (() => { for (let i = perf.length - 1; i >= 0; i--) if (perf[i].p.avg !== null) return i; return -1; })();
+    const lastPos = lastIdx >= 0 ? position(perf[lastIdx].term) : null;
+    const skillMonth = latestSkillMonth(s.id);
+    const ratings = skillMonth ? getSkillRatings(s.id, skillMonth) : {};
+    const skillAvg = skillAverageAllMonths(s.id);
+    const scale = skillScaleFor(s.cls) || {};
+    const skillList = skillsFor(s.cls) || [];
+    const gradeOf = sc => (sc === null || sc === undefined) ? '' : (scoreToGrade(sc) || {}).g || '';
+    const moneyCls = v => v > 0 ? 'cr-neg' : 'cr-pos';
+
+    // Strongest / weakest subject in the latest term with results
+    let strongest = null, weakest = null;
+    if (lastIdx >= 0) {
+      const graded = perf[lastIdx].p.rows.filter(r => r.score !== null).sort((x, y) => y.score - x.score);
+      if (graded.length) { strongest = graded[0]; weakest = graded[graded.length - 1]; }
+    }
+
+    // ── Monthly skills: every assessed month, oldest → newest ──
+    const skillMonthsData = skillMonths().map(m => {
+      const r = getSkillRatings(s.id, m);
+      const vals = Object.values(r).filter(v => v > 0);
+      return { month: m, ratings: r, avg: vals.length ? vals.reduce((x, y) => x + y, 0) / vals.length : null };
+    }).filter(x => x.avg !== null);
+    const lvl = v => (scale[Math.round(v)] || '');
+    const skillStats = skillList.map(sk => {
+      const series = skillMonthsData.map(m => m.ratings[sk.key]).filter(v => v > 0);
+      return {
+        label: sk.label, n: series.length,
+        avg: series.length ? series.reduce((x, y) => x + y, 0) / series.length : null,
+        first: series.length ? series[0] : null,
+        latest: series.length ? series[series.length - 1] : null
+      };
+    }).filter(x => x.n > 0);
+
+    // ── Inline SVG charts (no external library, so they also print correctly) ──
+    const svgChart = (labels, values, o) => {
+      const W = 420, H = 210, L = 36, R = 14, T = 16, B = 38;
+      const pw = W - L - R, ph = H - T - B;
+      const n = labels.length;
+      const x = i => n === 1 ? L + pw / 2 : L + (pw * i) / (n - 1);
+      const y = v => T + ph - ((v - o.min) / (o.max - o.min)) * ph;
+      let g = '';
+      o.ticks.forEach(tk => { g += `<line x1="${L}" y1="${y(tk)}" x2="${W - R}" y2="${y(tk)}" stroke="#e3e7ef" stroke-width="1"/><text x="${L - 5}" y="${y(tk) + 3}" font-size="9" fill="#777" text-anchor="end">${tk}</text>`; });
+      if (o.ref !== undefined) g += `<line x1="${L}" y1="${y(o.ref)}" x2="${W - R}" y2="${y(o.ref)}" stroke="#b3261e" stroke-width="1" stroke-dasharray="4 3"/><text x="${W - R}" y="${y(o.ref) - 3}" font-size="8" fill="#b3261e" text-anchor="end">${esc(o.refLabel || '')}</text>`;
+      const pts = values.map((v, i) => (v === null || v === undefined) ? null : { i, v, px: x(i), py: y(v) });
+      const real = pts.filter(Boolean);
+      if (o.bars) {
+        const bw = Math.min(46, pw / Math.max(n, 1) * 0.55);
+        real.forEach(pt => { g += `<rect x="${pt.px - bw / 2}" y="${pt.py}" width="${bw}" height="${T + ph - pt.py}" fill="#12284c" opacity=".85" rx="2"/>`; });
+      }
+      // linear trend line (3+ points for lines, 2+ for bars)
+      if (real.length >= (o.bars ? 2 : 3)) {
+        const mx = real.reduce((a, q) => a + q.i, 0) / real.length, my = real.reduce((a, q) => a + q.v, 0) / real.length;
+        const den = real.reduce((a, q) => a + (q.i - mx) * (q.i - mx), 0) || 1;
+        const sl = real.reduce((a, q) => a + (q.i - mx) * (q.v - my), 0) / den, ic = my - sl * mx;
+        const clamp = v => Math.max(o.min, Math.min(o.max, v));
+        const i0 = real[0].i, i1 = real[real.length - 1].i;
+        g += `<line x1="${x(i0)}" y1="${y(clamp(ic + sl * i0))}" x2="${x(i1)}" y2="${y(clamp(ic + sl * i1))}" stroke="#c9a227" stroke-width="2" stroke-dasharray="6 4"/>`;
+      }
+      if (!o.bars) {
+        let path = '';
+        real.forEach((pt, k) => { path += (k === 0 ? 'M' : (real[k - 1].i === pt.i - 1 ? 'L' : 'M')) + pt.px + ' ' + pt.py + ' '; });
+        if (path) g += `<path d="${path}" fill="none" stroke="#12284c" stroke-width="2.2"/>`;
+        real.forEach(pt => { g += `<circle cx="${pt.px}" cy="${pt.py}" r="3.8" fill="#12284c" stroke="#fff" stroke-width="1.2"/>`; });
+      }
+      real.forEach(pt => { g += `<text x="${pt.px}" y="${pt.py - 7}" font-size="9.5" font-weight="700" fill="#12284c" text-anchor="middle">${esc(o.fmt ? o.fmt(pt.v) : pt.v)}</text>`; });
+      labels.forEach((lb, i) => { g += `<text x="${x(i)}" y="${H - B + 14}" font-size="9" fill="#555" text-anchor="middle">${esc(lb)}</text>`; });
+      g += `<line x1="${L}" y1="${T}" x2="${L}" y2="${T + ph}" stroke="#999"/><line x1="${L}" y1="${T + ph}" x2="${W - R}" y2="${T + ph}" stroke="#999"/>`;
+      return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || 'chart')}">${g}</svg>`;
+    };
+    const barCls = v => v >= 3.5 ? 'hi' : v >= 2.5 ? 'mid' : 'lo';
+
+    // ── Automatic performance notes (rule-based, computed from this student's records) ──
+    const acadWith = perf.filter(x => x.p.avg !== null);
+    const aFirst = acadWith[0], aLast = acadWith[acadWith.length - 1];
+    const aDelta = acadWith.length > 1 ? aLast.p.avg - aFirst.p.avg : null;
+    const prevTermPerf = acadWith.length > 1 ? acadWith[acadWith.length - 2] : null;
+    const sDelta = skillMonthsData.length > 1 ? skillMonthsData[skillMonthsData.length - 1].avg - skillMonthsData[0].avg : null;
+    const notes = [];
+    if (!acadWith.length) {
+      notes.push('<b>Academic results:</b> no term results have been recorded yet, so no academic trend can be drawn.');
+    } else {
+      const lv = aLast.p.avg >= 80 ? 'a strong level' : aLast.p.avg >= 55 ? 'a satisfactory level' : 'a level below satisfactory';
+      let tx = `<b>Academic results:</b> ${acadWith.map(x => esc(x.term) + ' ' + x.p.avg + '%').join(', ')}. The latest term average of <b>${aLast.p.avg}%</b> (${esc(aLast.term)}) is ${lv}`;
+      if (aDelta === null) tx += '. Only one term is on record, so the chart shows a single point — a trend will appear once the next term\'s results are entered.';
+      else if (aDelta >= 5) tx += `, and the line is rising: up <b>${Math.round(aDelta)} points</b> since ${esc(aFirst.term)}.`;
+      else if (aDelta <= -5) tx += `, but the line is falling: down <b>${Math.round(Math.abs(aDelta))} points</b> since ${esc(aFirst.term)}.`;
+      else tx += `, and the line is broadly steady (${aDelta >= 0 ? '+' : ''}${Math.round(aDelta)} points since ${esc(aFirst.term)}).`;
+      if (lastPos && lastPos.of > 1) tx += ` In class, the student is ${ordinal(lastPos.pos)} out of ${lastPos.of} in ${esc(aLast.term)}.`;
+      notes.push(tx);
+      if (strongest && weakest && strongest !== weakest) notes.push(`<b>Subjects:</b> the strongest result in ${esc(aLast.term)} is ${esc(strongest.sub.name)} (${strongest.score}%) and the weakest is ${esc(weakest.sub.name)} (${weakest.score}%), a spread of ${strongest.score - weakest.score} points.`);
+    }
+    if (!skillMonthsData.length) {
+      notes.push('<b>Skills &amp; conduct:</b> no monthly skills assessment has been recorded yet.');
+    } else {
+      const lastM = skillMonthsData[skillMonthsData.length - 1];
+      let tx = `<b>Skills &amp; conduct:</b> ${skillMonthsData.length} month${skillMonthsData.length === 1 ? '' : 's'} assessed. The latest month (${esc(lastM.month)}) averages <b>${lastM.avg.toFixed(1)}/4</b> (${esc(lvl(lastM.avg))})`;
+      if (sDelta === null) tx += '. A trend line will show once more months are assessed.';
+      else if (sDelta >= 0.3) tx += `, up <b>${sDelta.toFixed(1)}</b> since ${esc(skillMonthsData[0].month)} — behaviour and skills are improving.`;
+      else if (sDelta <= -0.3) tx += `, down <b>${Math.abs(sDelta).toFixed(1)}</b> since ${esc(skillMonthsData[0].month)} — worth a conversation with the student.`;
+      else tx += `, steady compared with ${esc(skillMonthsData[0].month)}.`;
+      notes.push(tx);
+      const top = skillStats.filter(x => x.avg >= 3.5).sort((x, y) => y.avg - x.avg).slice(0, 3);
+      const low = skillStats.filter(x => x.avg <= 2.5).sort((x, y) => x.avg - y.avg).slice(0, 3);
+      if (top.length) notes.push(`<b>Skill strengths:</b> ${top.map(x => esc(x.label) + ' (' + x.avg.toFixed(1) + ')').join(', ')}.`);
+      if (low.length) notes.push(`<b>Skills needing support:</b> ${low.map(x => esc(x.label) + ' (' + x.avg.toFixed(1) + ')').join(', ')}.`);
+    }
+    if (a.rate !== null) {
+      let tx = `<b>Attendance:</b> ${a.rate}% over ${a.total} recorded day${a.total === 1 ? '' : 's'} (${a.A} absent, ${a.L} late)`;
+      if (a.rate < 80 && aDelta !== null && aDelta < -3) tx += ' — lower attendance and the falling results move in the same direction, so missed lessons are a plausible factor worth checking with the family.';
+      else if (a.rate >= 90) tx += ' — consistent attendance is supporting learning.';
+      else tx += '.';
+      notes.push(tx);
+    }
+    if (f.balance > 0) notes.push(`<b>Fees:</b> an outstanding balance of GHS ${fmt(f.balance)} remains${f.carry ? ` (includes GHS ${fmt(f.carry)} carried forward)` : ''}.`);
+
+    // ── Areas for improvement + matching recommendations ──
+    const areas = [], recs = [], strengths = [];
+    const seen = new Set();
+    const addArea = (key, sev, area, evidence, rec) => { if (seen.has(key)) return; seen.add(key); areas.push({ key, sev, area, evidence }); if (rec) recs.push({ key, html: rec }); };
+    if (aLast) {
+      aLast.p.rows.filter(r => r.score !== null).forEach(r => {
+        const cAvg = classSubjectAverage(s.cls, r.sub.id, aLast.term);
+        const gap = cAvg !== null ? cAvg - r.score : 0;
+        const prev = prevTermPerf ? prevTermPerf.p.rows.find(x => x.sub.id === r.sub.id) : null;
+        const drop = prev && prev.score !== null ? prev.score - r.score : 0;
+        if (r.score < 50) addArea('sub-' + r.sub.id, 'hi', r.sub.name, `scored ${r.score}% in ${aLast.term}, below the 50% mark${cAvg !== null ? ` (class average ${Math.round(cAvg)}%)` : ''}.`,
+          `<b>${esc(r.sub.name)}:</b> give targeted support — short daily practice, peer tutoring and a check-in with the subject teacher. Aim for about ${Math.min(100, r.score + 10)}% next term.`);
+        else if (gap > 8) addArea('sub-' + r.sub.id, 'mid', r.sub.name, `${Math.round(gap)} points below the class average (${r.score}% vs ${Math.round(cAvg)}%).`,
+          `<b>${esc(r.sub.name)}:</b> close the gap to the class average with extra practice tasks and feedback from the subject teacher.`);
+        else if (drop >= 5) addArea('sub-' + r.sub.id, 'mid', r.sub.name, `dropped ${Math.round(drop)} points since ${prevTermPerf.term} (${prev.score}% → ${r.score}%).`,
+          `<b>${esc(r.sub.name)}:</b> find out what changed this term (topics, attendance, motivation) and revisit the weak topics early.`);
+      });
+      if (aDelta !== null && aDelta <= -5) addArea('trend', 'hi', 'Overall performance trend', `average fell ${Math.round(Math.abs(aDelta))} points since ${aFirst.term} (${aFirst.p.avg}% → ${aLast.p.avg}%).`,
+        '<b>Overall:</b> hold an academic check-in with the student and parent this term, before the gap widens.');
+    }
+    // Skills are grouped into one entry each, so the report stays short and readable
+    const skLow = skillStats.filter(x => x.avg <= 2.5 || x.latest <= 2).sort((x, y) => x.avg - y.avg);
+    const skSlip = skillStats.filter(x => !skLow.includes(x) && x.first !== null && x.latest <= x.first - 1);
+    if (skLow.length) addArea('sk-low', skLow.some(x => x.latest <= 1) ? 'hi' : 'mid', 'Skills needing support',
+      skLow.map(x => `${x.label} (average ${x.avg.toFixed(1)}/4, latest ${x.latest} — ${lvl(x.latest)})`).join('; ') + '.',
+      `<b>Skills — ${skLow.map(x => esc(x.label)).join(', ')}:</b> reinforce through daily classroom routines with clear expectations and positive praise; review again at next month's assessment.`);
+    if (skSlip.length) addArea('sk-slip', 'mid', 'Skills slipping over the months',
+      skSlip.map(x => `${x.label} (${x.first} → ${x.latest})`).join('; ') + '.',
+      `<b>Skills — ${skSlip.map(x => esc(x.label)).join(', ')}:</b> talk with the student about the recent change and agree one small goal for next month.`);
+    if (a.rate !== null && a.rate < 90) addArea('att', a.rate < 75 ? 'hi' : 'mid', 'Attendance', `${a.rate}% (${a.A} absent, ${a.L} late) against a 90% target.`,
+      `<b>Attendance:</b> follow up with ${esc(s.parent || 'the parent/guardian')} to understand the absences and agree a plan to reach 90% or more.`);
+    if (f.balance > 0) addArea('fees', 'mid', 'School fees', `outstanding balance of GHS ${fmt(f.balance)}.`,
+      `<b>Fees:</b> arrange a conversation with ${esc(s.parent || 'the parent/guardian')} about a payment plan so learning is not disrupted.`);
+    if (aLast) aLast.p.rows.filter(r => r.score !== null && r.score >= 75).sort((x, y) => y.score - x.score).slice(0, 2).forEach(r => strengths.push(`${esc(r.sub.name)} (${r.score}%)`));
+    skillStats.filter(x => x.avg >= 3.5).sort((x, y) => y.avg - x.avg).slice(0, 2).forEach(x => strengths.push(esc(x.label) + ' skill'));
+    if (strengths.length) recs.push({ key: 'str', html: `<b>Build on strengths:</b> ${strengths.join(', ')} — give extension tasks or let the student support classmates to keep confidence and motivation high.` });
+    if (!areas.length) {
+      areas.push({ key: 'none', sev: (aLast || skillStats.length) ? 'str' : 'info', area: (aLast || skillStats.length) ? 'No major areas of concern' : 'Not enough data yet', evidence: (aLast || skillStats.length) ? 'results, skills, attendance and fees are all in good order.' : 'enter term results and monthly skills assessments to generate improvement areas.' });
+      if (aLast || skillStats.length) recs.push({ key: 'ok', html: '<b>Keep it up:</b> continue the current level of support and review again next term.' });
+    }
+    if (!recs.length) recs.push({ key: 'next', html: '<b>Next step:</b> record term results and monthly skills assessments so tailored recommendations can be generated.' });
+    const sevIcon = { hi: '🔴', mid: '🟠', str: '🟢', info: 'ℹ️' };
+    const sevOrder = { hi: 0, mid: 1, str: 2, info: 3 };
+    areas.sort((x, y) => sevOrder[x.sev] - sevOrder[y.sev]);
+    // Keep the 4 most serious subject entries (the rest are minor); drop their recommendations too
+    const keepSub = new Set(areas.filter(x => x.key.startsWith('sub-')).slice(0, 4).map(x => x.key));
+    const dropKey = k => k.startsWith('sub-') && !keepSub.has(k);
+    for (let i = areas.length - 1; i >= 0; i--) if (dropKey(areas[i].key)) areas.splice(i, 1);
+    for (let i = recs.length - 1; i >= 0; i--) if (dropKey(recs[i].key)) recs.splice(i, 1);
+    const recOrder = areas.map(x => x.key);
+    recs.sort((x, y) => { const ix = recOrder.indexOf(x.key), iy = recOrder.indexOf(y.key); return (ix < 0 ? 99 : ix) - (iy < 0 ? 99 : iy); });
+    const termShort = x => String(x).replace(/^Term\s*/i, 'T');
+    const acadChart = acadWith.length
+      ? svgChart(perf.map(x => x.term), perf.map(x => x.p.avg), { min: 0, max: 100, ticks: [0, 25, 50, 75, 100], bars: true, ref: 50, refLabel: 'pass mark 50', fmt: v => v + '%', aria: 'Term average by term' })
+      : '<div class="cr-note cr-muted">No term results yet.</div>';
+    const skillChart = skillMonthsData.length
+      ? svgChart(skillMonthsData.map(m => m.month.split(' ')[0]), skillMonthsData.map(m => m.avg), { min: 1, max: 4, ticks: [1, 2, 3, 4], fmt: v => v.toFixed(1), aria: 'Skills average by month' })
+      : '<div class="cr-note cr-muted">No monthly skills assessments yet.</div>';
+    const bio = [
+      ['Full Name', s.name], ['Student ID', s.id], ['Class', s.cls],
+      ['Gender', s.gender], ['Date of Birth', s.dob], ['Nationality', s.nat],
+      ['Admission Status', s.status], ['Admission Date', s.appdate], ['House', s.house],
+      ['Parent / Guardian', s.parent], ['Relationship', s.rel], ['Phone', [s.phone1, s.phone2].filter(Boolean).join(' / ')],
+      ['Email', s.email], ['Address', s.address]
+    ];
+    const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const absLate = a.recent.filter(r => r.status !== 'P').slice(0, 8);
+
+    return `
+    <div class="cr-doc">
+      <div class="cr-head">
+        <img src="${SCHOOL_LOGO_SRC}" alt="">
+        <div class="cr-head-text">
+          <div class="cr-school">${esc(schoolName())}</div>
+          ${schoolMotto() ? `<div class="cr-motto">"${esc(schoolMotto())}"</div>` : ''}
+          <div class="cr-sub">${esc(schoolContactLine() || 'Ghana')}</div>
+          <div class="cr-sub">Academic Year ${esc(ACTIVE_YEAR)}</div>
+        </div>
+        <img src="${SCHOOL_LOGO_SRC}" alt="">
+      </div>
+      <div class="cr-title">COMPREHENSIVE STUDENT REPORT</div>
+
+      <div class="cr-sec">
+        <div class="cr-sec-title">Student Information</div>
+        <div class="cr-bio">${bio.map(([l, v]) => `<div><span class="cr-lbl">${esc(l)}</span><span class="cr-val">${v ? esc(v) : '—'}</span></div>`).join('')}</div>
+      </div>
+
+      <div class="cr-sec">
+        <div class="cr-sec-title">At a Glance</div>
+        <div class="cr-kpis">
+          <div class="cr-kpi"><b>${overall !== null ? overall + '%' : '—'}</b><span>Overall Average</span></div>
+          <div class="cr-kpi"><b>${lastPos ? ordinal(lastPos.pos) + ' / ' + lastPos.of : '—'}</b><span>Class Position${lastIdx >= 0 ? ' (' + esc(perf[lastIdx].term) + ')' : ''}</span></div>
+          <div class="cr-kpi"><b>${a.rate !== null ? a.rate + '%' : '—'}</b><span>Attendance</span></div>
+          <div class="cr-kpi"><b>${skillAvg !== null ? skillAvg.toFixed(1) + '/4' : '—'}</b><span>Skills Average</span></div>
+          <div class="cr-kpi"><b class="${moneyCls(f.balance)}">GHS ${fmt(f.balance)}</b><span>Fees Balance</span></div>
+        </div>
+      </div>
+
+      <div class="cr-sec">
+        <div class="cr-sec-title">Academic Performance</div>
+        ${subs.length === 0 ? '<div class="cr-note cr-muted">No subjects are set up for this class.</div>' : `
+        <div class="cr-scroll"><table>
+          <thead><tr><th>Subject</th>${TERMS.map(t => `<th class="c">${esc(t)}</th>`).join('')}</tr></thead>
+          <tbody>
+            ${subs.map((sub, i) => `<tr><td>${esc(sub.name)}</td>${perf.map(x => {
+              const r = x.p.rows[i]; const sc = r ? r.score : null;
+              return `<td class="c">${sc !== null && sc !== undefined ? sc + ' <span class="cr-muted">(' + esc(gradeOf(sc)) + ')</span>' : '—'}</td>`;
+            }).join('')}</tr>`).join('')}
+            <tr class="cr-total"><td>Term Average</td>${perf.map(x => `<td class="c">${x.p.avg !== null ? x.p.avg + '%' : '—'}</td>`).join('')}</tr>
+            <tr class="cr-total"><td>Class Position</td>${perf.map(x => { const ps = x.p.avg !== null ? position(x.term) : null; return `<td class="c">${ps ? ordinal(ps.pos) + ' of ' + ps.of : '—'}</td>`; }).join('')}</tr>
+          </tbody>
+        </table></div>
+        ${strongest ? `<div class="cr-note"><b>Strongest subject (${esc(perf[lastIdx].term)}):</b> ${esc(strongest.sub.name)} — ${strongest.score}%${weakest && weakest !== strongest ? ` &nbsp;|&nbsp; <b>Needs attention:</b> ${esc(weakest.sub.name)} — ${weakest.score}%` : ''}</div>` : ''}
+        ${perf.filter(x => x.p.avg !== null).map(x => {
+          const ht = (db.htComments || {})[s.id + '|' + x.term] || '';
+          return `<div class="cr-note"><b>${esc(x.term)} — Class Teacher:</b> ${esc(overallRemark(x.p.avg))}${ht ? `<br><b>${esc(x.term)} — Headteacher:</b> ${esc(ht)}` : ''}</div>`;
+        }).join('')}`}
+      </div>
+
+      <div class="cr-sec" style="page-break-inside:auto;break-inside:auto">
+        <div class="cr-sec-title">Skills &amp; Conduct — Monthly Assessments</div>
+        ${skillMonthsData.length === 0 ? '<div class="cr-note cr-muted">No monthly skills assessment on record yet.</div>' :
+          skillMonthsData.map(m => `
+          <div class="cr-month">
+            <div class="cr-month-head"><b>${esc(m.month)}</b><span>Average ${m.avg.toFixed(1)}/4 — ${esc(lvl(m.avg))}</span></div>
+            <table><tbody>
+              ${skillList.map(sk => { const v = m.ratings[sk.key]; return `<tr><td>${esc(sk.label)}</td><td style="width:42%">${v ? `<span class="cr-bar ${barCls(v)}"><i style="width:${Math.round(Math.min(v, 4) / 4 * 100)}%"></i></span>${esc(v + ' — ' + (scale[v] || ''))}` : '<span class="cr-muted">Not assessed</span>'}</td></tr>`; }).join('')}
+            </tbody></table>
+          </div>`).join('')}
+      </div>
+
+      <div class="cr-sec">
+        <div class="cr-sec-title">Attendance</div>
+        <div class="cr-note">Present: <b>${a.P}</b> &nbsp;·&nbsp; Absent: <b>${a.A}</b> &nbsp;·&nbsp; Late: <b>${a.L}</b> &nbsp;·&nbsp; Days recorded: <b>${a.total}</b> &nbsp;·&nbsp; Rate: <b>${a.rate !== null ? a.rate + '%' : '—'}</b></div>
+        ${absLate.length ? `<div class="cr-note cr-muted">Recent absences / lateness: ${absLate.map(r => esc(r.date) + (r.status === 'A' ? ' (absent)' : ' (late)')).join(', ')}</div>` : ''}
+      </div>
+
+      <div class="cr-sec">
+        <div class="cr-sec-title">School Fees</div>
+        <div class="cr-scroll"><table>
+          <thead><tr><th>Term</th><th class="c">Billed (GHS)</th><th class="c">Paid (GHS)</th><th class="c">Balance (GHS)</th></tr></thead>
+          <tbody>
+            ${f.carry ? `<tr><td>Carried forward (previous year)</td><td class="c">${fmt(f.carry)}</td><td class="c">—</td><td class="c">${fmt(f.carry)}</td></tr>` : ''}
+            ${f.perTerm.map(r => `<tr><td>${esc(r.term)}${r.reason ? ` <span class="cr-muted">— ${esc(r.reason)}</span>` : ''}</td><td class="c">${fmt(r.billed)}</td><td class="c">${fmt(r.paid)}</td><td class="c ${moneyCls(r.balance)}">${fmt(r.balance)}</td></tr>`).join('')}
+            <tr class="cr-total"><td>Total</td><td class="c">${fmt(f.totalBilled + f.carry)}</td><td class="c">${fmt(f.totalPaid)}</td><td class="c ${moneyCls(f.balance)}">${fmt(f.balance)}</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+
+      <div class="cr-sec">
+        <div class="cr-sec-title">Graphical Analysis — Performance Trend</div>
+        <div class="cr-charts">
+          <div class="cr-chart"><div class="cr-chart-title">Academic average by term (%)</div>${acadChart}</div>
+          <div class="cr-chart"><div class="cr-chart-title">Skills average by month (out of 4)</div>${skillChart}</div>
+        </div>
+        <div class="cr-note cr-muted" style="margin-top:4px">Dashed gold line = overall direction of the trend${acadWith.length > 1 || skillMonthsData.length > 2 ? '' : ' (appears once there are enough data points)'}.</div>
+      </div>
+
+      <div class="cr-sec cr-notes">
+        <div class="cr-sec-title">Academic Intelligence — What the Charts Show</div>
+        ${notes.map(n => `<p>${n}</p>`).join('')}
+      </div>
+
+      <div class="cr-sec">
+        <div class="cr-sec-title">Areas for Improvement</div>
+        <ul class="cr-list">${areas.map(x => `<li class="${x.sev}"><span>${sevIcon[x.sev]}</span><span><b>${esc(x.area)}</b> — ${esc(x.evidence)}</span></li>`).join('')}</ul>
+      </div>
+
+      <div class="cr-sec">
+        <div class="cr-sec-title">Recommendations</div>
+        <ul class="cr-list">${recs.map(r => `<li class="rec"><span>➡️</span><span>${r.html}</span></li>`).join('')}</ul>
+        <div class="cr-note cr-muted" style="margin-top:4px">Notes are generated automatically from this student's recorded results, skills, attendance and fees using fixed rules — a starting point for a conversation, not a substitute for the teacher's judgement.</div>
+      </div>
+
+      <div class="cr-sign"><div>Class Teacher</div><div>Headteacher</div><div>Parent / Guardian</div></div>
+      <div class="cr-foot">Generated on ${esc(today)} from school records · ${esc(schoolName())}</div>
+    </div>`;
+  }
+
+  function renderComprehensiveTab(s) {
+    return `<style>${SR_COMP_CSS}</style>
+      <div class="cr-toolbar">
+        <button class="btn btn-gold btn-sm" onclick="srPrintComprehensive()">🖨️ Print / Save as PDF</button>
+        <span style="font-size:11.5px;color:var(--muted);align-self:center">Profile, results for every term, skills, attendance and fees in one report.</span>
+      </div>
+      <div style="border:1px solid var(--border,#dde2ea);border-radius:8px;overflow:hidden">${buildComprehensiveReportHTML(s)}</div>`;
+  }
+
+  // Print through a hidden frame (no pop-up blocker, and "Save as PDF" in the print dialog gives a PDF)
+  function printHtmlInFrame(title, bodyHtml) {
+    const old = document.getElementById('sr-print-frame');
+    if (old) old.remove();
+    const fr = document.createElement('iframe');
+    fr.id = 'sr-print-frame';
+    fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+    document.body.appendChild(fr);
+    const doc = fr.contentWindow.document;
+    doc.open();
+    doc.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title><style>@page{size:A4 portrait;margin:10mm}body{margin:0;background:#fff}' + SR_COMP_CSS + '</style></head><body>' + bodyHtml + '</body></html>');
+    doc.close();
+    setTimeout(() => {
+      try { fr.contentWindow.focus(); fr.contentWindow.print(); }
+      catch (e) { if (typeof toast === 'function') toast('⚠ Could not open the print dialog'); }
+    }, 450);
+  }
+
+  window.srPrintComprehensive = function() {
+    const s = (db.admissions || []).find(x => x.id === selectedId);
+    if (!s) { if (typeof toast === 'function') toast('⚠ Select a student first'); return; }
+    printHtmlInFrame('Comprehensive Report - ' + (s.name || s.id), buildComprehensiveReportHTML(s));
+  };
+
+  window.srPrintAllComprehensive = function() {
+    const list = (db.admissions || []).filter(s => {
+      if (filterClass && s.cls !== filterClass) return false;
+      if (searchQ) { const q = searchQ.toLowerCase(); if (!_lc(s.name).includes(q) && !_lc(s.id).includes(q)) return false; }
+      return true;
+    }).sort((x, y) => _cmp(x.cls, y.cls) || _cmp(x.name, y.name));
+    if (!list.length) { if (typeof toast === 'function') toast('⚠ No students to print'); return; }
+    if (list.length > 40 && !confirm('Prepare ' + list.length + ' reports (one page set per student)? This may take a moment.')) return;
+    const body = list.map((s, i) => buildComprehensiveReportHTML(s).replace('class="cr-doc"', i < list.length - 1 ? 'class="cr-doc cr-page-break"' : 'class="cr-doc"')).join('');
+    printHtmlInFrame('Comprehensive Reports - ' + (filterClass || 'All classes'), body);
+  };
+
   draw();
 
   // Handlers assigned to window — same pattern used by arTab()/switchStatTab()
@@ -36454,7 +37301,8 @@ function renderStudentRecords() {
   // onclick attributes otherwise.
   window.srSearch = v => { searchQ = v; draw(); };
   window.srClassFilter = v => { filterClass = v; draw(); };
-  window.srSelect = id => { selectedId = id; _srLastSelectedId = id; activeTab = 'profile'; draw(); };
+  window.srSelect = id => { selectedId = id; _srLastSelectedId = id; activeTab = 'profile'; draw();
+    try { if (window.innerWidth <= 768) { const d = document.querySelector('.sr-detail'); if (d && d.scrollIntoView) d.scrollIntoView({ behavior: 'smooth', block: 'start' }); } } catch (e) {} };
   window.srTab = t => { activeTab = t; draw(); };
   window.srPerfTerm = t => { _srPerfTerm = t; draw(); };
   window.srRcTerm = t => { _srRcTerm = t; draw(); };
