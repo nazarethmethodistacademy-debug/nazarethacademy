@@ -46492,6 +46492,7 @@ function renderStaffDatabase() {
       ${e.phone ? `<div style="font-size:10.5px;color:var(--muted);margin-top:2px">📞 ${esc(e.phone)}</div>` : ''}
       <div class="staff-card-actions">
         <button class="btn btn-sm btn-outline" onclick="openStaffProfileView('${e.id}')" title="View Profile">👁️</button>
+        <button class="btn btn-sm btn-outline" onclick="openStaffComprehensiveReport('${e.id}')" title="Comprehensive Report">📑</button>
         ${canEdit ? `<button class="btn btn-sm btn-outline" onclick="openStaffHrModal('${e.id}')" title="Edit HR Details">✏️</button>` : ''}
       </div>
     </div>`).join('') || `<div class="empty-state" style="grid-column:1/-1">
@@ -46541,6 +46542,7 @@ function renderStaffDatabase() {
             <option value="Inactive" ${statusFil==='Inactive'?'selected':''}>Inactive</option>
           </select>
           <div class="spacer"></div>
+          <button class="btn btn-sm btn-outline" onclick="printAllStaffReports()" title="Print comprehensive reports for the staff currently shown">🖨️ Print all reports</button>
           <span style="font-size:12px;color:var(--muted);white-space:nowrap">
             Showing <strong style="color:var(--navy)">${filtered.length}</strong> of ${employees.length}
             ${search ? ' · filtered by “' + esc(prevSearch) + '”' : ''}
@@ -46564,6 +46566,404 @@ function renderStaffDatabase() {
   }
 }
 
+// ══════════════ COMPREHENSIVE STAFF REPORT ══════════════
+// Read-only 360° view built from data that already exists (employees, HR record,
+// appraisals, attendance, leave, trainings, external assessments, payroll, activity).
+const SC_EXTRA_CSS = `
+.sc-row{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:11.5px}
+.sc-l{flex:0 0 38%;min-width:0;overflow-wrap:anywhere}
+.sc-bar{flex:1;height:8px;background:#e3e7ef;border-radius:4px;overflow:hidden;min-width:30px}
+.sc-bar i{display:block;height:100%;background:#12284c}
+.sc-bar.lo i{background:#b3261e}.sc-bar.mid i{background:#c9a227}.sc-bar.hi i{background:#1b7a43}
+.sc-v{flex:0 0 40px;text-align:right;font-weight:700}
+.sc-tw{overflow-x:auto;max-width:100%}
+.cr-doc table{min-width:0 !important;width:100%}.sc-tw table{min-width:0 !important}
+.sc-info{table-layout:fixed}.sc-info td{overflow-wrap:anywhere;word-break:break-word}
+.cr-doc td,.cr-doc th{overflow-wrap:anywhere}
+@media (max-width:640px){.sc-l{flex-basis:44%}}
+`;
+function scNum(v){ const n = parseFloat(v); return Number.isFinite(n) ? n : null; }
+function scPlain(s){ return String(s == null ? '' : s).replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>'); }
+function scAvg(a){ a = a.filter(x => x != null && Number.isFinite(x)); return a.length ? a.reduce((x,y)=>x+y,0)/a.length : null; }
+function scDate(s){
+  const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(s || '') || '—';
+  const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m[2]-1] || m[2];
+  return (+m[3]) + ' ' + mo + ' ' + m[1];
+}
+function scMins(t){ const m = String(t || '').match(/^(\d{1,2}):(\d{2})/); return m ? (+m[1])*60 + (+m[2]) : null; }
+function scYearsSince(s){
+  const d = new Date(String(s || '')); if (isNaN(d)) return null;
+  return Math.max(0, (Date.now() - d.getTime()) / (365.25*86400000));
+}
+function scBand(p){
+  if (p == null) return 'No rating';
+  return p >= 80 ? 'Excellent' : p >= 60 ? 'Good' : p >= 40 ? 'Fair' : 'Needs support';
+}
+
+function scSvgChart(labels, values, o){
+  o = o || {};
+  const pts = []; (values || []).forEach((v,i) => { if (v != null && Number.isFinite(v)) pts.push({ i, v, l: labels[i] }); });
+  if (!pts.length) return '<div style="font-size:11px;color:#6b7686;padding:20px 0;text-align:center">No data yet</div>';
+  const W = 420, H = 210, L = 38, R = 12, T = 18, B = 40, P = 26;
+  const min = o.min != null ? o.min : 0, max = o.max != null ? o.max : 100;
+  const n = Math.max(labels.length, 1);
+  const x = i => L + P + (n === 1 ? (W-L-R-2*P)/2 : (i * (W-L-R-2*P)) / (n-1));
+  const y = v => T + (H-T-B) * (1 - (Math.min(max,Math.max(min,v)) - min) / ((max-min) || 1));
+  let g = '';
+  const ticks = o.ticks || 4;
+  for (let t = 0; t <= ticks; t++) {
+    const val = min + (max-min)*t/ticks, yy = y(val);
+    g += `<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="#e3e7ee" stroke-width="1"/><text x="${L-5}" y="${yy+3}" text-anchor="end" font-size="9" fill="#6b7686">${Math.round(val)}</text>`;
+  }
+  const step = Math.max(1, Math.ceil(n / 7));
+  labels.forEach((l,i) => { if (i % step === 0 || i === n-1) g += `<text x="${x(i)}" y="${H-B+14}" text-anchor="middle" font-size="9" fill="#44505f">${esc(String(l).slice(0,10))}</text>`; });
+  let body = '';
+  if (o.bars) {
+    const bw = Math.min(28, (W-L-R-2*P)/n*0.6);
+    pts.forEach(p => { body += `<rect x="${x(p.i)-bw/2}" y="${y(p.v)}" width="${bw}" height="${(H-B)-y(p.v)}" rx="2" fill="#1f3a68" opacity=".85"/>`; });
+  } else {
+    body += `<polyline fill="none" stroke="#1f3a68" stroke-width="2.2" points="${pts.map(p => x(p.i)+','+y(p.v)).join(' ')}"/>`;
+    pts.forEach(p => { body += `<circle cx="${x(p.i)}" cy="${y(p.v)}" r="3.2" fill="#1f3a68"/>`; });
+  }
+  if (pts.length >= (o.bars ? 2 : 3)) {
+    const nn = pts.length, sx = pts.reduce((a,p)=>a+p.i,0), sy = pts.reduce((a,p)=>a+p.v,0);
+    const sxy = pts.reduce((a,p)=>a+p.i*p.v,0), sxx = pts.reduce((a,p)=>a+p.i*p.i,0);
+    const den = nn*sxx - sx*sx;
+    if (den) {
+      const sl = (nn*sxy - sx*sy)/den, ic = (sy - sl*sx)/nn;
+      const a = pts[0].i, b = pts[nn-1].i;
+      body += `<line x1="${x(a)}" y1="${y(ic+sl*a)}" x2="${x(b)}" y2="${y(ic+sl*b)}" stroke="#c9961a" stroke-width="1.8" stroke-dasharray="5 4"/>`;
+    }
+  }
+  pts.forEach(p => { body += `<text x="${x(p.i)}" y="${y(p.v)-7}" text-anchor="middle" font-size="9" font-weight="700" fill="#1a2233">${Math.round(p.v*10)/10}${o.unit || ''}</text>`; });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(o.aria || 'Chart')}" style="max-width:100%;height:auto;display:block">${g}${body}</svg>`;
+}
+
+function scSlope(vals){
+  const p = []; vals.forEach((v,i) => { if (v != null && Number.isFinite(v)) p.push([i,v]); });
+  if (p.length < 2) return null;
+  const n = p.length, sx = p.reduce((a,q)=>a+q[0],0), sy = p.reduce((a,q)=>a+q[1],0);
+  const sxy = p.reduce((a,q)=>a+q[0]*q[1],0), sxx = p.reduce((a,q)=>a+q[0]*q[0],0);
+  const den = n*sxx - sx*sx; return den ? (n*sxy - sx*sy)/den : 0;
+}
+function scTrendWord(vals, unit){
+  const s = scSlope(vals); if (s == null) return null;
+  if (s > 1.5) return 'rising';
+  if (s < -1.5) return 'declining';
+  return 'steady';
+}
+
+function scGather(empId){
+  const base = (db.employees || []).find(x => x && String(x.id) === String(empId));
+  if (!base) return null;
+  const e = employeeWithHr(base);
+  const id = String(e.id);
+  const D = {};
+  D.e = e;
+  // Appraisals
+  D.apps = (db.appraisals || []).filter(a => a && String(a.employeeId) === id)
+    .sort((a,b) => String(a.date || '').localeCompare(String(b.date || '')));
+  D.appPcts = D.apps.map(a => aprOverallPercent(a.criteria || {}));
+  const critAgg = {};
+  D.apps.forEach(a => {
+    const set = Array.isArray(a.criteriaSet) ? a.criteriaSet : [];
+    Object.keys(a.criteria || {}).forEach(k => {
+      const v = a.criteria[k]; if (typeof v !== 'number' || v <= 0) return;
+      const def = set.find(c => c && c.key === k) || (typeof APPRAISAL_CRITERIA !== 'undefined' ? APPRAISAL_CRITERIA.find(c => c.key === k) : null);
+      const label = scPlain(def && def.label) || k.replace(/[_-]/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+      (critAgg[k] = critAgg[k] || { label, vals: [], comments: [] }).vals.push(v);
+      const cm = a.criteriaComments && a.criteriaComments[k];
+      if (cm) critAgg[k].comments.push(String(cm));
+    });
+  });
+  D.crit = Object.keys(critAgg).map(k => ({ key:k, label: critAgg[k].label, avg: scAvg(critAgg[k].vals), pct: Math.round(scAvg(critAgg[k].vals)/5*100), comments: critAgg[k].comments.slice(-2) }))
+    .sort((a,b) => b.pct - a.pct);
+  // Attendance
+  const att = db.staffAttendance || {};
+  const months = {}; D.att = { total:0, present:0, late:0, absent:0, inMins:[], hours:[] };
+  Object.keys(att).sort().forEach(date => {
+    const row = att[date] && att[date][id]; if (!row || typeof row !== 'object') return;
+    const st = String(row.status || '').toLowerCase();
+    if (!st && !row.in) return;
+    const mk = String(date).slice(0,7);
+    const m = months[mk] = months[mk] || { total:0, present:0 };
+    D.att.total++; m.total++;
+    const isPresent = st === 'present' || st === 'late' || !!row.in;
+    if (isPresent) { D.att.present++; m.present++; }
+    if (st === 'late') D.att.late++;
+    if (st === 'absent' && !row.in) D.att.absent++;
+    const a = scMins(row.in), b = scMins(row.out);
+    if (a != null) D.att.inMins.push(a);
+    if (a != null && b != null && b > a) D.att.hours.push((b-a)/60);
+  });
+  D.att.rate = D.att.total ? Math.round(D.att.present/D.att.total*1000)/10 : null;
+  D.attMonths = Object.keys(months).sort().map(k => ({ key:k, rate: Math.round(months[k].present/months[k].total*1000)/10, total: months[k].total }));
+  // Leave
+  D.leave = (db.staffLeave || []).filter(l => l && String(l.empId) === id)
+    .sort((a,b) => String(b.startDate || '').localeCompare(String(a.startDate || '')));
+  const yr = new Date().getFullYear();
+  D.leaveEnt = scNum(e.leaveEntitlement); if (D.leaveEnt == null) D.leaveEnt = 15;
+  D.leaveUsed = D.leave.filter(l => l.status === 'Approved' && l.type === 'Annual Leave' && String(l.startDate || '').startsWith(String(yr))).reduce((a,l)=>a+(scNum(l.days)||0),0);
+  D.leaveYear = yr;
+  D.leaveDaysAll = D.leave.filter(l => l.status === 'Approved').reduce((a,l)=>a+(scNum(l.days)||0),0);
+  // Training
+  D.trainings = (db.trainings || []).filter(t => t && Array.isArray(t.participants) && t.participants.map(String).includes(id));
+  D.trDone = D.trainings.filter(t => isStaffTrainingCompleted(t, id)).length;
+  // External assessments
+  D.ext = (db.teacherExternalAssessments || []).filter(a => a && String(a.employeeId) === id)
+    .sort((a,b) => String(a.date || '').localeCompare(String(b.date || '')));
+  D.extPcts = D.ext.map(a => { try { return teaScorePercent(a); } catch (_) { return null; } });
+  // Payroll
+  D.pay = null;
+  if (typeof canAccessPage === 'function' && canAccessPage('payroll')) {
+    const lines = [];
+    (db.payrollRuns || []).forEach(run => (run && run.lines || []).forEach(l => { if (l && String(l.empId) === id) lines.push({ period: (run.month || '') + ' ' + (run.year || ''), l }); }));
+    D.pay = { lines, gross: lines.reduce((a,x)=>a+(scNum(x.l.gross)||0),0), net: lines.reduce((a,x)=>a+(scNum(x.l.net)||0),0) };
+  }
+  // System activity (last 30 days) — only if the staff member has a login username
+  D.act = null;
+  try {
+    const uname = String(e.username || '').trim().toLowerCase();
+    if (uname) {
+      const cut = Date.now() - 30*86400000;
+      const cnt = (arr, ...fields) => (Array.isArray(arr) ? arr : []).filter(r => r && fields.some(f => String(r[f] || '').toLowerCase() === uname) && (!r.timestamp || r.timestamp >= cut)).length;
+      D.act = { grades: cnt(db.grades, 'recordedBy', 'teacher', 'enteredBy'), skills: cnt(db.skillAssessments, 'recordedBy', 'teacher', 'enteredBy') };
+    }
+  } catch (_) { D.act = null; }
+  // Duty roster slots
+  let duty = 0;
+  try {
+    Object.keys(db.dutyRoster || {}).forEach(wk => {
+      const slots = db.dutyRoster[wk] && db.dutyRoster[wk].slots;
+      if (!slots) return;
+      JSON.stringify(slots, (k, v) => { if ((k === 'empId' || k === 'employeeId' || k === 'staffId') && String(v) === id) duty++; return v; });
+    });
+  } catch (_) {}
+  D.duty = duty;
+  return D;
+}
+
+function scNotes(D){
+  const e = D.e, notes = [], imp = [], rec = [], str = [];
+  const latest = D.appPcts.length ? D.appPcts[D.appPcts.length-1] : null;
+  const avgApp = scAvg(D.appPcts);
+  const tw = scTrendWord(D.appPcts);
+  if (!D.apps.length) {
+    notes.push('No performance appraisal has been recorded for ' + (e.name || 'this staff member') + ' yet, so there is no appraisal trend to describe.');
+    rec.push('Schedule a performance appraisal this term so that a baseline can be set.');
+  } else {
+    let s = 'Across ' + D.apps.length + ' appraisal' + (D.apps.length>1?'s':'') + ', the average score is ' + Math.round(avgApp) + '% (' + scBand(avgApp) + '); the latest is ' + latest + '%.';
+    if (tw === 'rising') s += ' The trend line is rising, which shows steady improvement.';
+    else if (tw === 'declining') s += ' The trend line is declining, which needs attention.';
+    else if (tw === 'steady' && D.apps.length >= 2) s += ' Performance has been broadly steady.';
+    notes.push(s);
+    if (tw === 'declining') { imp.push('Appraisal scores are falling over time.'); rec.push('Hold a supportive one-to-one review to find the cause of the decline and agree a short improvement plan.'); }
+    if (latest != null && latest < 50) { imp.push('The latest appraisal is below 50%.'); rec.push('Provide mentoring or coaching and re-appraise within the next term.'); }
+    if (latest != null && latest >= 80) str.push('Latest appraisal rated Excellent (' + latest + '%).');
+    if (D.crit.length) {
+      const top = D.crit.slice(0,2).filter(c => c.pct >= 70), low = D.crit.slice().reverse().slice(0,2).filter(c => c.pct < 70);
+      top.forEach(c => str.push(c.label + ' is a strength (' + c.pct + '%).'));
+      low.forEach(c => { imp.push(c.label + ' scored ' + c.pct + '% on average.'); rec.push('Target training or coaching on “' + c.label + '”.'); });
+    }
+  }
+  if (D.att.total) {
+    const at = D.att.rate, atw = scTrendWord(D.attMonths.map(m => m.rate));
+    let s = 'Attendance is ' + at + '% over ' + D.att.total + ' recorded day' + (D.att.total>1?'s':'') + (D.att.late ? ', with ' + D.att.late + ' late arrival' + (D.att.late>1?'s':'') : '') + '.';
+    if (atw === 'declining') s += ' Monthly attendance is trending down.';
+    else if (atw === 'rising') s += ' Monthly attendance is improving.';
+    notes.push(s);
+    if (at >= 95) str.push('Excellent attendance (' + at + '%).');
+    if (at < 90) { imp.push('Attendance is below 90%.'); rec.push('Discuss reasons for absences and agree on reliable reporting arrangements.'); }
+    if (D.att.late >= 3 && D.att.late / D.att.total > 0.15) { imp.push('Frequent late arrivals (' + D.att.late + ').'); rec.push('Remind the staff member of the ' + STAFF_ATTENDANCE_LATE_AFTER + ' reporting time and agree on punctuality targets.'); }
+  } else {
+    notes.push('No staff attendance has been recorded for this person, so punctuality cannot be assessed.');
+  }
+  const extAvg = scAvg(D.extPcts);
+  if (D.ext.length) {
+    notes.push('External assessment average is ' + Math.round(extAvg*10)/10 + '% across ' + D.ext.length + ' visit' + (D.ext.length>1?'s':'') + '.');
+    if (extAvg != null && extAvg < 50) { imp.push('External assessment results are below 50%.'); rec.push('Arrange classroom support and follow-up observation after the external feedback.'); }
+    if (extAvg != null && extAvg >= 75) str.push('Strong external assessment results (' + Math.round(extAvg) + '%).');
+  }
+  if (D.trainings.length) {
+    notes.push('Training: ' + D.trDone + ' of ' + D.trainings.length + ' assigned session' + (D.trainings.length>1?'s':'') + ' completed.');
+    if (D.trDone < D.trainings.length) { imp.push((D.trainings.length - D.trDone) + ' assigned training(s) not yet completed.'); rec.push('Complete the outstanding training sessions.'); }
+    else str.push('All assigned training completed.');
+  }
+  if (D.leaveEnt > 0 && D.leaveUsed / D.leaveEnt >= 0.9) rec.push('Annual leave is almost used up — plan remaining leave carefully.');
+  if (D.leaveEnt > 0 && D.leaveUsed === 0 && new Date().getMonth() >= 9) rec.push('No annual leave has been taken this year — encourage the staff member to take rest.');
+  const missing = [];
+  if (!e.hrQualification) missing.push('qualification'); if (!e.hrDob) missing.push('date of birth'); if (!e.hrEcName) missing.push('emergency contact'); if (!e.phone) missing.push('phone');
+  if (missing.length) { imp.push('HR profile is incomplete (missing ' + missing.join(', ') + ').'); rec.push('Complete the HR profile in Teachers & Staff Database.'); }
+  if (!e.username) rec.push('Link a login username on the payroll profile so system activity and My Appraisal can work.');
+  if (!imp.length) imp.push('No significant concerns identified from the available records.');
+  if (!rec.push && !rec.length) rec.push('Keep up the good work.');
+  if (!rec.length) rec.push('Continue current practice and review again next term.');
+  if (!str.length) str.push('No standout strengths could be drawn from the available data yet.');
+  return { notes, imp, rec, str };
+}
+
+function buildStaffReportHtml(empId, opts){
+  const D = scGather(empId); if (!D) return '<div style="padding:20px">Staff record not found.</div>';
+  const e = D.e, N = scNotes(D);
+  const row = (k, v) => `<tr><td style="width:34%;color:#6b7686;padding:4px 8px 4px 0;vertical-align:top">${esc(k)}</td><td style="padding:4px 0"><strong>${esc(v == null || v === '' ? '—' : String(v))}</strong></td></tr>`;
+  const kpi = (label, val, sub) => `<div class="cr-kpi"><b>${esc(String(val))}</b><span>${esc(label)}</span>${sub ? `<div style="font-size:9px;color:#6b7686;margin-top:2px">${esc(sub)}</div>` : ''}</div>`;
+  const age = scYearsSince(e.hrDob);
+  const hire = e.hireDate || e.dateJoined || e.hrHireDate || e.startDate || '';
+  const svc = scYearsSince(hire);
+  const latest = D.appPcts.length ? D.appPcts[D.appPcts.length-1] : null;
+  const extAvg = scAvg(D.extPcts);
+  const avgIn = scAvg(D.att.inMins), avgHrs = scAvg(D.att.hours);
+  const hhmm = m => m == null ? '—' : String(Math.floor(m/60)).padStart(2,'0') + ':' + String(Math.round(m%60)).padStart(2,'0');
+  let h = `<div class="cr-doc">
+    <div class="cr-head">
+      <div class="cr-head-text"><div class="cr-title" style="margin-bottom:6px">COMPREHENSIVE STAFF REPORT</div>
+      <div style="font-size:12px;color:#44505f">${esc(typeof schoolName === 'function' ? schoolName() : '')} · Academic Year ${esc(String(ACTIVE_YEAR || '').replace('_','/'))}</div></div>
+      <div style="font-size:11px;color:#6b7686;text-align:right;flex:0 0 auto">Generated ${esc(scDate(new Date().toISOString().slice(0,10)))}</div>
+    </div>
+    <div class="cr-sec"><div class="cr-sec-title">1. Staff Information</div>
+      <table class="sc-info" style="width:100%;font-size:12px;border-collapse:collapse"><tbody>
+        ${row('Full name', e.name)}${row('Staff ID', e.staffId || e.id)}${row('Role', e.role)}${row('Department', e.dept)}
+        ${row('Status', e.status)}${row('Contract', e.hrContract || 'Permanent')}${row('Qualification', e.hrQualification)}
+        ${row('Date of birth', e.hrDob ? scDate(e.hrDob) + (age != null ? ' (age ' + Math.floor(age) + ')' : '') : '')}
+        ${row('Gender', e.hrGender)}${row('Phone', e.phone)}${row('Email', e.email)}${row('Address', e.hrAddress)}
+        ${row('Emergency contact', e.hrEcName ? e.hrEcName + ' (' + (e.hrEcRel || '—') + ') — ' + (e.hrEcPhone || '—') : '')}
+        ${hire ? row('Date joined', scDate(hire) + (svc != null ? ' (' + svc.toFixed(1) + ' yrs)' : '')) : ''}
+        ${row('System username', e.username)}${row('Notes', e.hrNotes || e.notes)}
+      </tbody></table>
+    </div>
+    <div class="cr-sec"><div class="cr-sec-title">2. At a Glance</div>
+      <div class="cr-kpis">
+        ${kpi('Latest appraisal', latest != null ? latest + '%' : '—', latest != null ? scBand(latest) : 'none recorded')}
+        ${kpi('Attendance', D.att.rate != null ? D.att.rate + '%' : '—', D.att.total + ' days recorded')}
+        ${kpi('Late arrivals', D.att.total ? D.att.late : '—')}
+        ${kpi('Annual leave left', Math.max(0, D.leaveEnt - D.leaveUsed) + 'd', 'of ' + D.leaveEnt + ' (' + D.leaveYear + ')')}
+        ${kpi('Training', D.trainings.length ? D.trDone + '/' + D.trainings.length : '—', 'completed')}
+        ${kpi('External assess.', extAvg != null ? Math.round(extAvg) + '%' : '—', D.ext.length + ' visit(s)')}
+      </div>
+    </div>
+    <div class="cr-sec"><div class="cr-sec-title">3. Performance Appraisals</div>`;
+  if (D.apps.length) {
+    h += `<div class="sc-tw"><table style="width:100%;font-size:11.5px;border-collapse:collapse"><thead><tr style="background:#1f3a68;color:#fff"><th style="text-align:left;padding:5px 6px">Term</th><th style="text-align:left;padding:5px 6px">Date</th><th style="text-align:left;padding:5px 6px">Reviewer</th><th style="text-align:right;padding:5px 6px">Score</th><th style="text-align:left;padding:5px 6px">Rating</th></tr></thead><tbody>` +
+      D.apps.map((a,i) => `<tr style="border-bottom:1px solid #e3e7ee"><td style="padding:4px 6px">${esc(scPlain(a.period || a.term || '—'))}</td><td style="padding:4px 6px">${esc(scDate(a.date))}</td><td style="padding:4px 6px">${esc(a.reviewer || '—')}</td><td style="padding:4px 6px;text-align:right"><strong>${D.appPcts[i]}%</strong></td><td style="padding:4px 6px">${esc(scBand(D.appPcts[i]))}</td></tr>`).join('') + `</tbody></table></div>`;
+    if (D.crit.length) {
+      h += `<div style="font-weight:700;font-size:12px;margin:12px 0 6px">Criteria averages</div>` +
+        D.crit.map(c => `<div class="sc-row"><div class="sc-l">${esc(c.label)}</div><div class="sc-bar ${c.pct>=70?'hi':c.pct>=50?'mid':'lo'}"><i style="width:${Math.min(100,c.pct)}%"></i></div><div class="sc-v">${c.pct}%</div></div>` +
+          (c.comments.length ? `<div style="font-size:10.5px;color:#6b7686;margin:-2px 0 6px 4px">“${esc(c.comments.join(' · '))}”</div>` : '')).join('');
+    }
+    const last = D.apps[D.apps.length-1];
+    [['Strengths noted', last.strengths], ['Areas to improve noted by reviewer', last.improvements], ['Goals set', last.goals]].forEach(p => { if (p[1]) h += `<div style="font-size:11.5px;margin-top:8px"><strong>${p[0]}:</strong> ${esc(String(p[1]))}</div>`; });
+  } else h += `<div style="font-size:12px;color:#6b7686">No appraisals recorded.</div>`;
+  h += `</div>
+    <div class="cr-sec"><div class="cr-sec-title">4. Attendance &amp; Punctuality</div>
+      <div class="cr-kpis">
+        ${kpi('Days recorded', D.att.total)}${kpi('Present', D.att.present)}${kpi('Late', D.att.late)}${kpi('Absent', D.att.absent)}
+        ${kpi('Avg clock-in', hhmm(avgIn))}${kpi('Avg hours/day', avgHrs != null ? avgHrs.toFixed(1) : '—')}
+      </div>
+      ${D.attMonths.length ? D.attMonths.map(m => `<div class="sc-row"><div class="sc-l" style="flex-basis:70px">${esc(m.key)}</div><div class="sc-bar ${m.rate>=90?'hi':m.rate>=75?'mid':'lo'}"><i style="width:${Math.min(100,m.rate)}%"></i></div><div class="sc-v" style="flex-basis:84px">${m.rate}% <span style="color:#6b7686;font-weight:400">(${m.total}d)</span></div></div>`).join('') : '<div style="font-size:12px;color:#6b7686">No attendance recorded.</div>'}
+    </div>
+    <div class="cr-sec"><div class="cr-sec-title">5. Leave</div>
+      <div style="font-size:12px;margin-bottom:6px">Annual entitlement <strong>${D.leaveEnt}</strong> days · used in ${D.leaveYear} <strong>${D.leaveUsed}</strong> · balance <strong>${Math.max(0,D.leaveEnt-D.leaveUsed)}</strong> · all approved leave <strong>${D.leaveDaysAll}</strong> days</div>
+      ${D.leave.length ? `<div class="sc-tw"><table style="width:100%;font-size:11.5px;border-collapse:collapse"><tbody>` + D.leave.slice(0,12).map(l => `<tr style="border-bottom:1px solid #e3e7ee"><td style="padding:4px 6px">${esc(l.type || '—')}</td><td style="padding:4px 6px">${esc(scDate(l.startDate))} – ${esc(scDate(l.endDate))}</td><td style="padding:4px 6px">${esc(String(l.days == null ? '—' : l.days))}d</td><td style="padding:4px 6px">${esc(l.status || '—')}</td></tr>`).join('') + `</tbody></table></div>` : '<div style="font-size:12px;color:#6b7686">No leave requests.</div>'}
+    </div>
+    <div class="cr-sec"><div class="cr-sec-title">6. Training &amp; Development</div>
+      ${D.trainings.length ? `<div class="sc-tw"><table style="width:100%;font-size:11.5px;border-collapse:collapse"><tbody>` + D.trainings.map(t => `<tr style="border-bottom:1px solid #e3e7ee"><td style="padding:4px 6px">${esc(t.title || '—')}</td><td style="padding:4px 6px">${esc(t.category || '')}</td><td style="padding:4px 6px">${esc(scDate(t.date))}</td><td style="padding:4px 6px"><strong>${isStaffTrainingCompleted(t, e.id) ? '✓ Completed' : 'Pending'}</strong></td></tr>`).join('') + `</tbody></table></div>` : '<div style="font-size:12px;color:#6b7686">No trainings assigned.</div>'}
+    </div>
+    <div class="cr-sec"><div class="cr-sec-title">7. External Assessments</div>
+      ${D.ext.length ? `<div class="sc-tw"><table style="width:100%;font-size:11.5px;border-collapse:collapse"><tbody>` + D.ext.map((a,i) => `<tr style="border-bottom:1px solid #e3e7ee"><td style="padding:4px 6px">${esc(scDate(a.date))}</td><td style="padding:4px 6px">${esc(a.term || '')}</td><td style="padding:4px 6px">${esc(a.assessor || a.body || '—')}</td><td style="padding:4px 6px;text-align:right"><strong>${D.extPcts[i] != null ? D.extPcts[i] + '%' : '—'}</strong></td></tr>`).join('') + `</tbody></table></div>` : '<div style="font-size:12px;color:#6b7686">No external assessments recorded.</div>'}
+    </div>`;
+  if (D.pay) {
+    const lp = D.pay.lines[D.pay.lines.length-1];
+    h += `<div class="cr-sec"><div class="cr-sec-title">8. Payroll Summary <span style="font-weight:400;font-size:10px;color:#6b7686">(confidential)</span></div>
+      <div class="cr-kpis">${kpi('Basic salary', 'GHS ' + fmt(scNum(e.basic) || 0))}${kpi('Payslips', D.pay.lines.length)}${kpi('Gross (total)', 'GHS ' + fmt(D.pay.gross))}${kpi('Net (total)', 'GHS ' + fmt(D.pay.net))}</div>
+      ${lp ? `<div style="font-size:11.5px">Latest payslip (${esc(lp.period)}): basic GHS ${fmt(scNum(lp.l.basic)||0)}, allowances GHS ${fmt(scNum(lp.l.allowances)||0)}, gross GHS ${fmt(scNum(lp.l.gross)||0)}, net GHS ${fmt(scNum(lp.l.net)||0)}.</div>` : '<div style="font-size:12px;color:#6b7686">No payslips yet.</div>'}
+    </div>`;
+  }
+  h += `<div class="cr-sec"><div class="cr-sec-title">${D.pay ? '9' : '8'}. System Activity &amp; Duties</div>
+      <div style="font-size:12px">${D.act ? `Last 30 days: <strong>${D.act.grades}</strong> grade entries, <strong>${D.act.skills}</strong> skill assessments. ` : 'No login username linked, so system activity cannot be measured. '}Duty roster slots: <strong>${D.duty}</strong>.</div>
+    </div>
+    <div class="cr-sec cr-page-break"><div class="cr-sec-title">${D.pay ? '10' : '9'}. Performance Trends</div>
+      <div class="cr-charts">
+        <div class="cr-chart"><div class="cr-chart-title">Appraisal score (%)</div>${scSvgChart(D.apps.map(a => String(a.term || a.date || '').slice(0,10)), D.appPcts, { aria:'Appraisal trend', unit:'%' })}</div>
+        <div class="cr-chart"><div class="cr-chart-title">Monthly attendance (%)</div>${scSvgChart(D.attMonths.map(m => m.key), D.attMonths.map(m => m.rate), { aria:'Attendance by month', bars:true, unit:'%' })}</div>
+        ${D.ext.length ? `<div class="cr-chart"><div class="cr-chart-title">External assessment (%)</div>${scSvgChart(D.ext.map(a => String(a.date || '').slice(0,10)), D.extPcts, { aria:'External assessment trend', unit:'%' })}</div>` : ''}
+      </div>
+      <div style="font-size:10px;color:#6b7686;margin-top:4px">Dashed gold line = overall trend.</div>
+      <div class="cr-notes"><div style="font-weight:700;margin-bottom:4px">What the charts show</div>${N.notes.map(n => `<p style="margin:0 0 6px">${esc(n)}</p>`).join('')}</div>
+    </div>
+    <div class="cr-sec"><div class="cr-sec-title">${D.pay ? '11' : '10'}. Strengths, Areas for Improvement &amp; Recommendations</div>
+      <div style="font-weight:700;font-size:12px;margin:4px 0">Strengths</div><ul class="cr-list">${N.str.map(s => `<li class="str">${esc(s)}</li>`).join('')}</ul>
+      <div style="font-weight:700;font-size:12px;margin:8px 0 4px">Areas for improvement</div><ul class="cr-list">${N.imp.map(s => `<li class="hi">${esc(s)}</li>`).join('')}</ul>
+      <div style="font-weight:700;font-size:12px;margin:8px 0 4px">Recommendations</div><ul class="cr-list">${N.rec.map(s => `<li class="rec">${esc(s)}</li>`).join('')}</ul>
+      <div style="font-size:10px;color:#6b7686;margin-top:6px">Notes are generated automatically from the records above and should be read alongside professional judgement.</div>
+    </div>
+    <div class="cr-sign"><div>Headteacher / Reviewer</div><div>Staff member</div><div>Date</div></div>
+    <div class="cr-foot">Confidential — ${esc(typeof schoolName === 'function' ? schoolName() : '')}</div>
+  </div>`;
+  return h;
+}
+
+function scPrintFrame(title, bodyHtml){
+  let fr = document.getElementById('sc-print-frame');
+  if (fr) fr.remove();
+  fr = document.createElement('iframe');
+  fr.id = 'sc-print-frame';
+  fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+  document.body.appendChild(fr);
+  const doc = fr.contentWindow.document;
+  doc.open();
+  doc.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title><style>@page{size:A4 portrait;margin:10mm}body{margin:0;background:#fff}' + SR_COMP_CSS + SC_EXTRA_CSS + '</style></head><body>' + bodyHtml + '</body></html>');
+  doc.close();
+  setTimeout(() => { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (err) { toast('⚠ Could not open the print dialog'); } }, 450);
+}
+
+function openStaffComprehensiveReport(id){
+  let html;
+  try { html = buildStaffReportHtml(id); }
+  catch (err) { console.error(err); toast('⚠ Could not build the report: ' + (err && err.message || err)); return; }
+  const emp = (db.employees || []).find(x => x && String(x.id) === String(id));
+  const old = document.getElementById('staff-comp-modal'); if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.className = 'modal-overlay open'; ov.id = 'staff-comp-modal';
+  ov.innerHTML = `<style>${SR_COMP_CSS}${SC_EXTRA_CSS}
+    #staff-comp-modal .sc-box{width:min(940px,96vw);max-height:92vh;display:flex;flex-direction:column;background:var(--white,#fff);border-radius:12px;overflow:hidden}
+    #staff-comp-modal .sc-body{overflow:auto;padding:14px;background:#f4f1ea;-webkit-overflow-scrolling:touch}
+    #staff-comp-modal .cr-doc{box-shadow:0 1px 6px rgba(0,0,0,.12)}
+    @media(max-width:768px){#staff-comp-modal .sc-box{width:100vw;max-height:100vh;height:100vh;border-radius:0}#staff-comp-modal .sc-body{padding:6px}}
+  </style>
+    <div class="sc-box">
+      <div class="modal-header"><span class="modal-title">📑 Comprehensive Report — ${esc(emp ? emp.name : '')}</span>
+        <span style="display:flex;gap:8px;align-items:center"><button class="btn btn-sm btn-primary" onclick="printStaffReport('${esc(String(id))}')">🖨️ Print / Save PDF</button>
+        <button class="modal-close" onclick="document.getElementById('staff-comp-modal').remove()">✕</button></span></div>
+      <div class="sc-body">${html}</div>
+    </div>`;
+  ov.addEventListener('click', ev => { if (ev.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+function printStaffReport(id){
+  try { const emp = (db.employees || []).find(x => x && String(x.id) === String(id)); scPrintFrame('Staff Report — ' + (emp ? emp.name : ''), buildStaffReportHtml(id)); }
+  catch (err) { console.error(err); toast('⚠ Could not print the report: ' + (err && err.message || err)); }
+}
+
+function sdFilteredStaff(){
+  const search = ((document.getElementById('sd-search') || {value:''}).value || '').toLowerCase().trim();
+  const deptFil = (document.getElementById('sd-dept-filter') || {value:''}).value;
+  const statusFil = (document.getElementById('sd-status-filter') || {value:''}).value;
+  return (db.employees || []).filter(Boolean).map(employeeWithHr).filter(e =>
+    staffMatchesSearch(e, search) && (!deptFil || e.dept === deptFil) && (!statusFil || e.status === statusFil));
+}
+
+function printAllStaffReports(){
+  const list = sdFilteredStaff();
+  if (!list.length) { toast('⚠ No staff to print'); return; }
+  if (list.length > 5 && !confirm('Print reports for ' + list.length + ' staff members? This produces one report per person.')) return;
+  try {
+    const parts = list.map((e,i) => '<div' + (i ? ' style="page-break-before:always;break-before:page"' : '') + '>' + buildStaffReportHtml(e.id) + '</div>');
+    scPrintFrame('Staff Reports', parts.join(''));
+  } catch (err) { console.error(err); toast('⚠ Could not build the reports: ' + (err && err.message || err)); }
+}
+
 function openStaffProfileView(id) {
   const base = (db.employees || []).find(x => x.id == id);
   if (!base) return;
@@ -46573,7 +46973,8 @@ function openStaffProfileView(id) {
     <div>${esc(value || '—')}</div>
   </div>`;
   showInfoModal(`👤 ${esc(e.name)}`, `
-    <div style="margin-bottom:14px;color:var(--muted)">${esc(e.role || '')} — ${esc(e.dept || '')}</div>
+    <div style="margin-bottom:14px;color:var(--muted)">${esc(e.role || '')} — ${esc(e.dept || '')}
+      <button class="btn btn-sm btn-primary" style="margin-left:10px" onclick="document.getElementById('generic-info-modal').remove();openStaffComprehensiveReport('${e.id}')">📑 Comprehensive Report</button></div>
     ${row('Status', e.status)}
     ${row('Contract', e.hrContract || 'Permanent')}
     ${row('Qualification', e.hrQualification)}
