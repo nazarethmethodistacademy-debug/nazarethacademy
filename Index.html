@@ -2533,7 +2533,7 @@
     .kg-rc-card { padding: 14px 10px !important; overflow-x: auto; }
     .kg-rc-table { font-size: 10.5px; }
     .kg-rc-table th, .kg-rc-table td { padding: 4px 3px; }
-    .kg-rc-table th { color: var(--navy) !important; }
+    .kg-rc-table th { background: var(--navy) !important; color: #ffffff !important; }
     .kg-rc-table th:first-child { color: var(--gold2) !important; }
     .kg-rc-info-row { flex-direction: column; gap: 4px; }
     .kg-rc-info-row .kg-rc-info-col { text-align: left !important; }
@@ -3507,7 +3507,17 @@
   .kg-rc-dots { display:inline-block; border-bottom:1px dotted #333; min-width:220px; }
   .kg-rc-table { width:100%; border-collapse:collapse; margin:12px 0; font-size:11.5px; }
   .kg-rc-table th, .kg-rc-table td { border:1px solid #333; padding:6px 8px; text-align:center; }
-  .kg-rc-table th { background:var(--cream2); font-weight:700; text-transform:uppercase; font-size:10px; }
+  .kg-rc-table th {
+    background: var(--navy);
+    color: #ffffff;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.6px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .kg-rc-table th:first-child { color: var(--gold2); }
   .kg-rc-table td.kg-rc-subject { text-align:left; font-weight:600; }
   .kg-rc-bottom-row { display:flex; justify-content:space-between; gap:20px; font-size:12px; margin:10px 0; flex-wrap:wrap; }
   .kg-rc-field { font-size:12px; margin:8px 0; }
@@ -3873,7 +3883,37 @@
 
     /* ── Report Cards: one card per page, show logo header ── */
     #page-reportcard .rc-controls,
-    #page-reportcard .section-header { display: none !important; }
+    #page-reportcard .section-header,
+    #page-reportcard .rc-screen-hint,
+    .rc-screen-hint { display: none !important; }
+    /* No grey scrollbar strip on printed report cards */
+    #page-reportcard,
+    #page-reportcard .content,
+    #page-reportcard #rc-inner,
+    #page-reportcard .kg-rc-card,
+    #page-reportcard .rc-student-card,
+    #page-reportcard .table-scroll,
+    .kg-rc-card,
+    .rc-student-card {
+      overflow: visible !important;
+      overflow-x: visible !important;
+      overflow-y: visible !important;
+      max-height: none !important;
+    }
+    #page-reportcard *::-webkit-scrollbar,
+    .kg-rc-card::-webkit-scrollbar,
+    .rc-student-card::-webkit-scrollbar {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+      background: transparent !important;
+    }
+    #page-reportcard,
+    .kg-rc-card,
+    .rc-student-card {
+      scrollbar-width: none !important;
+      -ms-overflow-style: none !important;
+    }
     .rc-student-card { page-break-after: always; break-after: page; border: 1px solid #ccc !important; box-shadow: none !important; margin-bottom: 0 !important; }
     .rc-student-card:last-child { page-break-after: avoid; break-after: avoid; }
     .kg-rc-card { page-break-after: always; break-after: page; border: 1px solid #333 !important; margin-bottom: 0 !important; }
@@ -23037,28 +23077,37 @@ function renderFeedingReport() {
     });
   });
 
-  // ── Feeding Revenue vs Feeding Expenses (General Ledger) ──
-  // A DIFFERENT figure from the KPIs above on purpose: those are computed
-  // from the raw day-by-day "paid" marks on the Feeding Schedule page (what
-  // SHOULD have been collected). This section instead reads the actual
-  // posted Revenue Tracker ('Feeding Fees' category) and Expense Tracker
-  // ('Feeding Expenses' category) entries — the real double-entry
-  // transactions that hit the General Ledger. The two won't always match
-  // exactly if staff record a feeding collection without also logging it as
-  // a formal Revenue Tracker entry, which is worth knowing rather than
-  // silently merging the two into one number.
+  // ── Feeding Revenue vs Feeding Expenses ──
+  // Revenue = (1) day-by-day collections on Feeding Revenue / Feeding Schedule
+  // (feedingLedger — already filtered into `filtered`) PLUS (2) any posted
+  // Revenue Tracker entries under "Feeding Fees". Expenses = posted Expense
+  // Tracker "Feeding Expenses" (and approved feeding budget postings that land
+  // there). Schedule weeks with only schedule collections used to show GHS 0
+  // revenue because this block only read the Revenue Tracker — that is fixed.
   const glRevenueEntries = (db.revenue || []).filter(r =>
     r.cat === 'Feeding Fees' && r.status !== 'pending' && (_fdrActiveTerm === 'all' || r.term === _fdrActiveTerm)
   );
   const glExpenseEntries = (db.expenses || []).filter(r =>
     r.cat === 'Feeding Expenses' && r.status !== 'pending' && (_fdrActiveTerm === 'all' || r.term === _fdrActiveTerm)
   );
-  const glFeedingRevenue = glRevenueEntries.reduce((a,r) => a + r.amount, 0);
+  // Feeding Schedule / Feeding Revenue page collections (same term filter as KPIs above)
+  const scheduleLedgerRevEntries = filtered.map(e => ({
+    date: e.date,
+    amount: e.amount || 0,
+    cat: 'Feeding Fees',
+    source: 'feedingSchedule'
+  }));
+  const ledgerFeedingRevenue = scheduleLedgerRevEntries.reduce((a, r) => a + (r.amount || 0), 0);
+  const trackerFeedingRevenue = glRevenueEntries.reduce((a, r) => a + (r.amount || 0), 0);
+  const glFeedingRevenue = ledgerFeedingRevenue + trackerFeedingRevenue;
   const glFeedingExpense = glExpenseEntries.reduce((a,r) => a + r.amount, 0);
   const glFeedingNet = glFeedingRevenue - glFeedingExpense;
-  // Schedule rows — respects _fdrGroupBy (Weekly/Monthly/Termly); the entries
-  // fed in are already scoped by the Full Year / per-term filter above.
-  const scheduleRows = fdrBuildSchedule(glRevenueEntries, glExpenseEntries, _fdrGroupBy);
+  // Schedule rows: both schedule collections and Revenue Tracker feeding fees
+  const scheduleRows = fdrBuildSchedule(
+    scheduleLedgerRevEntries.concat(glRevenueEntries),
+    glExpenseEntries,
+    _fdrGroupBy
+  );
   const groupLabel = _fdrGroupBy === 'week' ? 'Week' : _fdrGroupBy === 'month' ? 'Month' : 'Term';
 
   const termTabs = TERMS.map(t =>
@@ -23173,11 +23222,11 @@ function renderFeedingReport() {
 
     <!-- ── Feeding Revenue vs Feeding Expenses (General Ledger) ── -->
     <div class="section-header" style="margin-bottom:14px;margin-top:4px">
-      <div><div class="section-title">💰 Feeding Revenue vs Feeding Expenses</div><div class="section-sub">From the General Ledger — actual posted Revenue Tracker ("Feeding Fees") and Expense Tracker ("Feeding Expenses") entries, not the collection figures above</div></div>
+      <div><div class="section-title">💰 Feeding Revenue vs Feeding Expenses</div><div class="section-sub">Revenue = Feeding Schedule / Feeding Revenue collections + Revenue Tracker (“Feeding Fees”). Expenses = Expense Tracker (“Feeding Expenses”), including approved feeding budget postings.</div></div>
     </div>
 
     <div class="kpi-grid kpi-grid-3" style="margin-bottom:16px">
-      <div class="kpi-card green"><div class="kpi-label">Revenue from Feeding Fee</div><div class="kpi-value">GHS ${fmt(glFeedingRevenue)}</div><div class="kpi-sub">${glRevenueEntries.length} entr${glRevenueEntries.length===1?'y':'ies'}</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Revenue from Feeding Fee</div><div class="kpi-value">GHS ${fmt(glFeedingRevenue)}</div><div class="kpi-sub">Schedule ${fmt(ledgerFeedingRevenue)} · Tracker ${fmt(trackerFeedingRevenue)}</div></div>
       <div class="kpi-card red"><div class="kpi-label">Feeding Expenses</div><div class="kpi-value">GHS ${fmt(glFeedingExpense)}</div><div class="kpi-sub">${glExpenseEntries.length} entr${glExpenseEntries.length===1?'y':'ies'}</div></div>
       <div class="kpi-card ${glFeedingNet>=0?'green':'red'}"><div class="kpi-label">Net ${glFeedingNet>=0?'Surplus':'Deficit'}</div><div class="kpi-value">GHS ${fmt(Math.abs(glFeedingNet))}</div><div class="kpi-sub">${glFeedingNet>=0?'Revenue exceeds Feeding Expenses':'Revenue is less than Feeding Expenses'}</div></div>
     </div>
@@ -36142,7 +36191,7 @@ function renderReportCard() {
         </select>
         <span style="font-size:12px;color:var(--muted)">${students.length} student${students.length!==1?'s':''}${students.some(s=>s.status==='Withdrawn') ? ' · includes withdrawn (soft)' : ''}</span>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin:-6px 0 12px">Withdrawn students are hidden from Grade Entry, Skills, Attendance, and Feeding. Report cards include mid-term withdrawals only when <strong>General Settings → Include withdrawn on report cards</strong> is turned on.</div>
+      <div class="rc-screen-hint" style="font-size:11px;color:var(--muted);margin:-6px 0 12px">Withdrawn students are hidden from Grade Entry, Skills, Attendance, and Feeding. Report cards include mid-term withdrawals only when <strong>General Settings → Include withdrawn on report cards</strong> is turned on.</div>
       ${cards||'<div class="empty-state"><div class="icon">📝</div>No students found (report cards are not issued for Creche)</div>'}`;
 
     window.rcSearch = v => { searchQ=v; draw(); };
