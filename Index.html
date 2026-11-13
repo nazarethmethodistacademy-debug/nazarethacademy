@@ -8120,6 +8120,7 @@
     <div style="padding:12px 20px 0;font-size:11px;color:var(--muted)">Salary and bank details are edited in Payroll Accounting — this covers everything else.</div>
     <div class="form-grid three" style="padding:16px 20px 20px">
       <div class="form-group"><label>Date of Birth</label><input type="date" id="staff-hr-dob"></div>
+      <div class="form-group"><label>Date Joined</label><input type="date" id="staff-hr-joined"></div>
       <div class="form-group"><label>Gender</label><select id="staff-hr-gender"><option value="">—</option><option>Male</option><option>Female</option></select></div>
       <div class="form-group"><label>Contract Type</label>
         <select id="staff-hr-contract"><option>Permanent</option><option>Contract</option><option>NSS (National Service)</option><option>Volunteer</option><option>Part-Time</option></select>
@@ -9394,6 +9395,9 @@ const DB_SEED = {
   teacherExternalParamOverrides: {}, // { [employeeId]: [{id,name,maxScore,description}, ...] }
   teacherExternalAssessments: [], // [{id, employeeId, date, term, year, assessor, body, scores:{paramId:number}, notes, createdAt, createdBy}]
   nextExternalAssessmentId: 1,
+  teacherVotes: [], // [{id, term, year, voterId, nomineeId, reason, createdAt}]
+  teacherVoteSettings: {}, // { 'year|term': {open:boolean, by, at} }
+  nextVoteId: 1,
   nextExternalParamId: 6,
   trainings: [], // [{id, title, provider, category, date, duration, cost, participants:[employeeId], completions:{empId:{at,by}}, certificateIssued, notes}]
   trainingLinkAuditLog: [], // [{id, at, trainingId, trainingTitle, empId, empName, username, outcome, link}]
@@ -11811,6 +11815,9 @@ function runSchemaMigrations() {
       }
       if (!Array.isArray(db.teacherExternalAssessments)) db.teacherExternalAssessments = [];
       if (!db.nextExternalAssessmentId) db.nextExternalAssessmentId = 1;
+      if (!Array.isArray(db.teacherVotes)) db.teacherVotes = [];
+      if (!db.teacherVoteSettings || typeof db.teacherVoteSettings !== 'object') db.teacherVoteSettings = {};
+      if (!db.nextVoteId) db.nextVoteId = 1;
       if (!db.nextExternalParamId) db.nextExternalParamId = 6;
     } catch (e) { console.warn('schema v5 external assessments', e); }
     ver = 5;
@@ -11872,7 +11879,7 @@ function ensureDbShape() {
     'admissions', 'revenue', 'expenses', 'pettyCash', 'txHistory', 'journalEntries',
     'employees', 'payrollRuns', 'assets', 'bankLedger', 'bankReconciliations',
     'shopItems', 'shopTransactions', 'complianceItems', 'statutoryFilings',
-    'departments', 'houses', 'appraisals', 'teacherExternalAssessments', 'trainings', 'trainingLinkAuditLog',
+    'departments', 'houses', 'appraisals', 'teacherExternalAssessments', 'teacherVotes', 'trainings', 'trainingLinkAuditLog',
     'skillSubmissions', 'promotionLists', 'pendingSmsQueue', 'subjects',
     'users', 'roles', 'staffHrRecords', 'staffLeave', 'externalAssessmentParams',
     'feedingBudgetRequests', 'anomalyCases', 'staffClockAttemptLog', 'gradeCategories'
@@ -11899,7 +11906,7 @@ function ensureDbShape() {
     'skillComments', 'attendance', 'staffAttendance', 'dutyRoster', 'feeding', 'feedingBudgetOverrides',
     'fixedAssets', 'approvalConfig', 'generalSettings',
     'carryForwards', 'boardReportNotes', 'staffHrDetails', 'mgmtComments',
-    'grades', 'usageLog', 'fees', 'feedingFees', 'feedingDiscounts', 'teacherExternalParamOverrides'
+    'grades', 'usageLog', 'fees', 'feedingFees', 'feedingDiscounts', 'teacherExternalParamOverrides', 'teacherVoteSettings'
   ];
   OBJ_KEYS.forEach(k => {
     try { db[k] = ensureObject(db[k]); } catch (e) { db[k] = {}; }
@@ -11910,7 +11917,7 @@ function ensureDbShape() {
     'nextAdmId', 'nextRevId', 'nextExpId', 'nextSubId', 'nextEmpId', 'nextPrId',
     'nextAssetId', 'nextBankId', 'nextJournalId', 'nextShopItemId', 'nextShopTxId',
     'nextComplianceId', 'nextFilingId', 'nextDeptId', 'nextHouseId',
-    'nextAppraisalId', 'nextExternalAssessmentId', 'nextExternalParamId', 'nextTrainingId', 'nextPcId', 'nextTxId',
+    'nextAppraisalId', 'nextVoteId', 'nextExternalAssessmentId', 'nextExternalParamId', 'nextTrainingId', 'nextPcId', 'nextTxId',
     'nextAnomalyCaseId', 'nextStaffClockAttemptId', 'feedingMonthlyBudget', 'inventory'
   ];
   NUM_KEYS.forEach(k => {
@@ -12310,6 +12317,9 @@ function initDb(callback) {
       db.teacherExternalParamOverrides = data.teacherExternalParamOverrides || {};
       db.teacherExternalAssessments = data.teacherExternalAssessments || [];
       db.nextExternalAssessmentId = data.nextExternalAssessmentId ?? 1;
+      db.teacherVotes = data.teacherVotes || [];
+      db.teacherVoteSettings = data.teacherVoteSettings || {};
+      db.nextVoteId = data.nextVoteId ?? 1;
       db.nextExternalParamId = data.nextExternalParamId ?? 6;
       db.trainings     = data.trainings     || [];
       db.trainingLinkAuditLog = data.trainingLinkAuditLog || [];
@@ -12494,6 +12504,7 @@ function initDb(callback) {
           bankaccount: renderBankAccount,
           groupaccounts: renderGroupAccounts,
           myappraisal: renderMyAppraisal,
+          votebestteacher: renderVoteBestTeacher,
           myworkspace: renderMyWorkspace,
           staffdirectory: renderStaffDirectory,
           accesscontrol: renderAccessControl,
@@ -13882,7 +13893,7 @@ const pageTitles = {
   chartofaccounts:'Chart of Accounts', generalledger:'General Ledger', trialbalance:'Trial Balance', budgeting:'Budgeting', schoolshop:'School Shop', compliance:'Compliance',
   expenseledgers:'Expense Ledgers',
   schoolstructure:'School Structure', staffdatabase:'Teachers & Staff Database', parentdatabase:'Parent Database', appraisals:'Performance Appraisal', staffperformance:'Staff Performance Report', teacherexternal:'Teachers External Assessments', training:'Training & Development',
-  feeschedule:'Fee Schedule', feedingschedule:'Feeding Revenue', stats:'Statistical Report', myappraisal:'My Appraisal', myworkspace:'My Workspace', staffdirectory:'Staff Directory', accesscontrol:'Access Control',
+  feeschedule:'Fee Schedule', feedingschedule:'Feeding Revenue', stats:'Statistical Report', myappraisal:'My Appraisal', votebestteacher:'Vote: Best Teacher', myworkspace:'My Workspace', staffdirectory:'Staff Directory', accesscontrol:'Access Control',
   export:'Export to Excel', backup:'Backup & Restore',
   balancesheet:'Balance Sheet', assetmanagement:'Asset Management', cashflow:'Statement of Cash Flows', reportcard:'Report Cards', classanalytics:'Class Analytics', studentperformance:'Student Performance Report', skillsreport:'Student Assessment Report', skillsdetailed:'Skill Assessment — Detailed',
   grades:'Grade Entry', skillsassessment:'Skills Assessment', promotion:'Promotion Management', academiccalendar:'Academic Calendar', attendance:'Attendance Register', attendancereport:'Attendance Report', staffattendance:'Staff Attendance', staffleave:'Staff Leave', staffattendancereport:'Staff Attendance Report', dutyroster:'Teachers on Duty Roster', timetable:'Class Timetable', subjects:'Subject Management',
@@ -13948,6 +13959,7 @@ const MODULE_DEFS = {
       { icon:'🗓️', label:'Timetable',            page:'timetable' },
       { icon:'📚', label:'Subjects',             page:'subjects' },
       { icon:'🗂️', label:'My Workspace',          page:'myworkspace' },
+      { icon:'🗳️', label:'Vote: Best Teacher',    page:'votebestteacher' },
       { icon:'🗂️', label:'Staff Directory',       page:'staffdirectory' },
     ]
   },
@@ -14128,6 +14140,7 @@ const _dynamicPages = {
   groupaccounts:    'ga-inner',
   myappraisal:      'mya-inner',
   myworkspace:      'mws-inner',
+  votebestteacher:  'vbt-inner',
   staffdirectory:   'sdir-inner',
   accesscontrol:    'acl-inner',
   chartofaccounts:  'coa-inner',
@@ -14289,6 +14302,7 @@ function navigate(page, _isBack) {
   if (page === 'groupaccounts') renderGroupAccounts();
   if (page === 'myappraisal') renderMyAppraisal();
   if (page === 'myworkspace') renderMyWorkspace();
+  if (page === 'votebestteacher') renderVoteBestTeacher();
   if (page === 'staffdirectory') renderStaffDirectory();
   if (page === 'accesscontrol') renderAccessControl();
   if (page === 'chartofaccounts') renderChartOfAccounts();
@@ -27528,7 +27542,7 @@ function requireRole(...roles) {
 const TEACHER_DEFAULT_PAGES = [
   'teacherdashboard',
   'grades','skillsassessment','promotion','academiccalendar','reportcard','classanalytics','studentperformance',
-  'attendance','attendancereport','staffattendance','staffleave','dutyroster','timetable','subjects','myappraisal','myworkspace','staffdirectory',
+  'attendance','attendancereport','staffattendance','staffleave','dutyroster','timetable','subjects','myappraisal','myworkspace','votebestteacher','staffdirectory',
   'schoolstructure','staffdatabase','training','parentdatabase'
 ];
 // Pages kept off the configurable matrix (always use defaultPagePermission only).
@@ -37425,6 +37439,12 @@ const AIC_MODE_META = {
     hint: 'Draft a structured narrative report you can copy into minutes or email.',
     placeholder: 'e.g. Write a term finance & performance summary for the board…',
     prefix: 'Draft a structured management report with clear headings (e.g. Overview, Finance, Fee Collection, Academics, Risks, Recommendations). Use only the data provided. Do not invent numbers. Request: '
+  },
+  teacher: {
+    label: '👩‍🏫 Teacher Report',
+    hint: 'Pick a teacher to get a full detailed report — appraisals, attendance, leave, training, external assessments, charts and AI commentary. Covers all recorded terms, not just the selected one.',
+    placeholder: 'Optional: add a focus, e.g. “classroom management and punctuality”…',
+    prefix: 'Write a detailed teacher performance review using only the data provided. Request: '
   }
 };
 
@@ -37438,7 +37458,21 @@ function _aicRound(n, d) {
   return Math.round(n * f) / f;
 }
 
+// Null-safe wrapper: blank/corrupt (null) rows in any list can't crash the assistant.
+// Lists are swapped for cleaned copies only while the snapshot is built — stored data is untouched.
 function buildAiAssistantSnapshot(term) {
+  const saved = {};
+  try {
+    Object.keys(db).forEach(k => {
+      if (Array.isArray(db[k]) && db[k].some(x => x == null)) { saved[k] = db[k]; db[k] = db[k].filter(x => x != null); }
+    });
+    return _buildAiAssistantSnapshotRaw(term);
+  } finally {
+    Object.keys(saved).forEach(k => { db[k] = saved[k]; });
+  }
+}
+
+function _buildAiAssistantSnapshotRaw(term) {
   // Resolve to a real term key; never mix other terms into primary metrics
   if (!term || (typeof TERMS !== 'undefined' && TERMS.length && !TERMS.includes(term))) {
     term = getSessionTerm();
@@ -38160,6 +38194,93 @@ async function weeklyExplainWithAi(question) {
 window.weeklyExplainWithAi = weeklyExplainWithAi;
 window.buildWeeklyReportAiData = buildWeeklyReportAiData;
 
+// ── AI Assistant: Detailed Teacher Report ──────────────────────────────────
+// The full report is built locally from the school's records (same builder as the
+// Staff Database report). The AI only writes the commentary, and receives a
+// privacy-safe summary: no phone, address, DOB, bank, payroll or emergency details.
+let _aicTeacherId = '';
+let _aicTeacherAi = true;
+
+function aicTeacherOptions() {
+  const list = (db.employees || []).filter(e => e && e.id != null && e.name);
+  const isTeacher = e => /teach|head|class|tutor|master|mistress/i.test(String(e.role || ''));
+  const t = list.filter(isTeacher), o = list.filter(e => !isTeacher(e));
+  const opt = e => `<option value="${esc(String(e.id))}" ${String(e.id) === String(_aicTeacherId) ? 'selected' : ''}>${esc(e.name)}${e.role ? ' — ' + esc(e.role) : ''}${e.status && e.status !== 'Active' ? ' (' + esc(e.status) + ')' : ''}</option>`;
+  return `<option value="">Select a teacher…</option>` +
+    (t.length ? `<optgroup label="Teachers &amp; academic staff">${t.map(opt).join('')}</optgroup>` : '') +
+    (o.length ? `<optgroup label="Other staff">${o.map(opt).join('')}</optgroup>` : '');
+}
+
+function aicTeacherSnapshot(D) {
+  const e = D.e, N = scNotes(D);
+  const r1 = v => v == null ? null : Math.round(v * 10) / 10;
+  return {
+    teacher: {
+      name: e.name, role: e.role || null, department: e.dept || null, status: e.status || null,
+      contract: e.hrContract || 'Permanent', qualification: e.hrQualification || null,
+      yearsOfService: (scYearsSince(e.hrDateJoined || e.hireDate || e.dateJoined) != null) ? r1(scYearsSince(e.hrDateJoined || e.hireDate || e.dateJoined)) : null
+    },
+    appraisals: D.apps.map((a, i) => ({ term: a.term || null, date: a.date || null, percent: D.appPcts[i] })),
+    appraisalAverage: r1(scAvg(D.appPcts)),
+    criteriaAveragesPercent: D.crit.map(c => ({ criterion: c.label, percent: c.pct })),
+    attendance: { daysRecorded: D.att.total, ratePercent: D.att.rate, late: D.att.late, absent: D.att.absent,
+      avgClockIn: D.att.inMins.length ? Math.round(scAvg(D.att.inMins)) + ' min after midnight' : null,
+      monthlyRatePercent: D.attMonths.map(m => ({ month: m.key, percent: m.rate })) },
+    leave: { annualEntitlementDays: D.leaveEnt, annualUsedThisYear: D.leaveUsed, approvedDaysAllTypes: D.leaveDaysAll },
+    training: { assigned: D.trainings.length, completed: D.trDone },
+    externalAssessments: { count: D.ext.length, averagePercent: r1(scAvg(D.extPcts)) },
+    systemActivityLast30Days: D.act,
+    dutyRosterSlots: D.duty,
+    ruleBasedFindings: { strengths: N.str, improvements: N.imp, recommendations: N.rec }
+  };
+}
+
+window.aicTeacherPick = v => { _aicTeacherId = v || ''; };
+window.aicTeacherAiToggle = v => { _aicTeacherAi = !!v; };
+
+window.aicTeacherReport = async function () {
+  const id = _aicTeacherId;
+  if (!id) { toast('⚠ Select a teacher first'); return; }
+  const emp = (db.employees || []).find(x => x && String(x.id) === String(id));
+  if (!emp) { toast('⚠ Staff member not found'); return; }
+  const focus = ((document.getElementById('aic-input') || {}).value || '').trim();
+  let html, D;
+  try { D = scGather(id); html = buildStaffReportHtml(id); }
+  catch (err) { console.error(err); toast('⚠ Could not build the report: ' + (err && err.message || err)); return; }
+  _aicHistory.push({ role: 'user', text: 'Detailed report on ' + emp.name + (focus ? ' — focus: ' + focus : ''), mode: 'teacher' });
+  const entry = { role: 'assistant', kind: 'teacher', mode: 'teacher', pending: true, text: 'Building report…' };
+  _aicHistory.push(entry);
+  renderAiAssistant();
+  let aiBox = '', aiText = '';
+  if (_aicTeacherAi) {
+    const prompt = 'Write a detailed professional performance review of this teacher for the headteacher. Use only the data provided; never invent numbers. ' +
+      'Use these headings: Overall Summary; Teaching & Appraisal Performance; Attendance & Punctuality; Professional Development; Strengths; Areas for Improvement; Recommended Actions (with a suggested timeline). ' +
+      'Be constructive and fair, and note where data is missing. ' + (focus ? 'Extra focus requested: ' + focus + '. ' : '');
+    let res;
+    try { res = await callAiAssist('chat', Object.assign({ assistantMode: 'teacher', userRequest: prompt }, aicTeacherSnapshot(D)), prompt); }
+    catch (err) { res = { ok: false, error: (err && err.message) || 'AI request failed' }; }
+    if (res && res.ok && res.text) {
+      aiText = res.text;
+      aiBox = `<div class="cr-sec"><div class="cr-sec-title">AI Commentary</div><div style="white-space:pre-wrap;font-size:12px;line-height:1.55">${esc(res.text)}</div><div style="font-size:10px;color:#6b7686;margin-top:6px">Written by the AI Assistant from the figures in this report. Please review before sharing.</div></div>`;
+    } else {
+      aiBox = `<div class="cr-sec"><div class="cr-sec-title">AI Commentary</div><div style="font-size:12px;color:#b3261e">AI commentary unavailable: ${esc((res && res.error) || 'no response')}. The report above is complete and was built from your records.</div></div>`;
+    }
+  }
+  // Insert the AI commentary before the signature block so it prints in order
+  const marker = '<div class="cr-sign">';
+  const at = html.lastIndexOf(marker);
+  const full = at >= 0 ? html.slice(0, at) + aiBox + html.slice(at) : html + aiBox;
+  entry.pending = false; entry.html = full; entry.text = (aiText || ('Detailed report on ' + emp.name)).trim();
+  entry.title = 'Teacher Report — ' + emp.name;
+  renderAiAssistant();
+};
+
+function aicPrintTeacher(idx) {
+  const m = _aicHistory[idx];
+  if (!m || !m.html) return;
+  scPrintFrame(m.title || 'Teacher Report', m.html);
+}
+
 function aicSetMode(mode) {
   if (!AIC_MODE_META[mode]) return;
   _aicMode = mode;
@@ -38191,6 +38312,7 @@ function aicPrintMsg(idx) {
 }
 
 function aicPromptSuggestions() {
+  if (_aicMode === 'teacher') return [];
   if (_aicMode === 'comment') {
     return [
       'Comment on overall fee collection this term',
@@ -38236,11 +38358,12 @@ function renderAiAssistant() {
     const suggestions = aicPromptSuggestions();
     const isSession = _aicTerm === sessionTerm;
     el.innerHTML = `
+      <style>${typeof SR_COMP_CSS !== 'undefined' ? SR_COMP_CSS : ''}${typeof SC_EXTRA_CSS !== 'undefined' ? SC_EXTRA_CSS : ''}.aic-teacher-doc .cr-doc{box-shadow:0 1px 5px rgba(0,0,0,.12)}.aic-msg-assistant:has(.aic-teacher-doc) > div{width:100%}</style>
       <div class="aic-layout">
         <div class="aic-header">
           <div>
             <div style="font-weight:600;font-size:13px;color:var(--navy)">🤖 AI Assistant — comment, explain &amp; make reports</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(meta.hint)} Answers use <b>only data for the selected term</b> (${esc(_aicTerm)})${termRange.start && termRange.end ? ` · ${esc(termRange.start)} → ${esc(termRange.end)}` : ''}. Not a full student-record search.</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(meta.hint)} ${_aicMode === 'teacher' ? 'Teacher reports use <b>all recorded appraisals, attendance, leave and training</b> for the selected staff member (not limited to one term).' : `Answers use <b>only data for the selected term</b> (${esc(_aicTerm)})${termRange.start && termRange.end ? ` · ${esc(termRange.start)} → ${esc(termRange.end)}` : ''}. Not a full student-record search.`}</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <span style="font-size:11px;color:var(--muted)">Term</span>
@@ -38258,7 +38381,7 @@ function renderAiAssistant() {
         </div>
         <div class="aic-thread" id="aic-thread">
           ${_aicHistory.length === 0
-            ? `<div class="aic-empty">
+            ? (_aicMode === 'teacher' ? `<div class="aic-empty"><div style="font-weight:600;color:var(--navy)">Choose a teacher below and click Generate.</div><div style="font-size:12px;color:var(--muted);margin-top:6px">You'll get the full detailed report with charts and optional AI commentary.</div></div>` : `<div class="aic-empty">
                 <div style="margin-bottom:10px;font-weight:600;color:var(--navy)">Try these (${esc(meta.label)}):</div>
                 <div style="display:flex;flex-direction:column;gap:6px">
                   ${suggestions.map(s => `
@@ -38266,23 +38389,27 @@ function renderAiAssistant() {
                       onclick="document.getElementById('aic-input').value=${JSON.stringify(s)};aicSend();">${esc(s)}</button>
                   `).join('')}
                 </div>
-              </div>`
+              </div>`)
             : _aicHistory.map((m, idx) => `
               <div class="aic-msg aic-msg-${m.role}${m.kind === 'report' ? ' aic-msg-report' : ''}">
                 <div>
-                  <div class="aic-msg-bubble">${m.role === 'user' ? esc(m.text) : (m.error ? `⚠ ${esc(m.text)}` : esc(m.text))}</div>
+                  ${m.html ? `<div class="aic-msg-bubble aic-teacher-doc" style="max-width:100%;white-space:normal;background:#f4f1ea;padding:8px;overflow-x:auto">${m.html}</div>` : `<div class="aic-msg-bubble">${m.role === 'user' ? esc(m.text) : (m.error ? `⚠ ${esc(m.text)}` : esc(m.text))}</div>`}
                   ${m.role === 'assistant' && !m.pending && !m.error ? `
                     <div class="aic-msg-actions">
                       <button type="button" class="btn btn-outline btn-sm" onclick="aicCopyMsg(${idx})">📋 Copy</button>
-                      ${m.kind === 'report' || _aicMode === 'report' ? `<button type="button" class="btn btn-outline btn-sm" onclick="aicPrintMsg(${idx})">🖨 Print</button>` : ''}
+                      ${m.html ? `<button type="button" class="btn btn-outline btn-sm" onclick="aicPrintTeacher(${idx})">🖨 Print / Save PDF</button>` : (m.kind === 'report' || _aicMode === 'report' ? `<button type="button" class="btn btn-outline btn-sm" onclick="aicPrintMsg(${idx})">🖨 Print</button>` : '')}
                     </div>` : ''}
                 </div>
               </div>`).join('')}
         </div>
+        ${_aicMode === 'teacher' ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 14px">
+          <select id="aic-teacher-sel" onchange="aicTeacherPick(this.value)" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">${aicTeacherOptions()}</select>
+          <label style="font-size:12px;display:flex;gap:5px;align-items:center;white-space:nowrap"><input type="checkbox" ${_aicTeacherAi ? 'checked' : ''} onchange="aicTeacherAiToggle(this.checked)"> Include AI commentary</label>
+        </div>` : ''}
         <div class="aic-input-row">
           <textarea id="aic-input" rows="2" placeholder="${esc(meta.placeholder)}"
-            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aicSend();}"></textarea>
-          <button class="btn btn-gold" id="aic-send-btn" onclick="aicSend()">${_aicMode === 'report' ? 'Generate' : 'Send'}</button>
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();${_aicMode === 'teacher' ? 'aicTeacherReport()' : 'aicSend()'};}"></textarea>
+          <button class="btn btn-gold" id="aic-send-btn" onclick="${_aicMode === 'teacher' ? 'aicTeacherReport()' : 'aicSend()'}">${_aicMode === 'report' || _aicMode === 'teacher' ? 'Generate' : 'Send'}</button>
         </div>
       </div>`;
     const thread = document.getElementById('aic-thread');
@@ -38293,8 +38420,9 @@ function renderAiAssistant() {
     const next = t || getSessionTerm();
     if (next !== _aicTerm) {
       _aicTerm = next;
-      // Changing term changes the data scope — clear prior chat so answers aren't mixed
-      _aicHistory = [];
+      // Changing term changes the data scope — clear prior term-based chat so answers aren't mixed.
+      // Teacher reports cover all recorded terms, so they are kept.
+      _aicHistory = _aicHistory.filter(m => m && m.html);
     }
     draw();
   };
@@ -46459,7 +46587,7 @@ function staffMatchesSearch(e, q) {
   const hay = [
     e.name, e.role, e.dept, e.status, e.staffId, e.phone, e.email,
     e.hrContract, e.hrQualification, e.hrAddress, e.hrGender,
-    e.hrEcName, e.hrEcPhone, e.hrEcRel, e.hrNotes, e.hrDob
+    e.hrEcName, e.hrEcPhone, e.hrEcRel, e.hrNotes, e.hrDob, e.hrDateJoined
   ].map(v => String(v || '').toLowerCase()).join(' ');
   // Support multi-word search (all terms must match somewhere)
   return q.split(/\s+/).filter(Boolean).every(term => hay.includes(term));
@@ -46489,6 +46617,7 @@ function renderStaffDatabase() {
       <div class="staff-card-role">${esc(e.role || '—')}</div>
       <div class="staff-card-dept"><span class="badge badge-${e.status==='Active'?'inuse':'disposed'}">${esc(e.dept || '—')}</span></div>
       <div style="font-size:10.5px;color:var(--muted);margin-top:6px">${esc(e.hrContract || 'Permanent')}${e.hrQualification ? ' · ' + esc(e.hrQualification) : ''}</div>
+      ${e.hrDateJoined ? `<div style="font-size:10.5px;color:var(--muted);margin-top:2px">📅 Joined ${esc(scDate(e.hrDateJoined))}</div>` : ''}
       ${e.phone ? `<div style="font-size:10.5px;color:var(--muted);margin-top:2px">📞 ${esc(e.phone)}</div>` : ''}
       <div class="staff-card-actions">
         <button class="btn btn-sm btn-outline" onclick="openStaffProfileView('${e.id}')" title="View Profile">👁️</button>
@@ -46714,6 +46843,13 @@ function scGather(empId){
   D.ext = (db.teacherExternalAssessments || []).filter(a => a && String(a.employeeId) === id)
     .sort((a,b) => String(a.date || '').localeCompare(String(b.date || '')));
   D.extPcts = D.ext.map(a => { try { return teaScorePercent(a); } catch (_) { return null; } });
+  // Best-teacher rank (appraisal + teacher votes, all terms, 70/30)
+  D.rank = null;
+  try {
+    const R = sperfBestRows('', null, sperfIsTeachingRole(e.role), 30);
+    const me = R.ranked.find(r => String(r.emp.id) === id);
+    if (me) D.rank = { pos: me.rank, of: R.ranked.length, score: me.score };
+  } catch (_) {}
   // Payroll
   D.pay = null;
   if (typeof canAccessPage === 'function' && canAccessPage('payroll')) {
@@ -46793,7 +46929,7 @@ function scNotes(D){
   if (D.leaveEnt > 0 && D.leaveUsed / D.leaveEnt >= 0.9) rec.push('Annual leave is almost used up — plan remaining leave carefully.');
   if (D.leaveEnt > 0 && D.leaveUsed === 0 && new Date().getMonth() >= 9) rec.push('No annual leave has been taken this year — encourage the staff member to take rest.');
   const missing = [];
-  if (!e.hrQualification) missing.push('qualification'); if (!e.hrDob) missing.push('date of birth'); if (!e.hrEcName) missing.push('emergency contact'); if (!e.phone) missing.push('phone');
+  if (!e.hrQualification) missing.push('qualification'); if (!e.hrDob) missing.push('date of birth'); if (!e.hrDateJoined) missing.push('date joined'); if (!e.hrEcName) missing.push('emergency contact'); if (!e.phone) missing.push('phone');
   if (missing.length) { imp.push('HR profile is incomplete (missing ' + missing.join(', ') + ').'); rec.push('Complete the HR profile in Teachers & Staff Database.'); }
   if (!e.username) rec.push('Link a login username on the payroll profile so system activity and My Appraisal can work.');
   if (!imp.length) imp.push('No significant concerns identified from the available records.');
@@ -46809,7 +46945,7 @@ function buildStaffReportHtml(empId, opts){
   const row = (k, v) => `<tr><td style="width:34%;color:#6b7686;padding:4px 8px 4px 0;vertical-align:top">${esc(k)}</td><td style="padding:4px 0"><strong>${esc(v == null || v === '' ? '—' : String(v))}</strong></td></tr>`;
   const kpi = (label, val, sub) => `<div class="cr-kpi"><b>${esc(String(val))}</b><span>${esc(label)}</span>${sub ? `<div style="font-size:9px;color:#6b7686;margin-top:2px">${esc(sub)}</div>` : ''}</div>`;
   const age = scYearsSince(e.hrDob);
-  const hire = e.hireDate || e.dateJoined || e.hrHireDate || e.startDate || '';
+  const hire = e.hrDateJoined || e.hireDate || e.dateJoined || e.hrHireDate || e.startDate || '';
   const svc = scYearsSince(hire);
   const latest = D.appPcts.length ? D.appPcts[D.appPcts.length-1] : null;
   const extAvg = scAvg(D.extPcts);
@@ -46828,7 +46964,7 @@ function buildStaffReportHtml(empId, opts){
         ${row('Date of birth', e.hrDob ? scDate(e.hrDob) + (age != null ? ' (age ' + Math.floor(age) + ')' : '') : '')}
         ${row('Gender', e.hrGender)}${row('Phone', e.phone)}${row('Email', e.email)}${row('Address', e.hrAddress)}
         ${row('Emergency contact', e.hrEcName ? e.hrEcName + ' (' + (e.hrEcRel || '—') + ') — ' + (e.hrEcPhone || '—') : '')}
-        ${hire ? row('Date joined', scDate(hire) + (svc != null ? ' (' + svc.toFixed(1) + ' yrs)' : '')) : ''}
+        ${row('Date joined', hire ? scDate(hire) + (svc != null ? ' (' + svc.toFixed(1) + ' yrs)' : '') : '')}
         ${row('System username', e.username)}${row('Notes', e.hrNotes || e.notes)}
       </tbody></table>
     </div>
@@ -46840,6 +46976,7 @@ function buildStaffReportHtml(empId, opts){
         ${kpi('Annual leave left', Math.max(0, D.leaveEnt - D.leaveUsed) + 'd', 'of ' + D.leaveEnt + ' (' + D.leaveYear + ')')}
         ${kpi('Training', D.trainings.length ? D.trDone + '/' + D.trainings.length : '—', 'completed')}
         ${kpi('External assess.', extAvg != null ? Math.round(extAvg) + '%' : '—', D.ext.length + ' visit(s)')}
+        ${kpi('Best-teacher rank', D.rank ? '#' + D.rank.pos + ' of ' + D.rank.of : '—', D.rank ? 'score ' + D.rank.score + '%' : 'not yet ranked')}
       </div>
     </div>
     <div class="cr-sec"><div class="cr-sec-title">3. Performance Appraisals</div>`;
@@ -46979,6 +47116,7 @@ function openStaffProfileView(id) {
     ${row('Contract', e.hrContract || 'Permanent')}
     ${row('Qualification', e.hrQualification)}
     ${row('Date of Birth', e.hrDob)}
+    ${row('Date Joined', e.hrDateJoined ? scDate(e.hrDateJoined) + (scYearsSince(e.hrDateJoined) != null ? ' (' + scYearsSince(e.hrDateJoined).toFixed(1) + ' yrs)' : '') : '')}
     ${row('Gender', e.hrGender)}
     ${row('Phone', e.phone)}
     ${row('Email', e.email)}
@@ -47048,6 +47186,7 @@ function openStaffHrModal(id) {
   const e = employeeWithHr(base);
   document.getElementById('staff-hr-modal-title').textContent = '🗂️ HR Details — ' + e.name;
   document.getElementById('staff-hr-dob').value = e.hrDob || '';
+  document.getElementById('staff-hr-joined').value = e.hrDateJoined || '';
   document.getElementById('staff-hr-gender').value = e.hrGender || '';
   document.getElementById('staff-hr-contract').value = e.hrContract || 'Permanent';
   document.getElementById('staff-hr-qualification').value = e.hrQualification || '';
@@ -47067,6 +47206,7 @@ async function saveStaffHrDetails() {
 
   const fields = {
     hrDob:           (document.getElementById('staff-hr-dob') || {}).value || '',
+    hrDateJoined:    (document.getElementById('staff-hr-joined') || {}).value || '',
     hrGender:        (document.getElementById('staff-hr-gender') || {}).value || '',
     hrContract:      (document.getElementById('staff-hr-contract') || {}).value || 'Permanent',
     hrQualification: ((document.getElementById('staff-hr-qualification') || {}).value || '').trim(),
@@ -47689,7 +47829,7 @@ function sperfBand(pct) {
 
 function sperfBuildRows(termFilter, deptFilter) {
   const employees = (db.employees || []).filter(e => e && (e.status === 'Active' || !e.status));
-  const appraisals = db.appraisals || [];
+  const appraisals = (db.appraisals || []).filter(Boolean);
   return employees.map(emp => {
     let apps = appraisals.filter(a => String(a.employeeId) === String(emp.id));
     if (termFilter) apps = apps.filter(a => a.term === termFilter);
@@ -47721,11 +47861,259 @@ function sperfBuildRows(termFilter, deptFilter) {
     };
   }).filter(r => !deptFilter || r.dept === deptFilter)
     .sort((a, b) => {
-      if (a.avgPct == null && b.avgPct == null) return a.emp.name.localeCompare(b.emp.name);
+      if (a.avgPct == null && b.avgPct == null) return String(a.emp.name || '').localeCompare(String(b.emp.name || ''));
       if (a.avgPct == null) return 1;
       if (b.avgPct == null) return -1;
       return b.avgPct - a.avgPct;
     });
+}
+
+// ── Best Teacher ranking (assessment based) ─────────────────────────────────
+// Composite = weighted mix of (a) internal appraisal average and (b) external
+// assessment average. A teacher with only one kind of assessment is ranked on
+// that one (flagged), so nobody is penalised for a missing record type.
+// ══════════════ BEST TEACHER — PEER VOTING ══════════════
+// Teachers vote once per term for a colleague (never themselves). Ballots are secret:
+// teachers only ever see their own vote; Admin/Headteacher see counts and anonymous reasons.
+// Votes can optionally be blended into the Best Teacher ranking (see sperfBestRows).
+function tvTerm() { try { return getSessionTerm() || ((typeof TERMS !== 'undefined' && TERMS[0]) || ''); } catch (_) { return ''; } }
+function tvKey(term) { return String(ACTIVE_YEAR || '') + '|' + String(term || ''); }
+function tvIsOpen(term) {
+  const s = (db.teacherVoteSettings || {})[tvKey(term)];
+  return !(s && s.open === false);
+}
+function tvIsManager() { return !!currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Headteacher'); }
+function tvMyEmployee() {
+  const u = String((currentUser && currentUser.username) || '').trim().toLowerCase();
+  if (!u) return null;
+  return (db.employees || []).find(e => e && String(e.username || '').trim().toLowerCase() === u && (!e.status || e.status === 'Active')) || null;
+}
+function tvNominees() {
+  const emps = (db.employees || []).filter(e => e && e.id != null && e.name && (!e.status || e.status === 'Active'));
+  const t = emps.filter(e => sperfIsTeachingRole(e.role));
+  return t.length ? t : emps;
+}
+// Valid ballots only, latest ballot per voter per term wins
+function tvBallots(term) {
+  const ids = new Set(tvNominees().map(e => String(e.id)));
+  const latest = {};
+  (db.teacherVotes || []).forEach(v => {
+    if (!v || v.voterId == null || v.nomineeId == null) return;
+    if (v.year && String(v.year) !== String(ACTIVE_YEAR)) return;
+    if (term && v.term !== term) return;
+    if (String(v.voterId) === String(v.nomineeId)) return;
+    if (!ids.has(String(v.nomineeId))) return;
+    const k = String(v.voterId) + '|' + String(v.term || '');
+    if (!latest[k] || String(v.createdAt || '') >= String(latest[k].createdAt || '')) latest[k] = v;
+  });
+  return Object.keys(latest).map(k => latest[k]);
+}
+function tvTally(term) {
+  const counts = {};
+  tvBallots(term).forEach(v => { counts[String(v.nomineeId)] = (counts[String(v.nomineeId)] || 0) + 1; });
+  return counts;
+}
+// Peer score 0–100 per nominee: votes relative to the most-voted teacher of that term;
+// across several terms the per-term scores are averaged (only terms where the nominee got votes... or any votes existed).
+function tvPeerScores(term) {
+  const terms = term ? [term] : (typeof TERMS !== 'undefined' ? TERMS : []);
+  const ids = tvNominees().map(e => String(e.id));
+  const sum = {}, n = {}, counts = {};
+  let any = false;
+  terms.forEach(t => {
+    const c = tvTally(t), max = Math.max(0, ...Object.values(c));
+    if (!max) return;
+    any = true;
+    ids.forEach(id => { sum[id] = (sum[id] || 0) + ((c[id] || 0) / max) * 100; n[id] = (n[id] || 0) + 1; counts[id] = (counts[id] || 0) + (c[id] || 0); });
+  });
+  const scores = {}; Object.keys(sum).forEach(id => { scores[id] = Math.round((sum[id] / n[id]) * 10) / 10; });
+  return { scores, counts, any };
+}
+
+window.tvSelect = id => { window._tvPick = String(id); document.querySelectorAll('.tv-card').forEach(c => c.classList.toggle('tv-sel', c.dataset.id === String(id))); };
+window.tvSubmit = function () {
+  const term = tvTerm(), me = tvMyEmployee();
+  if (!me) { toast('⚠ Your account is not linked to a staff profile', 'error'); return; }
+  if (!tvIsOpen(term)) { toast('⚠ Voting is closed for ' + term, 'error'); return; }
+  const pick = window._tvPick;
+  if (!pick) { toast('⚠ Choose a teacher first'); return; }
+  if (String(pick) === String(me.id)) { toast('⚠ You cannot vote for yourself', 'error'); return; }
+  if (!tvNominees().some(e => String(e.id) === String(pick))) { toast('⚠ That teacher is not eligible', 'error'); return; }
+  if (!Array.isArray(db.teacherVotes)) db.teacherVotes = [];
+  const reason = ((document.getElementById('tv-reason') || {}).value || '').trim().slice(0, 400);
+  // replace any earlier ballot by this voter for this term/year
+  db.teacherVotes = db.teacherVotes.filter(v => !(v && String(v.voterId) === String(me.id) && v.term === term && String(v.year || ACTIVE_YEAR) === String(ACTIVE_YEAR)));
+  db.teacherVotes.push({ id: 'vote' + (db.nextVoteId || 1), term, year: ACTIVE_YEAR, voterId: String(me.id), nomineeId: String(pick), reason, createdAt: new Date().toISOString() });
+  db.nextVoteId = (db.nextVoteId || 1) + 1;
+  try { saveDb(); } catch (e) { console.warn(e); }
+  window._tvPick = null;
+  toast('✅ Your vote has been recorded');
+  renderVoteBestTeacher();
+};
+window.tvToggleOpen = function () {
+  if (!tvIsManager()) return;
+  const term = tvTerm(), k = tvKey(term);
+  if (!db.teacherVoteSettings) db.teacherVoteSettings = {};
+  const open = tvIsOpen(term);
+  db.teacherVoteSettings[k] = { open: !open, by: (currentUser && currentUser.username) || '', at: new Date().toISOString() };
+  try { saveDb(); } catch (e) { console.warn(e); }
+  toast(open ? '🔒 Voting closed for ' + term : '🔓 Voting opened for ' + term);
+  renderVoteBestTeacher();
+};
+window.tvResetTerm = function () {
+  if (!currentUser || currentUser.role !== 'Admin') return;
+  const term = tvTerm();
+  if (!confirm('Delete ALL votes for ' + term + '? This cannot be undone.')) return;
+  db.teacherVotes = (db.teacherVotes || []).filter(v => !(v && v.term === term && String(v.year || ACTIVE_YEAR) === String(ACTIVE_YEAR)));
+  try { saveDb(); } catch (e) { console.warn(e); }
+  toast('Votes cleared for ' + term);
+  renderVoteBestTeacher();
+};
+
+function renderVoteBestTeacher() {
+  ensurePage('votebestteacher', 'vbt-inner');
+  const el = document.getElementById('vbt-inner');
+  if (!el) return;
+  const term = tvTerm(), open = tvIsOpen(term), me = tvMyEmployee(), mgr = tvIsManager();
+  const mine = me ? tvBallots(term).find(v => String(v.voterId) === String(me.id)) : null;
+  const nominees = tvNominees().filter(e => !me || String(e.id) !== String(me.id));
+  const canVote = !!me && sperfIsTeachingRole(me.role) && open;
+  const mineNominee = mine ? (db.employees || []).find(e => e && String(e.id) === String(mine.nomineeId)) : null;
+  if (window._tvPick === undefined || window._tvPick === null) window._tvPick = mine ? String(mine.nomineeId) : null;
+
+  let ballot;
+  if (!me) {
+    ballot = `<div class="empty-state" style="padding:36px 20px"><div class="icon">🔗</div>Your account isn't linked to a staff profile, so you can't vote.<div style="font-size:12px;color:var(--muted);margin-top:8px">Ask an Admin to set your Login Username on your staff profile in Payroll → Employee.</div></div>`;
+  } else if (!sperfIsTeachingRole(me.role)) {
+    ballot = `<div class="empty-state" style="padding:36px 20px"><div class="icon">🗳️</div>Voting is open to teaching staff only.</div>`;
+  } else {
+    ballot = `
+      ${mine && mineNominee ? `<div class="card" style="padding:12px 14px;margin-bottom:12px;border-left:4px solid var(--green)">✅ You voted for <b>${esc(mineNominee.name)}</b> this term.${open ? ' You can change your vote until voting closes.' : ''}<div style="font-size:11px;color:var(--muted);margin-top:3px">Your vote is secret — colleagues cannot see it.</div></div>` : ''}
+      ${!open ? `<div class="card" style="padding:12px 14px;margin-bottom:12px;border-left:4px solid var(--amber)">🔒 Voting is closed for ${esc(term)}.</div>` : ''}
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:12px">
+        ${nominees.map(e => `<div class="tv-card ${String(window._tvPick) === String(e.id) ? 'tv-sel' : ''}" data-id="${esc(String(e.id))}" ${canVote ? `onclick="tvSelect('${esc(String(e.id))}')"` : ''} style="${canVote ? 'cursor:pointer;' : 'opacity:.7;'}">
+          <div style="font-weight:700;color:var(--navy)">${esc(e.name)}</div>
+          <div style="font-size:11.5px;color:var(--muted)">${esc(e.role || '')}${e.dept ? ' · ' + esc(e.dept) : ''}</div></div>`).join('') || '<div style="color:var(--muted)">No colleagues available to vote for.</div>'}
+      </div>
+      ${canVote ? `<div class="form-group"><label>Why? (optional — shown anonymously to school leadership)</label><textarea id="tv-reason" rows="2" maxlength="400" placeholder="e.g. Goes the extra mile for struggling pupils">${esc(mine && mine.reason || '')}</textarea></div>
+      <button class="btn btn-primary" onclick="tvSubmit()">${mine ? 'Change my vote' : 'Submit my vote'}</button>` : ''}`;
+  }
+
+  let manage = '';
+  if (mgr) {
+    const tally = tvTally(term), total = Object.values(tally).reduce((a, b) => a + b, 0);
+    const eligibleVoters = (db.employees || []).filter(e => e && (!e.status || e.status === 'Active') && sperfIsTeachingRole(e.role)).length;
+    const rows = tvNominees().map(e => ({ e, n: tally[String(e.id)] || 0 })).filter(r => r.n > 0).sort((a, b) => b.n - a.n);
+    const reasons = tvBallots(term).filter(v => v.reason).map(v => {
+      const nm = (db.employees || []).find(e => e && String(e.id) === String(v.nomineeId));
+      return `<li><b>${esc(nm ? nm.name : '—')}:</b> “${esc(v.reason)}”</li>`;
+    }).join('');
+    manage = `
+      <div class="card" style="padding:14px;margin-top:16px">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div><div class="section-title" style="font-size:15px">📊 Results — ${esc(term)} <span style="font-size:11px;font-weight:400;color:var(--muted)">(leadership only)</span></div>
+          <div style="font-size:12px;color:var(--muted)">${total} vote${total === 1 ? '' : 's'} cast · ${eligibleVoters} eligible teacher${eligibleVoters === 1 ? '' : 's'}</div></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-sm ${open ? 'btn-outline' : 'btn-primary'}" onclick="tvToggleOpen()">${open ? '🔒 Close voting' : '🔓 Re-open voting'}</button>
+            ${currentUser.role === 'Admin' ? `<button class="btn btn-sm btn-outline" onclick="tvResetTerm()">Reset votes</button>` : ''}
+            <button class="btn btn-sm btn-outline" onclick="window._sperfSel=Object.assign(window._sperfSel||{dept:'__ALL__',focusId:null},{tab:'best',term:'${esc(term)}'});navigate('staffperformance')">🏆 See ranking</button>
+          </div></div>
+        <div style="overflow:auto"><table class="sr-table"><thead><tr><th>#</th><th>Teacher</th><th style="text-align:right">Votes</th><th>Share</th></tr></thead><tbody>
+          ${rows.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.e.name)}</b><div style="font-size:11px;color:var(--muted)">${esc(r.e.role || '')}</div></td><td style="text-align:right;font-weight:700">${r.n}</td>
+            <td style="min-width:120px"><div style="background:var(--cream);border-radius:4px;height:8px;overflow:hidden"><div style="height:100%;width:${total ? Math.round(r.n / total * 100) : 0}%;background:var(--navy)"></div></div></td></tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--muted)">No votes yet</td></tr>'}
+        </tbody></table></div>
+        ${reasons ? `<div style="margin-top:10px;font-size:12px"><b>Reasons given (anonymous)</b><ul style="margin:6px 0 0 18px">${reasons}</ul></div>` : ''}
+      </div>`;
+  }
+
+  el.innerHTML = `
+    <style>.tv-card{border:1.5px solid var(--border);border-radius:10px;padding:12px;background:var(--white,#fff);transition:.15s}.tv-card.tv-sel{border-color:var(--navy);background:#eef2fb;box-shadow:0 0 0 2px rgba(18,40,76,.15)}</style>
+    <div class="section-header" style="margin-bottom:14px"><div>
+      <div class="section-title">🗳️ Vote: Best Teacher</div>
+      <div class="section-sub">${esc(term)} · ${esc(String(ACTIVE_YEAR).replace('_', '/'))} · One vote per teacher, you cannot vote for yourself, votes are secret</div></div></div>
+    <div class="card" style="padding:14px">${ballot}</div>
+    ${manage}`;
+}
+
+function sperfIsTeachingRole(role) { return /teach|head|class|tutor|master|mistress|lecturer|instructor/i.test(String(role || '')); }
+
+function sperfBestRows(termFilter, deptFilter, teachingOnly, wPeer) {
+  // Best Teacher = Performance Appraisal score + teacher peer votes (weights always sum to 100).
+  const wP = Math.min(100, Math.max(0, Number.isFinite(+wPeer) ? +wPeer : 30));
+  const wA = 100 - wP;
+  const emps = (db.employees || []).filter(e => e && e.id != null && (!e.status || e.status === 'Active'));
+  const teaching = emps.filter(e => sperfIsTeachingRole(e.role));
+  const pool = teachingOnly && teaching.length ? teaching : emps;
+  const apps = (db.appraisals || []).filter(a => a && a.employeeId != null);
+  let peer = { scores: {}, counts: {}, any: false };
+  try { peer = tvPeerScores(termFilter); } catch (_) {}
+  const rows = pool.filter(e => !deptFilter || e.dept === deptFilter).map(e => {
+    const id = String(e.id);
+    let ap = apps.filter(a => String(a.employeeId) === id);
+    if (termFilter) ap = ap.filter(a => a.term === termFilter);
+    const pcts = ap.map(a => { try { return aprOverallPercent(a.criteria || {}); } catch (_) { return null; } }).filter(v => v != null && v > 0);
+    const appAvg = pcts.length ? pcts.reduce((x, y) => x + y, 0) / pcts.length : null;
+    // A teacher who received no votes while voting took place scores 0 for the votes part.
+    const peerPct = peer.any ? (peer.scores[id] != null ? peer.scores[id] : 0) : null;
+    let score = null, basis = 'none';
+    if (appAvg != null && peerPct != null) { score = (appAvg * wA + peerPct * wP) / 100; basis = 'Appraisal + Votes'; }
+    else if (appAvg != null && wP === 0) { score = appAvg; basis = 'Appraisal'; }
+    else if (appAvg != null) { score = appAvg; basis = 'Appraisal only (no votes cast yet)'; }
+    return { emp: e, score: score == null ? null : Math.round(score * 10) / 10, appAvg: appAvg == null ? null : Math.round(appAvg * 10) / 10,
+      peerAvg: peerPct, votes: peer.counts[id] || 0, nApp: pcts.length, basis, dept: e.dept || '—', role: e.role || '—' };
+  });
+  const ranked = rows.filter(r => r.score != null).sort((a, b) => b.score - a.score || b.votes - a.votes || String(a.emp.name || '').localeCompare(String(b.emp.name || '')));
+  let prev = null, rk = 0;
+  ranked.forEach((r, i) => { if (prev === null || r.score !== prev) rk = i + 1; r.rank = rk; prev = r.score; });
+  const unranked = rows.filter(r => r.score == null).sort((a, b) => String(a.emp.name || '').localeCompare(String(b.emp.name || '')));
+  return { ranked, unranked, anyVotes: peer.any, totalVotes: Object.values(peer.counts).reduce((x, y) => x + y, 0),
+    usedTeachingOnly: !!(teachingOnly && teaching.length), weights: { app: wA, peer: wP } };
+}
+
+function sperfBestHtml(sel) {
+  const termFilter = sel.term || '', deptFilter = sel.dept === '__ALL__' ? null : sel.dept;
+  const teachingOnly = sel.teachingOnly !== false;
+  const wPeer = sel.wPeer == null ? 30 : +sel.wPeer;
+  const R = sperfBestRows(termFilter, deptFilter, teachingOnly, wPeer);
+  const medal = r => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : '';
+  const best = R.ranked.filter(r => r.rank === 1);
+  const wOpts = [[20, '80% appraisal + 20% votes'], [30, '70% appraisal + 30% votes'], [40, '60% appraisal + 40% votes'], [50, '50% appraisal + 50% votes']]
+    .map(o => `<option value="${o[0]}" ${wPeer === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('');
+  const warn = !R.anyVotes ? `<div class="card" style="padding:12px 14px;margin-bottom:14px;border-left:4px solid var(--amber);font-size:12.5px">🗳️ <b>No teacher votes recorded${termFilter ? ' for ' + esc(termFilter) : ''} yet.</b> Until votes are cast, teachers are ranked on appraisal score alone. Teachers vote on the <a href="#" onclick="navigate('votebestteacher');return false">Vote: Best Teacher</a> page.</div>` : '';
+  const banner = best.length ? `
+    <div class="card" style="padding:18px;margin-bottom:14px;background:linear-gradient(135deg,#12284c,#1f3a68);color:#fff;border:0">
+      <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#e8c766">🏆 Best Teacher${best.length > 1 ? ' (tie)' : ''} — ${esc(termFilter || 'All terms')}</div>
+      <div style="font-family:'Playfair Display',serif;font-size:26px;font-weight:700;margin:6px 0">${best.map(b => esc(b.emp.name || 'Unnamed')).join(' &amp; ')}</div>
+      <div style="font-size:13px;opacity:.9">${best.map(b => `Score <b>${b.score}%</b> · ${esc(b.dept)} · appraisal ${b.appAvg}%${b.peerAvg != null ? ` · ${b.votes} vote${b.votes === 1 ? '' : 's'}` : ''}`).join('<br>')}</div>
+    </div>` : `<div class="card" style="padding:18px;margin-bottom:14px;text-align:center;color:var(--muted)">No teacher can be ranked yet for this filter. A teacher needs at least one Performance Appraisal.</div>`;
+  const podium = R.ranked.filter(r => r.rank <= 3).slice(0, 6).map(r => `
+    <div class="sr-stat-card" style="min-width:150px"><div style="font-size:26px">${medal(r.rank)}</div>
+      <div style="font-weight:700;color:var(--navy);margin:2px 0">${esc(r.emp.name || 'Unnamed')}</div>
+      <div class="sr-stat-value" style="font-size:22px">${r.score}%</div><div class="sr-stat-label">${esc(r.dept)}</div></div>`).join('');
+  const body = R.ranked.map(r => `<tr>
+    <td style="font-weight:700;color:var(--navy)">${medal(r.rank)} ${r.rank}</td>
+    <td><b>${esc(r.emp.name || 'Unnamed')}</b><div style="font-size:11px;color:var(--muted)">${esc(r.role)}</div></td>
+    <td>${esc(r.dept)}</td>
+    <td style="text-align:right">${r.appAvg}%<div style="font-size:10px;color:var(--muted)">${r.nApp} review${r.nApp === 1 ? '' : 's'}</div></td>
+    <td style="text-align:right">${r.votes}<div style="font-size:10px;color:var(--muted)">${r.peerAvg != null ? r.peerAvg + '% score' : '—'}</div></td>
+    <td style="text-align:right;font-weight:800;color:${sperfBand(r.score).color}">${r.score}%</td>
+    <td><span class="badge" style="background:${sperfBand(r.score).color}22;color:${sperfBand(r.score).color}">${esc(sperfBand(r.score).label)}</span></td></tr>`).join('');
+  const un = R.unranked.length ? `<div class="card" style="padding:12px;margin-top:14px;font-size:12px;color:var(--muted)"><b>Not ranked (no Performance Appraisal yet):</b> ${R.unranked.map(r => esc(r.emp.name || 'Unnamed') + (r.votes ? ' (' + r.votes + ' vote' + (r.votes === 1 ? '' : 's') + ')' : '')).join(', ')}</div>` : '';
+  return `
+    <div class="card spr-no-print" style="padding:12px 14px;margin-bottom:14px">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0;min-width:240px"><label>Score weighting</label>
+          <select onchange="window._sperfSel.wPeer=+this.value;window._sperfRedraw&&window._sperfRedraw()">${wOpts}</select></div>
+        <label style="font-size:12px;display:flex;gap:6px;align-items:center;padding-bottom:8px"><input type="checkbox" ${teachingOnly ? 'checked' : ''} onchange="window._sperfSel.teachingOnly=this.checked;window._sperfRedraw&&window._sperfRedraw()"> Teaching staff only</label>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px"><b>Best Teacher score = Performance Appraisal ${R.weights.app}% + Teacher votes ${R.weights.peer}%</b>${termFilter ? ' for ' + esc(termFilter) : ' across all terms'}. The most-voted teacher scores 100 on the votes part and others are scaled against them; a teacher with no votes scores 0 there. Attendance, training and external assessments are not counted. Tied scores share a rank.${teachingOnly && !R.usedTeachingOnly ? ' <b>No staff have a teaching role, so all staff are shown.</b>' : ''}</div>
+    </div>
+    ${warn}${banner}
+    ${podium ? `<div class="sr-stat-row" style="margin-bottom:14px">${podium}</div>` : ''}
+    <div class="card" style="overflow:auto"><table class="sr-table"><thead><tr>
+      <th>Rank</th><th>Teacher</th><th>Dept</th><th style="text-align:right">Appraisal</th><th style="text-align:right">Votes</th><th style="text-align:right">Score</th><th>Band</th></tr></thead>
+      <tbody>${body || '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">No appraisal data for this filter</td></tr>'}</tbody></table></div>
+    ${un}`;
 }
 
 function sperfExportCsv(rows, term) {
@@ -48277,7 +48665,7 @@ function renderStaffPerformanceReport() {
   const overdue = (db.employees || []).filter(e => {
     if (!e || (e.status && e.status !== 'Active')) return false;
     return !(db.appraisals || []).some(a =>
-      String(a.employeeId) === String(e.id) && a.term === currentTerm && a.year === ACTIVE_YEAR
+      a && String(a.employeeId) === String(e.id) && a.term === currentTerm && a.year === ACTIVE_YEAR
     );
   });
 
@@ -48308,7 +48696,7 @@ function renderStaffPerformanceReport() {
     return { key: k, avg: Math.round(avg * 10) / 10, n: arr.length };
   }).sort((a, b) => a.avg - b.avg);
 
-  const depts = [...new Set((db.employees || []).map(e => e.dept).filter(Boolean))].sort();
+  const depts = [...new Set((db.employees || []).filter(Boolean).map(e => e.dept).filter(Boolean))].sort();
   const termOpts = `<option value="" ${!sel.term ? 'selected' : ''}>All terms</option>` +
     (typeof TERMS !== 'undefined' ? TERMS : []).map(t =>
       `<option value="${esc(t)}" ${sel.term === t ? 'selected' : ''}>${esc(t)}</option>`
@@ -48429,6 +48817,7 @@ function renderStaffPerformanceReport() {
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto">
           ${tabBtn('overview', 'Overview')}
+          ${tabBtn('best', '🏆 Best Teacher')}
           ${tabBtn('rankings', 'Rankings')}
           ${tabBtn('criteria', 'Criteria')}
           ${tabBtn('overdue', 'Overdue (' + overdue.length + ')')}
@@ -48472,6 +48861,8 @@ function renderStaffPerformanceReport() {
         </div>
       </div>
     ` : ''}
+
+    ${sel.tab === 'best' ? sperfBestHtml(sel) : ''}
 
     ${sel.tab === 'rankings' ? `
       ${focusHtml}
@@ -49373,7 +49764,7 @@ const ACL_ROLES = ['Bursar', 'Secretary', 'Headteacher', 'Teacher', 'Class Teach
 // Pages excluded from the matrix entirely -- always-personal views (own data only)
 // or Admin-only tooling. Performance Appraisal is configurable on the matrix.
 const ACL_HIDDEN_PAGES = [
-  'dashboard', 'myappraisal', 'myworkspace', 'staffdirectory', 'accesscontrol',
+  'dashboard', 'myappraisal', 'myworkspace', 'votebestteacher', 'staffdirectory', 'accesscontrol',
   'announce_pta', 'announce_graduation', 'announce_midterms', 'announce_events'
 ];
 
