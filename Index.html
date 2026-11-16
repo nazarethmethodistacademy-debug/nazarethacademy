@@ -869,6 +869,16 @@
      sticky entirely), the header's square corners would otherwise poke out
      past the card's own 10px rounded corners. Rounding them to match keeps
      it looking the same as every other table in the app. */
+  /* A sticky header inside a sideways-scrolling wrapper sticks to THAT wrapper, not the page —
+     the 52px topbar offset above then left a blank navy band over the header and rows slid
+     under it. Give such wrappers their own vertical scroll and stick the header at their top. */
+  .table-scroll:has(> table.sticky-header),
+  .mobile-table-view.table-scroll:has(> table.sticky-header) {
+    max-height: calc(100vh - 150px);
+    overflow: auto !important;
+  }
+  .table-scroll > table.sticky-header thead th,
+  .mobile-table-view > table.sticky-header thead th { top: 0 !important; }
   .sticky-header thead th:first-child { border-top-left-radius: 10px; }
   .sticky-header thead th:last-child { border-top-right-radius: 10px; }
 
@@ -22241,6 +22251,9 @@ function renderFeedingSchedule() {
     // used for each student's Week Expected figure.
     const weekSchoolDays = dates.filter(d => !getNonSchoolDayEvent(d));
 
+    const _obPrev = (() => { const x = new Date(dates[0] + 'T00:00:00'); x.setDate(x.getDate() - 1); return x.toISOString().slice(0, 10); })();
+    const openingCredit = s => feedingCumulativeForStudent(selClass, s.id, s.date || s.admissionDate || '', _obPrev).credit || 0;
+    const openingTotal = students.reduce((a, s) => a + openingCredit(s), 0);
     const rows = students.map(s => {
       const cells = dates.map(d => {
         const nsd = getNonSchoolDayEvent(d);
@@ -22287,6 +22300,7 @@ function renderFeedingSchedule() {
           <div style="font-weight:500;font-size:13px;color:var(--navy)">${esc(s.name)}</div>
           <div style="font-size:10px;color:var(--muted)">${s.id} \u00B7 ${esc(s.phone1)||'no phone'}</div>
         </td>
+        <td style="padding:6px 8px;text-align:center;white-space:nowrap">${(() => { const ob = openingCredit(s); return ob > 0.004 ? `<div style="font-size:12px;font-weight:600;color:var(--green)" title="Advance payment not yet consumed at the start of this week">GHS ${fmt(ob)}</div>${(feedingRateOnDate(selClass, dates[0], s.id) > 0) ? `<div style="font-size:10px;color:var(--muted)">\u2248 ${Math.floor(ob / feedingRateOnDate(selClass, dates[0], s.id) + 0.0001)} day(s)</div>` : ''}` : '<span style="color:var(--muted)">\u2014</span>'; })()}</td>
         ${cells}
         <td style="padding:6px 10px;text-align:center;white-space:nowrap">
           ${weekPaid > 0
@@ -22304,6 +22318,8 @@ function renderFeedingSchedule() {
         </td>
       </tr>`;
     }).join('');
+
+    // Opening balance = advance money paid in earlier weeks that is still unconsumed when this week starts.
 
     const dailyTotals = dates.map(d => {
       const nsd = getNonSchoolDayEvent(d);
@@ -22480,6 +22496,7 @@ function renderFeedingSchedule() {
         : `<div class="card"><div style="overflow-x:auto"><table>
             <thead><tr>
               <th style="padding-left:14px;min-width:160px">Student</th>
+              <th style="min-width:80px;text-align:center">Opening<br><span style="font-weight:400;font-size:9px;opacity:0.75">balance b/f</span></th>
               ${dateHeaders}
               <th style="min-width:80px;text-align:center">Week</th>
               <th style="min-width:100px;text-align:center">Outstanding<br><span style="font-weight:400;font-size:9px;opacity:0.75">since term start</span></th>
@@ -22488,6 +22505,7 @@ function renderFeedingSchedule() {
               ${rows}
               <tr style="background:var(--cream2);border-top:2px solid var(--border)">
                 <td style="padding:8px 14px;font-size:11px;font-weight:600;color:var(--navy)">Collected / Day</td>
+                <td style="text-align:center;font-size:11px;font-weight:600;color:var(--green)">${openingTotal > 0.004 ? 'GHS ' + fmt(openingTotal) : '\u2014'}</td>
                 ${dailyTotals}
                 <td></td>
                 <td></td>
@@ -23200,6 +23218,124 @@ function fdsBuild() {
   return { term, byClass, summ };
 }
 
+// ── FULL FEEDING REPORT FOR ONE STUDENT (Student Records → 🍽️ Feeding Report) ──
+const FSR_CSS = `.fsr{font-family:inherit;color:#1f2a44}.fsr h3{margin:18px 0 8px;font-size:13px;color:#1f3a68;text-transform:uppercase;letter-spacing:.6px}
+.fsr .k{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}.fsr .k div{flex:1;min-width:120px;border:1px solid #dfe5ee;border-radius:8px;padding:8px 10px;background:#f8fafc}
+.fsr .k b{display:block;font-size:16px}.fsr .k span{font-size:10px;color:#6b7690;text-transform:uppercase;letter-spacing:.5px}
+.fsr table{width:100%;border-collapse:collapse;font-size:12px;min-width:0!important}.fsr th{background:#1f3a68;color:#fff;text-align:left;padding:5px 7px;font-size:11px}
+.fsr td{padding:4px 7px;border-bottom:1px solid #e3e7ee}.fsr .r{text-align:right}.fsr .tw{overflow-x:auto}
+.fsr .g{color:#12805c;font-weight:600}.fsr .rd{color:#c0392b;font-weight:600}.fsr .m{color:#6b7690}
+.fsr .pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.fsr .p-paid{background:#dcf5e8;color:#12805c}.fsr .p-pre{background:#dbeafe;color:#1d4ed8}.fsr .p-part{background:#fdf0d5;color:#a86a00}.fsr .p-un{background:#fde2e0;color:#c0392b}.fsr .p-na{background:#eef0f4;color:#6b7690}`;
+
+function feedingStudentReportData(s) {
+  const cls = s.cls, sid = s.id, joinDate = s.date || s.admissionDate || '';
+  const cal = (db.academicCalendar && db.academicCalendar.terms) || {};
+  const todayStr = today();
+  const days = [], terms = [];
+  TERMS.forEach(t => {
+    const td = cal[t];
+    const T = { term: t, expected: 0, paid: 0, days: 0, paidDays: 0, prepaidDays: 0, unpaidDays: 0, configured: !!(td && td.start && td.end) };
+    if (T.configured) {
+      const start = (joinDate && joinDate > td.start) ? joinDate : td.start;
+      const end = td.end < todayStr ? td.end : todayStr;
+      if (start <= end) {
+        const cur = new Date(start + 'T00:00:00'), endD = new Date(end + 'T00:00:00');
+        let guard = 0;
+        while (cur <= endD && guard++ < 400) {
+          const date = cur.toISOString().slice(0, 10), dow = cur.getDay();
+          cur.setDate(cur.getDate() + 1);
+          if (dow === 0 || dow === 6 || getNonSchoolDayEvent(date)) continue;
+          const rate = feedingRateOnDate(cls, date, sid);
+          const paid = feedingAmountFor(cls, date, sid);
+          const cov = feedingCoveredBy(cls, date, sid);
+          let status;
+          if (feedingDisabledByAbsence(cls, date, sid)) status = 'Absent';
+          else if (rate <= 0 && feedingDailyRate(cls, t) > 0) status = 'Exempt';
+          else if (paid > 0) status = paid + 0.0001 >= rate ? 'Paid' : 'Part-paid';
+          else if (cov) status = 'Prepaid';
+          else status = 'Unpaid';
+          if (status !== 'Absent' && status !== 'Exempt') { T.expected += rate; T.days++; }
+          T.paid += paid;
+          if (status === 'Paid' || status === 'Part-paid') T.paidDays++;
+          if (status === 'Prepaid') T.prepaidDays++;
+          if (status === 'Unpaid') T.unpaidDays++;
+          days.push({ date, term: t, rate, paid, status, from: cov ? cov.from : '' });
+        }
+      }
+    }
+    T.outstanding = Math.max(0, Math.round((T.expected - T.paid) * 100) / 100);
+    T.credit = Math.max(0, Math.round((T.paid - T.expected) * 100) / 100);
+    terms.push(T);
+  });
+  const pos = feedingPositionForStudent(cls, sid, joinDate, 'all');
+  const pre = 'fd_' + cls.replace(/\s/g, '_') + '|';
+  const payments = [];
+  Object.keys(db.feedingLedger || {}).forEach(k => {
+    if (k.indexOf(pre) !== 0) return;
+    const date = k.slice(k.indexOf('|') + 1), a = feedingAmountFor(cls, date, sid);
+    if (a > 0) payments.push({ date, amount: a, covers: feedingCoverCount(cls, sid, date) });
+  });
+  payments.sort((a, b) => a.date < b.date ? -1 : 1);
+  const upcoming = [];
+  Object.keys(db.feedingCovered || {}).forEach(k => {
+    if (k.indexOf(pre) !== 0 || !(db.feedingCovered[k] || {})[sid]) return;
+    const date = k.slice(k.indexOf('|') + 1);
+    if (date > todayStr && feedingAdvanceOn()) upcoming.push(date);
+  });
+  upcoming.sort();
+  const months = {};
+  days.forEach(d => { const m = d.date.slice(0, 7); const o = months[m] = months[m] || { month: m, expected: 0, paid: 0, unpaid: 0, prepaid: 0 };
+    if (d.status !== 'Absent' && d.status !== 'Exempt') o.expected += d.rate; o.paid += d.paid; if (d.status === 'Unpaid') o.unpaid++; if (d.status === 'Prepaid') o.prepaid++; });
+  const rateNow = feedingRateOnDate(cls, todayStr, sid) || feedingRateForStudent(cls, TERMS[0], sid);
+  return { s, pos, terms, days, payments, upcoming, months: Object.values(months).sort((a, b) => a.month < b.month ? -1 : 1), rateNow };
+}
+
+function feedingStudentReportHtml(s, termFilter, forPrint) {
+  const D = feedingStudentReportData(s), P = D.pos, b = FDS_BADGE[P.status] || FDS_BADGE.exempt;
+  const money = v => 'GHS ' + fmt(v);
+  const pill = st => ({ 'Paid': 'p-paid', 'Prepaid': 'p-pre', 'Part-paid': 'p-part', 'Unpaid': 'p-un' }[st] || 'p-na');
+  const credDays = (P.credit > 0 && D.rateNow > 0) ? Math.floor(P.credit / D.rateNow + 0.0001) : 0;
+  const days = D.days.filter(d => !termFilter || termFilter === 'all' || d.term === termFilter);
+  const noCal = !D.terms.some(t => t.configured);
+  return `<style>${FSR_CSS}</style><div class="fsr">
+    ${forPrint ? `<div style="border-bottom:2px solid #1f3a68;padding-bottom:6px;margin-bottom:8px"><div style="font-size:17px;font-weight:700;color:#1f3a68">${esc((db.generalSettings && db.generalSettings.schoolName) || 'Feeding Statement')}</div>
+      <div style="font-size:12px">Feeding Report — <b>${esc(s.name || s.id)}</b> · ${esc(s.cls || '')} · ID ${esc(String(s.id))} · ${esc(String(ACTIVE_YEAR).replace('_', '/'))} · printed ${esc(today())}</div></div>` : ''}
+    ${noCal ? `<div class="m" style="padding:10px">Term dates are not set in the Academic Calendar, so no feeding days can be calculated yet.</div>` : ''}
+    <div class="k">
+      <div><span>Status</span><b><span class="pill" style="background:${b[1]};color:${b[2]};font-size:12px;padding:2px 10px">${b[0]}</span></b></div>
+      <div><span>Total Expected</span><b>${money(P.expected)}</b></div>
+      <div><span>Total Paid</span><b class="g">${money(P.paid)}</b></div>
+      <div><span>Outstanding</span><b class="${P.outstanding ? 'rd' : 'm'}">${P.outstanding ? money(P.outstanding) : '—'}</b></div>
+      <div><span>Advance Credit</span><b class="${P.credit ? 'g' : 'm'}">${P.credit ? money(P.credit) : '—'}</b>${credDays ? `<span>≈ ${credDays} day(s)</span>` : ''}</div>
+    </div>
+    <div class="k">
+      <div><span>Days paid</span><b>${P.daysPaid}</b></div>
+      <div><span>Prepaid days used</span><b>${P.daysCovered || 0}</b></div>
+      <div><span>Prepaid days ahead</span><b>${D.upcoming.length}</b>${D.upcoming.length ? `<span>until ${esc(D.upcoming[D.upcoming.length - 1])}</span>` : ''}</div>
+      <div><span>Last payment</span><b style="font-size:13px">${P.lastPaid ? esc(scDate(P.lastPaid)) : '—'}</b></div>
+      <div><span>Daily rate</span><b>${D.rateNow ? money(D.rateNow) : 'Exempt'}</b></div>
+    </div>
+    <h3>By Term</h3>
+    <div class="tw"><table><thead><tr><th>Term</th><th class="r">School days</th><th class="r">Expected</th><th class="r">Paid</th><th class="r">Outstanding</th><th class="r">Credit</th><th class="r">Days paid</th><th class="r">Prepaid</th><th class="r">Unpaid days</th></tr></thead><tbody>
+      ${D.terms.map(t => `<tr><td><b>${esc(t.term)}</b></td>${t.configured ? `<td class="r">${t.days}</td><td class="r">${fmt(t.expected)}</td><td class="r g">${fmt(t.paid)}</td><td class="r ${t.outstanding ? 'rd' : 'm'}">${t.outstanding ? fmt(t.outstanding) : '—'}</td><td class="r ${t.credit ? 'g' : 'm'}">${t.credit ? fmt(t.credit) : '—'}</td><td class="r">${t.paidDays}</td><td class="r">${t.prepaidDays}</td><td class="r ${t.unpaidDays ? 'rd' : 'm'}">${t.unpaidDays}</td>` : `<td colspan="8" class="m">dates not set</td>`}</tr>`).join('')}
+    </tbody></table></div>
+    <h3>Payments Made</h3>
+    <div class="tw"><table><thead><tr><th>Date</th><th class="r">Amount</th><th>Note</th></tr></thead><tbody>
+      ${D.payments.map(p => `<tr><td>${esc(scDate(p.date))}</td><td class="r g">${money(p.amount)}</td><td class="m">${p.covers ? '⏩ Advance — also covers ' + p.covers + ' following school day' + (p.covers !== 1 ? 's' : '') : ''}</td></tr>`).join('') || '<tr><td colspan="3" class="m">No feeding payments recorded.</td></tr>'}
+      ${D.payments.length ? `<tr><td><b>Total</b></td><td class="r g"><b>${money(D.payments.reduce((a, p) => a + p.amount, 0))}</b></td><td></td></tr>` : ''}
+    </tbody></table></div>
+    <h3>By Month</h3>
+    <div class="tw"><table><thead><tr><th>Month</th><th class="r">Expected</th><th class="r">Paid</th><th class="r">Unpaid days</th><th class="r">Prepaid days</th></tr></thead><tbody>
+      ${D.months.map(m => `<tr><td>${esc(m.month)}</td><td class="r">${fmt(m.expected)}</td><td class="r g">${m.paid ? fmt(m.paid) : '—'}</td><td class="r ${m.unpaid ? 'rd' : 'm'}">${m.unpaid || '—'}</td><td class="r">${m.prepaid || '—'}</td></tr>`).join('') || '<tr><td colspan="5" class="m">No school days yet.</td></tr>'}
+    </tbody></table></div>
+    <h3>Day-by-Day Record${termFilter && termFilter !== 'all' ? ' — ' + esc(termFilter) : ''}</h3>
+    <div class="tw"><table><thead><tr><th>Date</th><th>Term</th><th class="r">Rate</th><th class="r">Paid</th><th>Status</th></tr></thead><tbody>
+      ${days.map(d => `<tr><td>${esc(scDate(d.date))}</td><td class="m">${esc(d.term)}</td><td class="r">${d.rate ? fmt(d.rate) : '—'}</td><td class="r ${d.paid ? 'g' : 'm'}">${d.paid ? fmt(d.paid) : '—'}</td><td><span class="pill ${pill(d.status)}">${d.status === 'Prepaid' ? '✓ Prepaid' : d.status}</span>${d.from ? ` <span class="m" style="font-size:10px">(paid ${esc(scDate(d.from))})</span>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="m">No school days in this period.</td></tr>'}
+    </tbody></table></div>
+  </div>`;
+}
+
 const FDS_BADGE = {
   paidup: ['Paid up', 'var(--green-light)', 'var(--green)'],
   over: ['Overpaid', 'var(--green-light)', 'var(--green)'],
@@ -23875,9 +24011,9 @@ function reconcileFeedingJournals() {
 // every configured term. "Expected" only counts actual school days
 // (weekdays not locked by the Academic Calendar), so a student is never
 // billed for a holiday, weekend, or a day before they joined.
-function feedingCumulativeForStudent(cls, sid, joinDate) {
+function feedingCumulativeForStudent(cls, sid, joinDate, untilDate) {
   const cal = (db.academicCalendar && db.academicCalendar.terms) || {};
-  const todayStr = today();
+  const todayStr = untilDate || today();
   let expected = 0, paid = 0;
   TERMS.forEach(t => {
     const td = cal[t];
@@ -36812,6 +36948,8 @@ function renderStudentRecords() {
   ensurePage('studentrecords', 'sr-inner');
   const el = document.getElementById('sr-inner');
   if (!el) return;
+  // Empty/null student rows (left by deleted records) would crash every list/sort below.
+  if (Array.isArray(db.admissions) && db.admissions.some(x => !x)) db.admissions = db.admissions.filter(Boolean);
 
   const lockedClass = lockedClassFor();
   let searchQ = '';
@@ -36935,6 +37073,7 @@ function renderStudentRecords() {
       { key: 'profile',     label: '👤 Profile' },
       { key: 'comprehensive', label: '📑 Comprehensive Report' },
       { key: 'fees',        label: '💳 School Fees' },
+      { key: 'feeding',     label: '🍽️ Feeding Report' },
       { key: 'attendance',  label: '📅 Attendance' },
       { key: 'performance', label: '📊 Performance' },
       { key: 'reportcard',  label: '📝 Report Card' },
@@ -36949,6 +37088,7 @@ function renderStudentRecords() {
       if (activeTab === 'profile')      body = renderProfileTab(s);
       if (activeTab === 'comprehensive') body = renderComprehensiveTab(s);
       if (activeTab === 'fees')         body = renderFeesTab(s);
+      if (activeTab === 'feeding')      body = renderFeedingTab(s);
       if (activeTab === 'attendance')   body = renderAttendanceTab(s);
       if (activeTab === 'performance')  body = renderPerformanceTab(s);
       if (activeTab === 'reportcard')   body = renderReportCardTab(s);
@@ -36971,7 +37111,9 @@ function renderStudentRecords() {
         </div>
         <div style="margin-left:auto;display:flex;gap:8px">
           ${activeTab === 'reportcard' && classHasReportCard(s.cls) ? `<button class="btn btn-outline btn-sm" onclick="exportOneReportCardPDF('${s.id}')">📄 Export PDF</button>` : ''}
-          ${activeTab === 'comprehensive'
+          ${activeTab === 'feeding'
+            ? `<button class="btn btn-gold btn-sm" onclick="srPrintFeeding()">🖨️ Print / Save PDF</button>`
+            : activeTab === 'comprehensive'
             ? `<button class="btn btn-gold btn-sm" onclick="srPrintComprehensive()">🖨️ Print / Save PDF</button>`
             : `<button class="btn btn-outline btn-sm" onclick="printReportSmart()">🖨️ Print</button>`}
         </div>
@@ -37008,6 +37150,12 @@ function renderStudentRecords() {
           </div>`).join('')}
       </div>
       ${s.notes ? `<div class="sr-info-item" style="margin-top:14px"><div class="sr-info-label">Notes</div><div class="sr-info-value" style="font-weight:400">${esc(s.notes)}</div></div>` : ''}`;
+  }
+
+  function renderFeedingTab(s) {
+    const tf = _srFeedTerm || 'all';
+    return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><span style="font-size:12px;color:var(--muted)">Day-by-day record for:</span>
+      <select onchange="srFeedTerm(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px"><option value="all">Full year</option>${TERMS.map(t => `<option ${tf === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>` + feedingStudentReportHtml(s, tf, false);
   }
 
   function renderFeesTab(s) {
@@ -37888,11 +38036,18 @@ function renderStudentRecords() {
   window.srSelect = id => { selectedId = id; _srLastSelectedId = id; activeTab = 'profile'; draw();
     try { if (window.innerWidth <= 768) { const d = document.querySelector('.sr-detail'); if (d && d.scrollIntoView) d.scrollIntoView({ behavior: 'smooth', block: 'start' }); } } catch (e) {} };
   window.srTab = t => { activeTab = t; draw(); };
+  window.srFeedTerm = t => { _srFeedTerm = t; draw(); };
+  window.srPrintFeeding = function() {
+    const s = (db.admissions || []).find(x => x.id === selectedId);
+    if (!s) { if (typeof toast === 'function') toast('⚠ Select a student first'); return; }
+    printHtmlInFrame('Feeding Report - ' + (s.name || s.id), feedingStudentReportHtml(s, _srFeedTerm || 'all', true));
+  };
   window.srPerfTerm = t => { _srPerfTerm = t; draw(); };
   window.srRcTerm = t => { _srRcTerm = t; draw(); };
 }
 let _srLastSelectedId = null;
 let _srPerfTerm = null;
+let _srFeedTerm = 'all';
 let _srRcTerm = null;
 
 // ══════════════ AI ASSISTANT (chat over an aggregated data snapshot) ══════════════
