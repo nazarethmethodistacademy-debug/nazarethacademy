@@ -8876,6 +8876,59 @@
   </div>
 </div>
 
+<!-- ══ EXEMPT FROM FEEDING MODAL ══ -->
+<div class="modal-overlay" id="feed-exempt-modal">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <span class="modal-title">🚫 Exempt Students from Feeding</span>
+      <button class="modal-close" onclick="closeModal('feed-exempt-modal')">✕</button>
+    </div>
+    <div style="padding:12px 20px;font-size:12px;color:var(--muted)">Exempted students owe no feeding fee and are shown as <b>Exempt</b> (not "not paying") in the Feeding Report and Student Feeding Statement.</div>
+    <div class="form-grid" style="padding:0 20px">
+      <div class="form-group"><label>Class</label><select id="fe-class" onchange="feRender()"></select></div>
+      <div class="form-group"><label>Search</label><input id="fe-search" placeholder="Name or ID" oninput="feRender()"></div>
+      <div class="form-group"><label>Applies to</label>
+        <select id="fe-terms"><option value="all">All terms</option><option>Term 1</option><option>Term 2</option><option>Term 3</option></select></div>
+      <div class="form-group"><label>Reason</label><input id="fe-reason" placeholder="e.g. Brings own food, boarder, sponsored"></div>
+    </div>
+    <div style="padding:8px 20px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="feApply(true)">🚫 Exempt selected</button>
+      <button class="btn btn-outline btn-sm" onclick="feApply(false)">↩ Remove exemption from selected</button>
+      <label style="font-size:12px;display:flex;align-items:center;gap:4px"><input type="checkbox" id="fe-all" style="width:auto" onchange="feToggleAll(this.checked)"> Select all shown</label>
+    </div>
+    <div style="max-height:320px;overflow-y:auto;padding:0 20px 8px">
+      <table><thead><tr><th></th><th>Student</th><th>Class</th><th>Status</th></tr></thead><tbody id="fe-body"></tbody></table>
+    </div>
+    <div class="modal-footer"><span id="fe-count" style="font-size:11px;color:var(--muted);flex:1"></span><button class="btn btn-outline" onclick="closeModal('feed-exempt-modal')">Close</button></div>
+  </div>
+</div>
+
+<!-- ══ FEEDING ADVANCE PAYMENTS MODAL ══ -->
+<div class="modal-overlay" id="feed-advance-modal">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <span class="modal-title">⏩ Feeding Advance Payments</span>
+      <button class="modal-close" onclick="closeModal('feed-advance-modal')">✕</button>
+    </div>
+    <div style="padding:14px 20px;font-size:12px;color:var(--muted);line-height:1.6">
+      When a student pays more than the daily rate (e.g. GHS 70 at GHS 7/day), the <b>full amount is recorded on the day paid</b>.
+      The system then marks the following school days <b>✓ prepaid</b> automatically &mdash; those days carry <b>no money</b>, so revenue is never counted twice.
+      Weekends, holidays/breaks, absent days and exempt days are skipped. The payment day counts as the first covered day.
+    </div>
+    <div style="padding:0 20px 10px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600"><input type="checkbox" id="fa-on" style="width:auto" onchange="faToggle(this.checked)"> Automatically cover days for advance payments</label>
+    </div>
+    <div style="padding:0 20px 10px;display:flex;gap:8px;align-items:center">
+      <button class="btn btn-outline btn-sm" onclick="faRebuild()">🔄 Re-apply to all existing payments</button>
+      <span id="fa-summary" style="font-size:11px;color:var(--muted)"></span>
+    </div>
+    <div style="max-height:300px;overflow-y:auto;padding:0 20px 8px">
+      <table><thead><tr><th>Student</th><th>Class</th><th>Prepaid days</th><th>Covered until</th></tr></thead><tbody id="fa-body"></tbody></table>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('feed-advance-modal')">Close</button></div>
+  </div>
+</div>
+
 <!-- ══ CALENDAR EVENT MODAL ══ -->
 <div class="modal-overlay" id="cal-event-modal">
   <div class="modal">
@@ -9540,6 +9593,9 @@ const DB_SEED = {
   feedingDiscounts: {},
   // Bulk feeding exemptions: [{id, cls:'All'|className, month:'YYYY-MM', reason, setBy, setAt}] — whole class free of feeding fee for that month.
   feedingExemptions: [],
+  // Advance feeding payments: feedingCovered[ledgerKey][sid] = {from:'YYYY-MM-DD'} marks a day as prepaid (no money recorded that day).
+  feedingCovered: {},
+  feedingSettings: { advanceCover: true },
   // ── BOARD REPORT — narrative sections no report can auto-generate ──
   boardReportNotes: { strategicPriorities: '', keyDecisions: '', risksConcerns: '', updatedBy: '', updatedAt: '' },
   // ── ACADEMIC CALENDAR — term start/end dates + school events for this academic year ──
@@ -10174,6 +10230,7 @@ async function executeCloseYear() {
     newDb.smsLog        = [];
     newDb.feedingSmsLog = [];
     newDb.feedingLedger = {};
+    newDb.feedingCovered = {};
     newDb.grades        = {};
     newDb.attendance    = {};
     newDb.payrollRuns   = [];
@@ -11927,7 +11984,7 @@ function ensureDbShape() {
     'skillComments', 'attendance', 'staffAttendance', 'dutyRoster', 'feeding', 'feedingBudgetOverrides',
     'fixedAssets', 'approvalConfig', 'generalSettings',
     'carryForwards', 'boardReportNotes', 'staffHrDetails', 'mgmtComments',
-    'grades', 'usageLog', 'fees', 'feedingFees', 'feedingDiscounts', 'teacherExternalParamOverrides', 'teacherVoteSettings'
+    'grades', 'usageLog', 'fees', 'feedingFees', 'feedingDiscounts', 'feedingCovered', 'feedingSettings', 'teacherExternalParamOverrides', 'teacherVoteSettings'
   ];
   OBJ_KEYS.forEach(k => {
     try { db[k] = ensureObject(db[k]); } catch (e) { db[k] = {}; }
@@ -12412,6 +12469,8 @@ function initDb(callback) {
       db.nextCalEventId = data.nextCalEventId ?? 1;
       // Feeding fields
       db.feedingLedger  = data.feedingLedger  || {};
+      db.feedingCovered = data.feedingCovered || {};
+      db.feedingSettings = data.feedingSettings || { advanceCover: true };
       db.feedingSmsLog  = data.feedingSmsLog  || [];
       // Access Control, Year Lock, and Fee Component config — previously missing
       // from this load list, meaning they silently reverted to defaults on every
@@ -14049,6 +14108,8 @@ const MODULE_DEFS = {
       { icon:'✅', label:'Approval Workflow',  action:'openApprovalWorkflowModal', adminOnly:true },
       { icon:'🔒', label: () => isYearLocked() ? '🔓 Unlock Academic Year' : '🔒 Lock Academic Year', action:'toggleYearLock', adminOnly:true },
       { icon:'🎟️', label:'Fee Discounts & Exemptions', action:'openFeeDiscountsModal', adminOnly:true },
+      { icon:'🚫', label:'Exempt Students from Feeding', action:'openFeedExemptModal', adminOnly:true },
+      { icon:'⏩', label:'Feeding Advance Payments', action:'openFeedAdvanceModal', adminOnly:true },
       { icon:'↩',  label:'Reset to Demo',      action:'resetAllData', adminOnly:true, danger:true },
       { icon:'⏻',  label:'Sign Out',           action:'logoutUser', danger:true },
     ]
@@ -21845,7 +21906,7 @@ function renderFeedingSchedule() {
     const skipped = studentsList.length - present.length;
     // Exempt students (full exemption / 100% discount) owe nothing — never charge them
     const exempt = present.filter(s => feedingRateOnDate(cls, date, s.id) === 0 && classRate > 0);
-    const eligible = present.filter(s => !exempt.includes(s));
+    const eligible = present.filter(s => !exempt.includes(s) && !feedingCoveredBy(cls, date, s.id));
     eligible.forEach(s => { db.feedingLedger[k][s.id] = feedingRateOnDate(cls, date, s.id); });
     const discounted = eligible.filter(s => feedingRateOnDate(cls, date, s.id) !== classRate).length;
     syncFeedingJournal(cls, date);
@@ -21885,6 +21946,7 @@ function renderFeedingSchedule() {
         studentsList.forEach(s => {
           if (feedingDisabledByAbsence(cls, dateStr, s.id)) return;
           if (feedingExemptOn(cls, dateStr, s.id)) return; // exempt from feeding fee — nothing to charge
+          if (feedingCoveredBy(cls, dateStr, s.id)) return; // prepaid in advance — no money on this day
           db.feedingLedger[k][s.id] = feedingRateOnDate(cls, dateStr, s.id);
         });
         schoolDays++;
@@ -21920,6 +21982,8 @@ function renderFeedingSchedule() {
     if (nsd) { toast(`🚫 No feeding — ${CAL_CAT_LABELS[nsd.category]}: ${nsd.title}`, 'error'); return; }
     if (feedingDisabledByAbsence(cls, date, sid)) { toast('🚫 Feeding fee disabled — student was marked Absent that day', 'error'); return; }
     if (feedingExemptOn(cls, date, sid)) { toast('🎟️ This student is exempt from the feeding fee — nothing to record. (Change it in Settings → Fee Discounts & Exemptions)', 'error'); draw(); return; }
+    const cov = feedingCoveredBy(cls, date, sid);
+    if (cov) { toast('✓ Prepaid — covered by the payment of ' + cov.from + '. Edit that payment to change this day.', 'error'); draw(); return; }
     const amt = parseFloat(value);
     if (!db.feedingLedger) db.feedingLedger = {};
     const k = fdKey(cls, date);
@@ -21930,8 +21994,10 @@ function renderFeedingSchedule() {
       db.feedingLedger[k][sid] = Math.round(amt * 100) / 100;
     }
     syncFeedingJournal(cls, date);
+    const nCov = feedingRebuildCoversFor(cls, sid);
     saveDb();
     draw();
+    if (nCov > 0) toast(`⏩ Advance payment — ${nCov} further school day${nCov!==1?'s':''} marked ✓ prepaid (no amount recorded on them)`);
   }
 
   // ── Class-level batch SMS review modal ───────────────────
@@ -22193,13 +22259,20 @@ function renderFeedingSchedule() {
             <span class="fd-cell" style="cursor:not-allowed;opacity:0.7;background:transparent;width:36px;height:32px;display:inline-flex" title="${esc(s.name)} is exempt from the feeding fee">🎟️</span>
           </td>`;
         }
+        const cov = feedingCoveredBy(selClass, d, s.id);
+        if (cov) {
+          return `<td style="text-align:center;padding:5px 3px">
+            <span class="fd-cell" style="cursor:default;background:rgba(16,185,129,.15);color:var(--green);width:36px;height:32px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;border-radius:6px" title="Prepaid — covered by the payment of ${esc(cov.from)} (no amount recorded on this day)">✓</span>
+          </td>`;
+        }
         const amt = feedingAmountFor(selClass, d, s.id);
         const stuRate = feedingRateOnDate(selClass, d, s.id);
+        const advN = (amt > stuRate && stuRate > 0) ? feedingCoverCount(selClass, s.id, d) : 0;
         const stateClass = amt <= 0 ? 'fd-amt-empty' : (amt >= stuRate ? 'fd-amt-full' : 'fd-amt-partial');
         return `<td style="text-align:center;padding:5px 3px">
           <input type="number" min="0" step="0.01" class="fd-amt-input ${stateClass}"
             value="${amt > 0 ? amt : ''}" placeholder=""
-            title="${amt > 0 ? 'GHS ' + amt.toFixed(2) + ' paid' : 'Click to enter amount paid'}${stuRate !== dailyRate ? ' · discounted rate GHS ' + stuRate.toFixed(2) + '/day' : ''}"
+            title="${amt > 0 ? 'GHS ' + amt.toFixed(2) + ' paid' : 'Click to enter amount paid'}${advN ? ' · ⏩ advance — covers ' + advN + ' more day(s) ✓' : ''}${stuRate !== dailyRate ? ' · discounted rate GHS ' + stuRate.toFixed(2) + '/day' : ''}"
             onchange="fdSetAmount('${selClass}','${d}','${s.id}',this.value)">
         </td>`;
       }).join('');
@@ -22220,6 +22293,7 @@ function renderFeedingSchedule() {
             ? `<div style="font-size:12px;font-weight:600;color:var(--green)">GHS ${fmt(weekPaid)}</div>`
             : `<div style="font-size:12px;color:var(--muted)">—</div>`}
           <div style="font-size:10px;color:var(--muted)">of GHS ${fmt(weekExpected)}</div>
+          ${(() => { const wc = dates.filter(d => feedingCoveredBy(selClass, d, s.id)).length; return wc ? `<div style="font-size:10px;color:var(--green)">✓ ${wc} day${wc!==1?'s':''} prepaid</div>` : ''; })()}
         </td>
         <td style="padding:6px 10px;text-align:center;white-space:nowrap">
           ${cum.outstanding > 0
@@ -23065,6 +23139,169 @@ async function exportFeedingRevenuePDF(prefs) {
 }
 
 
+// ══════════════ STUDENT FEEDING STATEMENT — class by class ══════════════
+// Per student: paying / not paying, total paid, outstanding. Same maths as the Feeding
+// Revenue page's running balance (feedingCumulativeForStudent) but can be limited to one term.
+let _fdsClass = 'all';
+let _fdsFilter = 'all';   // all | paying | notpaying | owing
+
+function feedingPositionForStudent(cls, sid, joinDate, onlyTerm) {
+  const cal = (db.academicCalendar && db.academicCalendar.terms) || {};
+  const todayStr = today();
+  let expected = 0, paid = 0, daysPaid = 0, daysCovered = 0, lastPaid = '';
+  TERMS.forEach(t => {
+    if (onlyTerm && onlyTerm !== 'all' && t !== onlyTerm) return;
+    const td = cal[t];
+    if (!td || !td.start || !td.end) return;
+    const start = (joinDate && joinDate > td.start) ? joinDate : td.start;
+    const end = td.end < todayStr ? td.end : todayStr;
+    if (start > end) return;
+    const rate = feedingRateForStudent(cls, t, sid);
+    const cursor = new Date(start + 'T00:00:00'), endD = new Date(end + 'T00:00:00');
+    let guard = 0;
+    while (cursor <= endD && guard++ < 400) {
+      const dow = cursor.getDay(), dateStr = cursor.toISOString().slice(0, 10);
+      if (dow !== 0 && dow !== 6 && !getNonSchoolDayEvent(dateStr) && !feedingDisabledByAbsence(cls, dateStr, sid)) {
+        expected += feedingBulkExemptOn(cls, dateStr) ? 0 : rate;
+        const a = feedingAmountFor(cls, dateStr, sid);
+        if (a > 0) { paid += a; daysPaid++; if (dateStr > lastPaid) lastPaid = dateStr; }
+        else if (feedingCoveredBy(cls, dateStr, sid)) daysCovered++;
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  });
+  expected = Math.round(expected * 100) / 100; paid = Math.round(paid * 100) / 100;
+  const outstanding = Math.max(0, Math.round((expected - paid) * 100) / 100);
+  const credit = Math.max(0, Math.round((paid - expected) * 100) / 100);
+  let status;
+  if (expected === 0 && paid === 0) status = 'exempt';
+  else if (paid === 0) status = 'notpaying';
+  else if (outstanding > 0) status = 'part';
+  else status = credit > 0 ? 'over' : 'paidup';
+  return { expected, paid, outstanding, credit, daysPaid, daysCovered, lastPaid, status };
+}
+
+function fdsBuild() {
+  const term = (typeof _fdrActiveTerm !== 'undefined') ? _fdrActiveTerm : 'all';
+  const byClass = {};
+  CLASSES.forEach(c => { byClass[c] = []; });
+  (db.admissions || []).forEach(s => {
+    if (!s || !byClass[s.cls] || !isEnrolledStudent(s)) return;
+    const pos = feedingPositionForStudent(s.cls, s.id, s.date || s.admissionDate || '', term);
+    byClass[s.cls].push(Object.assign({ s }, pos));
+  });
+  CLASSES.forEach(c => byClass[c].sort((a, b) => String(a.s.name || '').localeCompare(String(b.s.name || ''))));
+  const summ = c => {
+    const r = byClass[c];
+    return { n: r.length, paying: r.filter(x => x.paid > 0).length, notPaying: r.filter(x => x.status === 'notpaying').length,
+      exempt: r.filter(x => x.status === 'exempt').length, owing: r.filter(x => x.outstanding > 0).length,
+      paid: r.reduce((a, x) => a + x.paid, 0), outstanding: r.reduce((a, x) => a + x.outstanding, 0), expected: r.reduce((a, x) => a + x.expected, 0) };
+  };
+  return { term, byClass, summ };
+}
+
+const FDS_BADGE = {
+  paidup: ['Paid up', 'var(--green-light)', 'var(--green)'],
+  over: ['Overpaid', 'var(--green-light)', 'var(--green)'],
+  part: ['Part-paid', 'var(--amber-light)', 'var(--amber)'],
+  notpaying: ['Not paying', 'var(--red-light)', 'var(--red)'],
+  exempt: ['Exempt / no fee', 'var(--cream)', 'var(--muted)']
+};
+function fdsMatch(x) {
+  return _fdsFilter === 'all' || (_fdsFilter === 'paying' && x.paid > 0) || (_fdsFilter === 'notpaying' && x.status === 'notpaying') || (_fdsFilter === 'owing' && x.outstanding > 0);
+}
+window.fdsSet = (k, v) => { if (k === 'cls') _fdsClass = v; else _fdsFilter = v; renderFeedingReport(); };
+
+function fdrStudentStatementHtml() {
+  const D = fdsBuild();
+  const classes = _fdsClass === 'all' ? CLASSES : CLASSES.filter(c => c === _fdsClass);
+  const withStudents = classes.filter(c => D.byClass[c].length);
+  const g = { n: 0, paying: 0, notPaying: 0, exempt: 0, owing: 0, paid: 0, outstanding: 0, expected: 0 };
+  withStudents.forEach(c => { const s = D.summ(c); Object.keys(g).forEach(k => g[k] += s[k]); });
+  const chip = (k, label) => `<button class="stat-tab ${_fdsFilter === k ? 'active' : ''}" onclick="fdsSet('f','${k}')">${label}</button>`;
+  const summaryRows = withStudents.map(c => { const s = D.summ(c); return `<tr>
+      <td><b>${esc(c)}</b></td><td>${s.n}</td><td style="color:var(--green);font-weight:600">${s.paying}</td>
+      <td style="color:${s.notPaying ? 'var(--red)' : 'var(--muted)'};font-weight:600">${s.notPaying}</td><td>${s.exempt || '—'}</td>
+      <td style="color:var(--green)">${fmt(s.paid)}</td><td style="color:${s.outstanding ? 'var(--red)' : 'var(--muted)'};font-weight:600">${fmt(s.outstanding)}</td></tr>`; }).join('');
+  const classCards = withStudents.filter(c => _fdsFilter === 'all' || D.byClass[c].some(fdsMatch)).map(c => {
+    const s = D.summ(c), rows = D.byClass[c].filter(fdsMatch);
+    return `<div class="card" style="margin-bottom:16px;break-inside:avoid">
+      <div class="stat-section-title" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+        <span>🏫 ${esc(c)}</span>
+        <span style="font-size:11px;font-weight:500;color:var(--muted)">${s.n} students · <b style="color:var(--green)">${s.paying} paying</b> · <b style="color:${s.notPaying ? 'var(--red)' : 'var(--muted)'}">${s.notPaying} not paying</b>${s.exempt ? ' · ' + s.exempt + ' exempt' : ''} · Paid GHS ${fmt(s.paid)} · Outstanding GHS ${fmt(s.outstanding)}</span>
+      </div>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>#</th><th>Student</th><th>Status</th><th style="text-align:right">Expected (GHS)</th><th style="text-align:right">Total Paid (GHS)</th><th style="text-align:right">Outstanding (GHS)</th><th>Days Paid</th><th>Last Payment</th></tr></thead>
+        <tbody>${rows.map((x, i) => { const b = FDS_BADGE[x.status];
+          return `<tr><td>${i + 1}</td>
+            <td><div style="font-weight:600;color:var(--navy)">${esc(x.s.name || 'Unnamed')}</div><div style="font-size:10px;color:var(--muted)">${esc(String(x.s.id || ''))}</div></td>
+            <td><span class="badge" style="background:${b[1]};color:${b[2]}">${b[0]}</span></td>
+            <td style="text-align:right">${fmt(x.expected)}</td>
+            <td style="text-align:right;font-weight:600;color:${x.paid ? 'var(--green)' : 'var(--muted)'}">${fmt(x.paid)}</td>
+            <td style="text-align:right;font-weight:700;color:${x.outstanding ? 'var(--red)' : 'var(--muted)'}">${x.outstanding ? fmt(x.outstanding) : '—'}${x.credit ? `<div style="font-size:10px;color:var(--green);font-weight:500">credit ${fmt(x.credit)}</div>` : ''}</td>
+            <td>${x.daysPaid || '—'}${x.daysCovered ? `<div style="font-size:10px;color:var(--green)">+${x.daysCovered} prepaid ✓</div>` : ''}</td><td style="white-space:nowrap">${x.lastPaid ? esc(scDate(x.lastPaid)) : '—'}</td></tr>`; }).join('') || '<tr><td colspan="8" class="empty-state">No students match this filter.</td></tr>'}</tbody>
+        <tfoot><tr><td></td><td style="font-weight:700">Class total</td><td></td><td style="text-align:right;font-weight:700">${fmt(rows.reduce((a, x) => a + x.expected, 0))}</td><td style="text-align:right;font-weight:700;color:var(--green)">${fmt(rows.reduce((a, x) => a + x.paid, 0))}</td><td style="text-align:right;font-weight:700;color:var(--red)">${fmt(rows.reduce((a, x) => a + x.outstanding, 0))}</td><td></td><td></td></tr></tfoot>
+      </table></div></div>`; }).join('');
+  return `
+    <div class="section-header" style="margin-bottom:14px;margin-top:20px">
+      <div><div class="section-title">👨‍🎓 Student Feeding Statement — Class by Class</div>
+        <div class="section-sub">Who is paying, who is not, what each student has paid in total and what they still owe · ${D.term === 'all' ? 'Full Year' : esc(D.term)} (follows the term tabs above)</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="fdsExportCsv()">⬇ CSV</button>
+        <button class="btn btn-outline btn-sm" onclick="fdsPrint()">🖨️ Print class report</button>
+      </div>
+    </div>
+    <div class="kpi-grid kpi-grid-4" style="margin-bottom:14px">
+      <div class="kpi-card green"><div class="kpi-label">Students Paying</div><div class="kpi-value">${g.paying}</div><div class="kpi-sub">of ${g.n} enrolled</div></div>
+      <div class="kpi-card red"><div class="kpi-label">Students Not Paying</div><div class="kpi-value">${g.notPaying}</div><div class="kpi-sub">paid nothing${g.exempt ? ' · ' + g.exempt + ' exempt not counted' : ''}</div></div>
+      <div class="kpi-card gold"><div class="kpi-label">Total Paid</div><div class="kpi-value">GHS ${fmt(g.paid)}</div></div>
+      <div class="kpi-card red"><div class="kpi-label">Total Outstanding</div><div class="kpi-value">GHS ${fmt(g.outstanding)}</div><div class="kpi-sub">${g.owing} student${g.owing === 1 ? '' : 's'} owing</div></div>
+    </div>
+    <div class="card" style="padding:10px 14px;margin-bottom:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <select onchange="fdsSet('cls',this.value)" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px"><option value="all">All classes</option>${CLASSES.map(c => `<option value="${esc(c)}" ${c === _fdsClass ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+      <div class="stat-tab-bar" style="margin:0">${chip('all', 'All students')}${chip('paying', '✅ Paying')}${chip('notpaying', '❌ Not paying')}${chip('owing', '💳 Owing')}</div>
+    </div>
+    <div class="card" style="margin-bottom:16px;overflow-x:auto">
+      <div class="stat-section-title">📋 Summary by Class</div>
+      <table><thead><tr><th>Class</th><th>Students</th><th>Paying</th><th>Not Paying</th><th>Exempt</th><th>Total Paid (GHS)</th><th>Outstanding (GHS)</th></tr></thead>
+        <tbody>${summaryRows || '<tr><td colspan="7" class="empty-state">No enrolled students found.</td></tr>'}</tbody>
+        <tfoot><tr><td style="font-weight:700">All shown</td><td style="font-weight:700">${g.n}</td><td style="font-weight:700;color:var(--green)">${g.paying}</td><td style="font-weight:700;color:var(--red)">${g.notPaying}</td><td>${g.exempt || '—'}</td><td style="font-weight:700;color:var(--green)">${fmt(g.paid)}</td><td style="font-weight:700;color:var(--red)">${fmt(g.outstanding)}</td></tr></tfoot></table>
+    </div>
+    ${classCards}`;
+}
+
+function fdsRowsForExport() {
+  const D = fdsBuild(), out = [];
+  const classes = _fdsClass === 'all' ? CLASSES : CLASSES.filter(c => c === _fdsClass);
+  classes.forEach(c => D.byClass[c].filter(fdsMatch).forEach(x => out.push({ cls: c, x })));
+  return { D, rows: out };
+}
+function fdsExportCsv() {
+  const { D, rows } = fdsRowsForExport();
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const lines = [['Class', 'Student ID', 'Student', 'Status', 'Expected (GHS)', 'Total Paid (GHS)', 'Outstanding (GHS)', 'Credit (GHS)', 'Days Paid', 'Last Payment'].join(',')];
+  rows.forEach(({ cls, x }) => lines.push([q(cls), q(x.s.id), q(x.s.name), q(FDS_BADGE[x.status][0]), x.expected, x.paid, x.outstanding, x.credit, x.daysPaid, q(x.lastPaid)].join(',')));
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'Feeding Statement - ' + (D.term === 'all' ? 'Full Year' : D.term) + ' - ' + String(ACTIVE_YEAR).replace('_', '-') + '.csv';
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function fdsPrint() {
+  const { D, rows } = fdsRowsForExport();
+  const th = 'style="text-align:left;padding:5px 6px;background:#1f3a68;color:#fff;font-size:11px"', td = 'style="padding:4px 6px;border-bottom:1px solid #e3e7ee;font-size:11px"';
+  const byCls = {}; rows.forEach(r => (byCls[r.cls] = byCls[r.cls] || []).push(r.x));
+  const body = Object.keys(byCls).map((c, i) => {
+    const r = byCls[c], paid = r.reduce((a, x) => a + x.paid, 0), out = r.reduce((a, x) => a + x.outstanding, 0);
+    return `<div style="${i ? 'page-break-before:always;' : ''}padding:6px 0">
+      <h3 style="margin:0 0 2px;color:#12284c;font-family:Georgia,serif">${esc(c)}</h3>
+      <div style="font-size:11px;color:#44505f;margin-bottom:6px">${r.length} students · ${r.filter(x => x.paid > 0).length} paying · ${r.filter(x => x.status === 'notpaying').length} not paying · Paid GHS ${fmt(paid)} · Outstanding GHS ${fmt(out)}</div>
+      <table style="width:100%;border-collapse:collapse"><thead><tr><th ${th}>#</th><th ${th}>Student</th><th ${th}>Status</th><th ${th}>Expected</th><th ${th}>Total Paid</th><th ${th}>Outstanding</th><th ${th}>Last Payment</th></tr></thead><tbody>
+      ${r.map((x, j) => `<tr><td ${td}>${j + 1}</td><td ${td}><b>${esc(x.s.name || 'Unnamed')}</b></td><td ${td}>${FDS_BADGE[x.status][0]}</td><td ${td}>${fmt(x.expected)}</td><td ${td}>${fmt(x.paid)}</td><td ${td}><b>${x.outstanding ? fmt(x.outstanding) : '—'}</b></td><td ${td}>${x.lastPaid ? esc(scDate(x.lastPaid)) : '—'}</td></tr>`).join('')}
+      <tr><td ${td}></td><td ${td}><b>Class total</b></td><td ${td}></td><td ${td}><b>${fmt(r.reduce((a, x) => a + x.expected, 0))}</b></td><td ${td}><b>${fmt(paid)}</b></td><td ${td}><b>${fmt(out)}</b></td><td ${td}></td></tr></tbody></table></div>`;
+  }).join('') || '<p>No students to show.</p>';
+  scPrintFrame('Feeding Statement', `<div style="font-family:Arial,sans-serif;padding:4px"><h2 style="margin:0;color:#12284c">${esc(typeof schoolName === 'function' ? schoolName() : '')}</h2><div style="font-size:12px;color:#44505f;margin-bottom:10px">Student Feeding Statement — ${D.term === 'all' ? 'Full Year' : esc(D.term)} · ${esc(String(ACTIVE_YEAR).replace('_', '/'))} · printed ${esc(scDate(today()))}</div>${body}</div>`);
+}
+
 function renderFeedingReport() {
   const el = document.getElementById('fdr-inner');
   if (!el) return;
@@ -23161,7 +23398,7 @@ function renderFeedingReport() {
   CLASSES.forEach(c => { arrearsByClass[c] = { outstanding: 0, credit: 0, studentsOwing: 0 }; });
   let totalFeedingArrears = 0, totalFeedingCredit = 0, studentsInArrears = 0;
   (db.admissions || []).forEach(s => {
-    if (!arrearsByClass[s.cls]) return;
+    if (!s || !arrearsByClass[s.cls]) return;
     const joinDate = s.date || s.admissionDate || '';
     const cum = feedingCumulativeForStudent(s.cls, s.id, joinDate);
     arrearsByClass[s.cls].outstanding += cum.outstanding;
@@ -23320,6 +23557,8 @@ function renderFeedingReport() {
       </table>
     </div>
 
+    ${(() => { try { return fdrStudentStatementHtml(); } catch (e) { console.error(e); return '<div class="card" style="padding:14px;color:var(--red)">Student feeding statement could not be built: ' + esc(e.message) + '</div>'; } })()}
+
     <div style="font-size:11px;color:var(--muted);padding:8px 4px">
       ℹ Figures are the actual amounts recorded on the Feeding Revenue page — not an assumed full daily rate, so partial payments are reflected accurately. A date outside any configured Academic Calendar term range falls back to the Term 1 rate for any legacy entry that still needs one.
     </div>`;
@@ -23426,6 +23665,127 @@ function feedingExemptOn(cls, date, sid) {
 // checkbox), so any of that historical data is read back as "paid the full
 // daily rate for that date", which is exactly what checking that box used
 // to mean. Nothing pre-dating this feature is lost or misread.
+// ── ADVANCE FEEDING PAYMENTS ─────────────────────────────────────────────
+// A payment larger than the day's rate is recorded in full on the day paid.
+// The following school days are then marked "prepaid" in db.feedingCovered
+// (no money on those days), so cash/revenue is counted once, on the pay day.
+function feedingAdvanceOn() { const st = db.feedingSettings; return !st || st.advanceCover !== false; }
+function feedingCoveredBy(cls, date, sid) {
+  if (!feedingAdvanceOn()) return null;
+  const e = ((db.feedingCovered || {})[fdKeyGlobal(cls, date)] || {})[sid];
+  return e || null;
+}
+function feedingCoverCount(cls, sid, fromDate) {
+  let n = 0;
+  const pre = 'fd_' + cls.replace(/\s/g, '_') + '|';
+  Object.keys(db.feedingCovered || {}).forEach(k => {
+    if (k.indexOf(pre) !== 0) return;
+    const e = db.feedingCovered[k][sid];
+    if (e && e.from === fromDate) n++;
+  });
+  return n;
+}
+function feedingRebuildCoversFor(cls, sid) {
+  if (!db.feedingCovered) db.feedingCovered = {};
+  const pre = 'fd_' + cls.replace(/\s/g, '_') + '|';
+  Object.keys(db.feedingCovered).forEach(k => {
+    if (k.indexOf(pre) !== 0) return;
+    if (db.feedingCovered[k][sid]) delete db.feedingCovered[k][sid];
+    if (!Object.keys(db.feedingCovered[k]).length) delete db.feedingCovered[k];
+  });
+  if (!feedingAdvanceOn()) return 0;
+  const cal = (db.academicCalendar && db.academicCalendar.terms) || {};
+  let lastEnd = '';
+  TERMS.forEach(t => { if (cal[t] && cal[t].end && cal[t].end > lastEnd) lastEnd = cal[t].end; });
+  if (!lastEnd) return 0;
+  const pays = [];
+  Object.keys(db.feedingLedger || {}).forEach(k => {
+    if (k.indexOf(pre) !== 0) return;
+    const date = k.slice(k.indexOf('|') + 1);
+    const a = feedingAmountFor(cls, date, sid);
+    if (a > 0) pays.push({ date, a });
+  });
+  pays.sort((x, y) => x.date < y.date ? -1 : 1);
+  let total = 0;
+  pays.forEach(pay => {
+    const r0 = feedingRateOnDate(cls, pay.date, sid);
+    if (r0 <= 0 || pay.a < r0) return;
+    let budget = Math.round((pay.a - r0) * 100) / 100;
+    const cur = new Date(pay.date + 'T00:00:00');
+    let guard = 0;
+    while (budget > 0 && guard++ < 500) {
+      cur.setDate(cur.getDate() + 1);
+      const ds = cur.toISOString().slice(0, 10);
+      if (ds > lastEnd) break;
+      const dow = cur.getDay();
+      if (dow === 0 || dow === 6 || getNonSchoolDayEvent(ds) || !fdrTermForDate(ds)) continue;
+      if (feedingDisabledByAbsence(cls, ds, sid)) continue;
+      const r = feedingRateOnDate(cls, ds, sid);
+      if (r <= 0) continue;
+      if (feedingAmountFor(cls, ds, sid) > 0) continue;
+      const k = fdKeyGlobal(cls, ds);
+      if ((db.feedingCovered[k] || {})[sid]) continue;
+      if (budget + 0.0001 < r) break;
+      (db.feedingCovered[k] = db.feedingCovered[k] || {})[sid] = { from: pay.date };
+      budget = Math.round((budget - r) * 100) / 100;
+      total++;
+    }
+  });
+  return total;
+}
+function feedingRebuildCoversAll() {
+  const seen = {};
+  Object.keys(db.feedingLedger || {}).forEach(k => {
+    const sep = k.indexOf('|'); if (sep === -1) return;
+    const cls = k.slice(3, sep).replace(/_/g, ' ');
+    Object.keys(db.feedingLedger[k] || {}).forEach(sid => { seen[cls + '\u0001' + sid] = [cls, sid]; });
+  });
+  db.feedingCovered = {};
+  let n = 0;
+  Object.values(seen).forEach(([c, sid]) => { n += feedingRebuildCoversFor(c, sid); });
+  return n;
+}
+function openFeedAdvanceModal() {
+  if (!requireRole('Admin')) return;
+  document.getElementById('fa-on').checked = feedingAdvanceOn();
+  faRender();
+  document.getElementById('feed-advance-modal').classList.add('open');
+}
+function faRender() {
+  const rows = {};
+  Object.keys(db.feedingCovered || {}).forEach(k => {
+    const sep = k.indexOf('|'); if (sep === -1) return;
+    const cls = k.slice(3, sep).replace(/_/g, ' '), date = k.slice(sep + 1);
+    Object.keys(db.feedingCovered[k] || {}).forEach(sid => {
+      const r = rows[cls + '\u0001' + sid] = rows[cls + '\u0001' + sid] || { cls, sid, n: 0, last: '' };
+      r.n++; if (date > r.last) r.last = date;
+    });
+  });
+  const list = Object.values(rows).sort((a, b) => (b.last > a.last ? 1 : -1));
+  document.getElementById('fa-body').innerHTML = list.slice(0, 300).map(r => {
+    const st = (db.admissions || []).find(a => a && a.id === r.sid);
+    return `<tr><td><b>${esc(st ? st.name : r.sid)}</b></td><td>${esc(r.cls)}</td><td>${r.n}</td><td>${esc(r.last)}</td></tr>`;
+  }).join('') || '<tr><td colspan="4" class="empty-state">No prepaid days yet</td></tr>';
+  document.getElementById('fa-summary').textContent = list.length + ' student(s) with prepaid days';
+}
+function faToggle(on) {
+  if (!requireRole('Admin')) { document.getElementById('fa-on').checked = feedingAdvanceOn(); return; }
+  if (!db.feedingSettings) db.feedingSettings = {};
+  db.feedingSettings.advanceCover = !!on;
+  const n = on ? feedingRebuildCoversAll() : 0;
+  if (!on) db.feedingCovered = {};
+  saveDb(); faRender();
+  toast(on ? `✅ Advance cover ON — ${n} day(s) marked prepaid` : 'Advance cover turned OFF');
+  if (typeof fdRefreshViews === 'function') fdRefreshViews();
+}
+function faRebuild() {
+  if (!requireRole('Admin')) return;
+  const n = feedingRebuildCoversAll();
+  saveDb(); faRender();
+  toast(`🔄 Re-applied — ${n} day(s) marked prepaid`);
+  if (typeof fdRefreshViews === 'function') fdRefreshViews();
+}
+
 function feedingAmountFor(cls, date, sid) {
   const raw = ((db.feedingLedger || {})[fdKeyGlobal(cls, date)] || {})[sid];
   if (typeof raw === 'number') return raw;
@@ -28175,6 +28535,60 @@ function fdBulkRemove(id) {
   db.feedingExemptions = (db.feedingExemptions || []).filter(e => e.id !== id);
   saveDb(); fdBulkRenderList(); fdRefreshViews();
   toast('🗑 Bulk exemption removed');
+}
+
+// ── Exempt students from feeding (Settings) ──
+function feStudents() {
+  return (db.admissions || []).filter(s => s && ['Admitted','Continuing','Scholarship'].includes(s.status));
+}
+function feIsExempt(sid) {
+  const d = (db.feedingDiscounts || {})[sid];
+  return !!(d && d.type === 'full');
+}
+function openFeedExemptModal() {
+  if (!requireRole('Admin')) return;
+  const classes = [...new Set(feStudents().map(s => s.cls).filter(Boolean))].sort();
+  document.getElementById('fe-class').innerHTML = '<option value="">All classes</option>' + classes.map(c => `<option>${esc(c)}</option>`).join('');
+  document.getElementById('fe-search').value = '';
+  document.getElementById('fe-all').checked = false;
+  feRender();
+  document.getElementById('feed-exempt-modal').classList.add('open');
+}
+function feRender() {
+  const cls = document.getElementById('fe-class').value;
+  const q = document.getElementById('fe-search').value.trim().toLowerCase();
+  let list = feStudents().filter(s => (!cls || s.cls === cls) && (!q || _lc(s.name).includes(q) || _lc(s.id).includes(q)));
+  list.sort((a, b) => (feIsExempt(b.id) - feIsExempt(a.id)) || String(a.cls || '').localeCompare(String(b.cls || '')) || String(a.name || '').localeCompare(String(b.name || '')));
+  document.getElementById('fe-body').innerHTML = list.slice(0, 400).map(s => {
+    const d = (db.feedingDiscounts || {})[s.id];
+    const ex = d && d.type === 'full';
+    const lbl = ex ? `🚫 Exempt — ${(d.terms && d.terms.length) ? esc(d.terms.join(', ')) : 'All terms'}${d.reason ? ' · ' + esc(d.reason) : ''}` : (d ? '🎟️ Discount' : 'Pays feeding');
+    return `<tr><td><input type="checkbox" class="fe-chk" value="${esc(s.id)}" style="width:auto"></td><td><b>${esc(s.name || '(no name)')}</b><div style="font-size:10px;color:var(--muted)">${esc(s.id)}</div></td><td>${esc(s.cls || '—')}</td><td style="font-size:11px">${lbl}</td></tr>`;
+  }).join('') || '<tr><td colspan="4" class="empty-state">No students</td></tr>';
+  const n = Object.values(db.feedingDiscounts || {}).filter(d => d && d.type === 'full').length;
+  document.getElementById('fe-count').textContent = n + ' student(s) currently exempt from feeding';
+}
+function feToggleAll(on) { document.querySelectorAll('#fe-body .fe-chk').forEach(c => c.checked = on); }
+function feApply(exempt) {
+  if (!requireRole('Admin')) return;
+  const ids = [...document.querySelectorAll('#fe-body .fe-chk:checked')].map(c => c.value);
+  if (!ids.length) { toast('⚠ Select at least one student'); return; }
+  if (!db.feedingDiscounts) db.feedingDiscounts = {};
+  const tv = document.getElementById('fe-terms').value;
+  const reason = document.getElementById('fe-reason').value.trim();
+  ids.forEach(id => {
+    if (exempt) {
+      db.feedingDiscounts[id] = { type: 'full', value: 0, terms: tv === 'all' ? [] : [tv], reason, exempt: true,
+        setBy: currentUser ? currentUser.username : 'system', setAt: today() };
+    } else if (db.feedingDiscounts[id] && db.feedingDiscounts[id].type === 'full') {
+      delete db.feedingDiscounts[id];
+    }
+  });
+  saveDb();
+  toast(exempt ? `✅ ${ids.length} student(s) exempted from feeding` : `↩ Exemption removed for ${ids.length} student(s)`);
+  document.getElementById('fe-all').checked = false;
+  feRender();
+  if (typeof fdRefreshViews === 'function') fdRefreshViews();
 }
 
 function openFeeDiscountsModal() {
@@ -46905,7 +47319,7 @@ function scGather(empId){
   D.apps.forEach(a => {
     const set = Array.isArray(a.criteriaSet) ? a.criteriaSet : [];
     Object.keys(a.criteria || {}).forEach(k => {
-      const v = a.criteria[k]; if (typeof v !== 'number' || v <= 0) return;
+      const v = a.criteria[k]; if (typeof v !== 'number' || v < 0) return;
       const def = set.find(c => c && c.key === k) || (typeof APPRAISAL_CRITERIA !== 'undefined' ? APPRAISAL_CRITERIA.find(c => c.key === k) : null);
       const label = scPlain(def && def.label) || k.replace(/[_-]/g,' ').replace(/\b\w/g, c => c.toUpperCase());
       (critAgg[k] = critAgg[k] || { label, vals: [], comments: [] }).vals.push(v);
@@ -47591,7 +48005,7 @@ function computePunctualityScore(emp) {
   const staffAtt = db.staffAttendance || {};
   Object.keys(staffAtt).forEach(date => {
     const age = daysAgo(date);
-    if (age > 30 || age < 0) return; // last 30 days only
+    if (!(age <= 30 && age >= 0) || !staffAtt[date]) return; // last 30 days only (also skips bad/blank days)
     const rec = staffAtt[date][empId];
     if (!rec || !rec.status) return;
     if (rec.status === 'Present') present++;
@@ -47600,7 +48014,12 @@ function computePunctualityScore(emp) {
   });
 
   const total = present + late + absent;
-  if (total === 0) return { score: 1, days: 0, present, late, absent, linked: true };
+  if (total === 0) {
+    // Never clocked in at all (no attendance record of any kind, on any date) → 0/5.
+    // Has history, but none in the last 30 days → 1/5 as before.
+    const ever = Object.keys(staffAtt).some(date => { const r = staffAtt[date] && staffAtt[date][empId]; return r && (r.status || r.in || r.clockIn); });
+    return { score: ever ? 1 : 0, days: 0, present, late, absent, linked: true, never: !ever };
+  }
 
   const attendanceRate = (present + late) / total; // clocking in late still counts as showing up
   const lateRate = late / total;
@@ -47767,7 +48186,7 @@ function aprOverallRating(criteria) {
   // Reads whatever numeric ratings are present, regardless of which KPI set
   // (Teacher / Class Teacher / Headteacher / default) produced them — each
   // set uses different keys, so this can't be tied to one fixed criteria list.
-  const vals = Object.values(criteria || {}).filter(v => typeof v === 'number' && v > 0);
+  const vals = Object.values(criteria || {}).filter(v => typeof v === 'number' && v >= 0);   // 0 is a real score (e.g. never clocked in)
   return vals.length ? (vals.reduce((a,b)=>a+b,0) / vals.length) : 0;
 }
 
@@ -47953,7 +48372,7 @@ function sperfBuildRows(termFilter, deptFilter) {
     apps.forEach(a => {
       Object.keys(a.criteria || {}).forEach(k => {
         const v = a.criteria[k];
-        if (typeof v !== 'number' || v <= 0) return;
+        if (typeof v !== 'number' || v < 0) return;
         critSum[k] = (critSum[k] || 0) + v;
         critN[k] = (critN[k] || 0) + 1;
       });
@@ -49259,7 +49678,7 @@ function openAppraisalModal(editId) {
     _aprActiveCriteria.forEach(c => {
       const box = document.getElementById('apr-rate-' + c.key), v = _aprCriteriaValues[c.key];
       if (!box) return;
-      if (c.auto) { box.innerHTML = v ? `<span class="rating-stars" style="font-size:13px">${'★'.repeat(v)}${'☆'.repeat(5 - v)}</span> <span style="font-size:10px;color:var(--muted)">kept from the original appraisal</span>` : '<span style="color:var(--muted)">not scored</span>'; }
+      if (c.auto) { box.innerHTML = typeof v === 'number' ? `<span class="rating-stars" style="font-size:13px">${'★'.repeat(v)}${'☆'.repeat(5 - v)}</span> <span style="font-size:10px;color:var(--muted)">kept from the original appraisal</span> <a href="#" onclick="event.preventDefault();${c.key === 'punctuality' ? 'aprRecomputePunctuality()' : 'aprRecomputeSystemUsage()'}" style="font-size:10px">↻ recalculate</a>` : '<span style="color:var(--muted)">not scored</span>'; }
       else [...box.children].forEach((btn, idx) => btn.classList.toggle('active', idx < (v || 0)));
     });
     aprUpdateOverallPreview();
@@ -49385,7 +49804,7 @@ function aprRecomputePunctuality() {
   const p = computePunctualityScore(emp);
   _aprCriteriaValues.punctuality = p.score;
   const detail = p.days === 0
-    ? 'No clock-in records yet — encourage use of Staff Attendance'
+    ? (p.never ? 'Has never clocked in — no Staff Attendance records, scored 0/5' : 'No clock-in records in the last 30 days — encourage use of Staff Attendance')
     : `${p.days} day${p.days!==1?'s':''} tracked · ${p.present} on-time, ${p.late} late, ${p.absent} absent (last 30 days)`;
   el.innerHTML = `<span class="rating-stars" style="font-size:13px">${'★'.repeat(p.score)}${'☆'.repeat(5-p.score)}</span> <span style="font-size:10px;color:var(--muted)">${detail}</span>`;
   aprUpdateOverallPreview();
@@ -49497,12 +49916,13 @@ function viewAppraisal(id) {
   const criteriaSet = a.criteriaSet || APPRAISAL_CRITERIA; // older appraisals predate role-specific KPI sets
   const comments = a.criteriaComments || {};
   const criteriaRows = criteriaSet.map(c => {
+    const has = typeof a.criteria[c.key] === 'number';
     const val = a.criteria[c.key] || 0;
     const note = comments[c.key] || '';
     return `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;gap:10px">
         <div>${c.label}${c.auto ? ' <span style="font-size:10px;color:var(--muted)">(auto)</span>' : ''}</div>
-        <div style="font-weight:600;color:var(--navy);white-space:nowrap">${val ? val + '/5 (' + (val/5*100) + '%)' : '—'}</div>
+        <div style="font-weight:600;color:var(--navy);white-space:nowrap">${(val || has) ? val + '/5 (' + (val/5*100) + '%)' : '—'}</div>
       </div>
       ${note ? `<div style="margin-top:4px;font-size:12px;color:var(--muted);font-style:italic;line-height:1.4">💬 ${esc(note)}</div>` : ''}
     </div>`;
@@ -49560,12 +49980,13 @@ function renderMyAppraisal() {
     const criteriaSet = a.criteriaSet || APPRAISAL_CRITERIA; // older appraisals predate role-specific KPI sets
     const comments = a.criteriaComments || {};
     const criteriaRows = criteriaSet.map(c => {
+      const has = typeof a.criteria[c.key] === 'number';
       const val = a.criteria[c.key] || 0;
       const note = comments[c.key] || '';
       return `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
         <div style="display:flex;justify-content:space-between;gap:8px">
           <span style="color:var(--muted)">${c.label}${c.auto ? ' <span style="font-size:9px">(auto)</span>' : ''}</span>
-          <span>${val ? renderStars(val) + ' <b>' + (val/5*100) + '%</b>' : '\u2014'}</span>
+          <span>${(val || has) ? renderStars(val) + ' <b>' + (val/5*100) + '%</b>' : '\u2014'}</span>
         </div>
         ${note ? `<div style="margin-top:3px;font-size:11.5px;color:var(--text);font-style:italic;line-height:1.35">💬 ${esc(note)}</div>` : ''}
       </div>`;
@@ -49894,12 +50315,13 @@ function buildWorkspaceAppraisalTab(emp, appraisals) {
     const criteriaSet = a.criteriaSet || APPRAISAL_CRITERIA; // older appraisals predate role-specific KPI sets
     const comments = a.criteriaComments || {};
     const criteriaRows = criteriaSet.map(c => {
+      const has = typeof a.criteria[c.key] === 'number';
       const val = a.criteria[c.key] || 0;
       const note = comments[c.key] || '';
       return `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
         <div style="display:flex;justify-content:space-between;gap:8px">
           <span style="color:var(--muted)">${c.label}${c.auto ? ' <span style="font-size:9px">(auto)</span>' : ''}</span>
-          <span>${val ? renderStars(val) + ' <b>' + (val/5*100) + '%</b>' : '\u2014'}</span>
+          <span>${(val || has) ? renderStars(val) + ' <b>' + (val/5*100) + '%</b>' : '\u2014'}</span>
         </div>
         ${note ? `<div style="margin-top:3px;font-size:11.5px;color:var(--text);font-style:italic;line-height:1.35">💬 ${esc(note)}</div>` : ''}
       </div>`;
