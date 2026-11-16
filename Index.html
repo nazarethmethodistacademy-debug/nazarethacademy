@@ -8238,9 +8238,29 @@
     </div>
 
     <div style="padding:16px 20px 4px;border-top:1px solid var(--border);margin-top:10px">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">⭐ Performance Appraisal</div>
+      <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px"><b style="color:var(--navy)">Reviewer roles</b> — roles that review, finalise and send appraisals to teachers:</div>
+      <div id="awf-apr-reviewers" class="awf-role-checks"></div>
+      <label style="display:flex;gap:8px;align-items:center;font-size:12px;margin:12px 0 4px"><input type="checkbox" id="awf-apr-reviewer-edit"> <span><b style="color:var(--navy)">Reviewers can edit</b> — reviewers may edit appraisals, including ones already sent (edits are logged)</span></label>
+      <div style="font-size:11.5px;color:var(--muted);margin:12px 0 6px"><b style="color:var(--navy)">Return for re-appraisal</b> — roles allowed to withdraw a sent appraisal so it can be redone (Admin always can):</div>
+      <div id="awf-apr-reassess" class="awf-role-checks"></div>
+      <div style="font-size:11.5px;color:var(--muted);margin:12px 0 6px"><b style="color:var(--navy)">Edit already-appraised teachers</b> — roles allowed to edit appraisals that were already sent (Admin always can):</div>
+      <div id="awf-apr-edit" class="awf-role-checks"></div>
+      <div style="font-size:11.5px;color:var(--muted);margin:10px 0 6px">…and/or these specific users:</div>
+      <div id="awf-apr-edit-users" class="awf-role-checks" style="max-height:140px;overflow:auto"></div>
+    </div>
+
+    <div style="padding:16px 20px 4px;border-top:1px solid var(--border);margin-top:10px">
       <div style="font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">🌟 Skills Assessment</div>
       <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">Teachers submit each class's monthly skills assessment for review. Roles allowed to approve it or return it for revision (they are all notified when one is submitted):</div>
       <div id="awf-skills-approvers" class="awf-role-checks"></div>
+      <div style="font-size:11.5px;color:var(--muted);margin:12px 0 6px"><b style="color:var(--navy)">Return for re-assessment</b> — roles allowed to send an already-submitted or approved assessment back to the teacher (Admin always can):</div>
+      <div id="awf-skills-reassess" class="awf-role-checks"></div>
+      <label style="display:flex;gap:8px;align-items:center;font-size:12px;margin:12px 0 4px"><input type="checkbox" id="awf-skills-reviewer-edit"> <span><b style="color:var(--navy)">Reviewers can edit</b> — the approver roles above may edit ratings and comments while reviewing (edits are logged)</span></label>
+      <div style="font-size:11.5px;color:var(--muted);margin:12px 0 6px"><b style="color:var(--navy)">Edit already-assessed ratings</b> — roles allowed to change ratings and comments directly, without returning them (Admin always can). Edits update the submitted record and are logged:</div>
+      <div id="awf-skills-edit" class="awf-role-checks"></div>
+      <div style="font-size:11.5px;color:var(--muted);margin:10px 0 6px">…and/or these specific users (teachers or staff):</div>
+      <div id="awf-skills-edit-users" class="awf-role-checks" style="max-height:140px;overflow:auto"></div>
     </div>
 
     <div style="padding:16px 20px 4px;border-top:1px solid var(--border);margin-top:10px">
@@ -9485,7 +9505,8 @@ const DB_SEED = {
     pettyCash: { needsApprovalRoles: ['Headteacher'], approverRoles: ['Admin'] },
     finance: { needsApprovalRoles: [], approverRoles: ['Admin'] },
     promotion: { approverRoles: ['Admin', 'Headteacher'] },
-    skillsAssessment: { approverRoles: ['Admin', 'Headteacher'] },
+    appraisal: { reviewerRoles: ['Admin', 'Headteacher'], reviewersCanEdit: true, reassessRoles: ['Admin', 'Headteacher'], editAppraisedRoles: [], editAppraisedUsers: [] },
+    skillsAssessment: { approverRoles: ['Admin', 'Headteacher'], reassessRoles: ['Admin', 'Headteacher'], editAssessedRoles: [], editAssessedUsers: [], reviewersCanEdit: true },
     smsFeeAlerts: { approverRoles: ['Admin'] },
     staffLeave: { approverRoles: ['Admin', 'Headteacher'] },
     feedingBudget: { approverRoles: ['Admin', 'Headteacher'] }
@@ -28028,6 +28049,20 @@ function awfRenderRoleChecks(containerId, selectedRoles) {
   }).join('');
 }
 
+function awfRenderUserChecks(containerId, selected) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const sel = (selected || []).map(u => String(u).toLowerCase());
+  const users = (db.users || []).filter(u => u && u.username && u.role !== 'Admin');
+  container.innerHTML = users.length ? users.map(u => {
+    const checked = sel.includes(String(u.username).toLowerCase());
+    return `<label class="awf-role-chip ${checked ? 'checked' : ''}">
+      <input type="checkbox" value="${esc(String(u.username))}" ${checked ? 'checked' : ''} onchange="awfToggleChip(this)">
+      ${esc(String(u.username))} <span style="opacity:.65;font-size:10px">${esc(u.role || '')}</span>
+    </label>`;
+  }).join('') : '<span style="font-size:11.5px;color:var(--muted)">No other user accounts yet.</span>';
+}
+
 function awfToggleChip(input) {
   input.closest('.awf-role-chip').classList.toggle('checked', input.checked);
 }
@@ -28284,6 +28319,15 @@ function openApprovalWorkflowModal() {
   awfRenderRoleChecks('awf-promo-approvers', db.approvalConfig.promotion?.approverRoles || ['Admin','Headteacher']);
   awfRenderRoleChecks('awf-sms-approvers', db.approvalConfig.smsFeeAlerts?.approverRoles || ['Admin']);
   awfRenderRoleChecks('awf-skills-approvers', db.approvalConfig.skillsAssessment?.approverRoles || ['Admin','Headteacher']);
+  awfRenderRoleChecks('awf-apr-reviewers', aprRoleList('reviewerRoles', ['Admin','Headteacher']));
+  awfRenderRoleChecks('awf-apr-reassess', aprRoleList('reassessRoles', ['Admin','Headteacher']));
+  awfRenderRoleChecks('awf-apr-edit', aprRoleList('editAppraisedRoles', []));
+  awfRenderUserChecks('awf-apr-edit-users', aprRoleList('editAppraisedUsers', []));
+  { const cb = document.getElementById('awf-apr-reviewer-edit'); if (cb) cb.checked = aprCfg().reviewersCanEdit !== false; }
+  awfRenderRoleChecks('awf-skills-reassess', skReassessRoles());
+  { const cb = document.getElementById('awf-skills-reviewer-edit'); if (cb) cb.checked = db.approvalConfig.skillsAssessment?.reviewersCanEdit !== false; }
+  awfRenderRoleChecks('awf-skills-edit', db.approvalConfig.skillsAssessment?.editAssessedRoles || []);
+  awfRenderUserChecks('awf-skills-edit-users', db.approvalConfig.skillsAssessment?.editAssessedUsers || []);
   awfRenderRoleChecks('awf-leave-approvers', db.approvalConfig.staffLeave?.approverRoles || ['Admin','Headteacher']);
   awfRenderRoleChecks('awf-feedingbudget-approvers', db.approvalConfig.feedingBudget?.approverRoles || ['Admin','Headteacher']);
   document.getElementById('approval-workflow-modal').classList.add('open');
@@ -28297,6 +28341,10 @@ function saveApprovalWorkflow() {
   const promoApprovers = awfGetChecked('awf-promo-approvers');
   const smsApprovers   = awfGetChecked('awf-sms-approvers');
   const skillsApprovers = awfGetChecked('awf-skills-approvers');
+  const skillsReassess = awfGetChecked('awf-skills-reassess');
+  const aprCfgNew = { reviewerRoles: awfGetChecked('awf-apr-reviewers'), reviewersCanEdit: !!(document.getElementById('awf-apr-reviewer-edit') || {}).checked, reassessRoles: awfGetChecked('awf-apr-reassess'), editAppraisedRoles: awfGetChecked('awf-apr-edit'), editAppraisedUsers: awfGetChecked('awf-apr-edit-users') };
+  const skillsEditRoles = awfGetChecked('awf-skills-edit');
+  const skillsEditUsers = awfGetChecked('awf-skills-edit-users');
   const leaveApprovers   = awfGetChecked('awf-leave-approvers');
   const feedingBudgetApprovers = awfGetChecked('awf-feedingbudget-approvers');
 
@@ -28313,7 +28361,8 @@ function saveApprovalWorkflow() {
     finance: { needsApprovalRoles: finNeeds, approverRoles: finApprovers },
     promotion: { approverRoles: promoApprovers },
     smsFeeAlerts: { approverRoles: smsApprovers },
-    skillsAssessment: { approverRoles: skillsApprovers },
+    appraisal: aprCfgNew,
+    skillsAssessment: { approverRoles: skillsApprovers, reassessRoles: skillsReassess, editAssessedRoles: skillsEditRoles, editAssessedUsers: skillsEditUsers, reviewersCanEdit: !!(document.getElementById('awf-skills-reviewer-edit') || {}).checked },
     staffLeave: { approverRoles: leaveApprovers },
     feedingBudget: { approverRoles: feedingBudgetApprovers }
   };
@@ -30715,13 +30764,15 @@ function getSkillRatings(studentId, month) {
 function setSkillRating(studentId, month, skillKey2, value) {
   if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_','/') + ' is locked — ask an admin to unlock it first', 'error'); return false; }
   const _stu = (db.admissions || []).find(a => a.id === studentId);
-  if (_stu && skillSubLocked(_stu.cls, month)) { toast('🔒 This assessment has been submitted — ratings are locked until it is returned for revision', 'error'); return false; }
+  const _lockedNow = !!(_stu && skillSubLocked(_stu.cls, month));
+  if (_lockedNow && !skCanEditAssessed()) { toast('🔒 This assessment has been submitted — ratings are locked until it is returned for re-assessment', 'error'); return false; }
   if (!db.skillsAssessments) db.skillsAssessments = {};
   const k = skillKey(studentId, month);
   if (!db.skillsAssessments[k]) db.skillsAssessments[k] = {};
   if (value === '') delete db.skillsAssessments[k][skillKey2];
   else db.skillsAssessments[k][skillKey2] = parseInt(value);
   if (value !== '') logUsage('skills', k + '|' + skillKey2);
+  if (_lockedNow) skSyncAssessedEdit(studentId, month);
   saveDb();
   return true;
 }
@@ -30734,12 +30785,14 @@ function getSkillComment(studentId, month, skillKey2) {
 function setSkillComment(studentId, month, skillKey2, text) {
   if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_','/') + ' is locked — ask an admin to unlock it first', 'error'); return false; }
   const _stu = (db.admissions || []).find(a => a.id === studentId);
-  if (_stu && skillSubLocked(_stu.cls, month)) { toast('🔒 This assessment has been submitted — comments are locked until it is returned for revision', 'error'); return false; }
+  const _lockedNow = !!(_stu && skillSubLocked(_stu.cls, month));
+  if (_lockedNow && !skCanEditAssessed()) { toast('🔒 This assessment has been submitted — comments are locked until it is returned for re-assessment', 'error'); return false; }
   if (!db.skillComments) db.skillComments = {};
   const k = skillKey(studentId, month);
   if (!db.skillComments[k]) db.skillComments[k] = {};
   if (!text.trim()) delete db.skillComments[k][skillKey2];
   else db.skillComments[k][skillKey2] = text.trim();
+  if (_lockedNow) skSyncAssessedEdit(studentId, month);
   saveDb();
   return true;
 }
@@ -30788,8 +30841,9 @@ function renderSkillsAssessment() {
     const students = admitted.filter(s => s.cls === selClass);
     window._saSel = { cls: selClass, month: selMonth };
     const sub = getSkillSubmission(selClass, selMonth);
-    const locked = !!(sub && (sub.status === 'pending' || sub.status === 'approved'));
-    const canSubmit = canEditCurrentPage('skillsassessment') && !locked && students.length > 0;
+    const assessed = !!(sub && (sub.status === 'pending' || sub.status === 'approved'));
+    const locked = assessed && !skCanEditAssessed();
+    const canSubmit = canEditCurrentPage('skillsassessment') && !assessed && students.length > 0;
     const submitBtn = canSubmit ? `<button class="btn btn-primary btn-sm" onclick="saSubmit()">📤 ${sub && sub.status === 'returned' ? 'Resubmit' : 'Submit'} to ${esc(skillsApproverLabel())}</button>` : '';
 
     const pills = lockedClass ? '' : CLASSES.map(c => {
@@ -30952,6 +31006,48 @@ const SKILL_SUB_ICON   = { pending: '⏳', approved: '✅', returned: '↩' };
 function skApprovers() {
   return (db.approvalConfig && db.approvalConfig.skillsAssessment && db.approvalConfig.skillsAssessment.approverRoles) || ['Admin', 'Headteacher'];
 }
+// Who may send an already-submitted / approved assessment back to the teacher for re-assessment (Admin always can).
+function skReassessRoles() {
+  const c = db.approvalConfig && db.approvalConfig.skillsAssessment;
+  return (c && Array.isArray(c.reassessRoles)) ? c.reassessRoles : ['Admin', 'Headteacher'];
+}
+function isSkillsReassessor() { return !!(currentUser && (currentUser.role === 'Admin' || skReassessRoles().includes(currentUser.role))); }
+// Who may directly edit ratings/comments of an assessment that is already submitted or approved (Admin always can).
+function skCanEditAssessed() {
+  if (!currentUser) return false;
+  if (currentUser.role === 'Admin') return true;
+  const c = (db.approvalConfig && db.approvalConfig.skillsAssessment) || {};
+  // Reviewers (the approver roles) may edit while reviewing, unless switched off in Settings.
+  if (c.reviewersCanEdit !== false && isSkillsApprover() && canAccessPage('skillsassessment')) return true;
+  const roles = Array.isArray(c.editAssessedRoles) ? c.editAssessedRoles : [];
+  const users = (Array.isArray(c.editAssessedUsers) ? c.editAssessedUsers : []).map(u => String(u).toLowerCase());
+  const ok = roles.includes(currentUser.role) || users.includes(String(currentUser.username || '').toLowerCase());
+  return ok && canAccessPage('skillsassessment');
+}
+// An edit made to an assessed class keeps the frozen snapshot (what reports read) in step and is logged.
+function skSyncAssessedEdit(studentId, month) {
+  const stu = (db.admissions || []).find(a => a.id === studentId);
+  if (!stu) return;
+  const sub = getSkillSubmission(stu.cls, month);
+  if (!sub || !(sub.status === 'pending' || sub.status === 'approved')) return;
+  const live = getSkillRatings(studentId, month);
+  const keys = skillsFor(stu.cls).map(sk => sk.key);
+  if (!sub.ratings) sub.ratings = {};
+  if (!sub.comments) sub.comments = {};
+  const r = {}; keys.forEach(k => { if (live[k] > 0) r[k] = live[k]; });
+  if (Object.keys(r).length) sub.ratings[studentId] = r; else delete sub.ratings[studentId];
+  const c = {}; keys.forEach(k => { const t = getSkillComment(studentId, month, k); if (t) c[k] = t; });
+  if (Object.keys(c).length) sub.comments[studentId] = c; else delete sub.comments[studentId];
+  if (sub.students && !sub.students[studentId]) sub.students[studentId] = stu.name || studentId;
+  sub.ratedCount = Object.values(sub.ratings).reduce((n, o) => n + Object.keys(o || {}).length, 0);
+  const now = new Date().toISOString(), who = currentUser ? currentUser.username : 'system';
+  const h = sub.history = sub.history || [];
+  const last = h[h.length - 1];
+  if (last && last.action === 'edited' && last.by === who && (Date.parse(now) - Date.parse(last.at)) < 10 * 60000) {
+    last.at = now; last.count = (last.count || 1) + 1; last.note = 'Edited ' + last.count + ' time(s) after assessment';
+  } else h.push({ action: 'edited', by: who, at: now, count: 1, note: 'Edited after assessment' });
+}
+
 function isSkillsApprover() { return !!(currentUser && skApprovers().includes(currentUser.role)); }
 function skillsApproverLabel() {
   const order = ['Headteacher', 'Admin'];
@@ -31175,15 +31271,25 @@ function skillSubReturn(id, note) {
   toast('↩ Returned to the teacher for revision');
 }
 
+function skEditFromReview(id) {
+  const sub = (db.skillSubmissions || []).find(s => s.id === id);
+  if (!sub) return;
+  window._saSel = { cls: sub.cls, month: sub.month };
+  closeModal('sk-review-modal');
+  navigate('skillsassessment');
+}
+
+// Send an already-submitted (pending) or approved assessment back to the teacher to be re-assessed.
 function skillSubReopen(id) {
-  if (!isSkillsApprover()) { toast('⛔ You do not have permission to reopen skills assessments'); return; }
+  if (!isSkillsReassessor()) { toast('⛔ You do not have permission to return assessments for re-assessment'); return; }
   if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_', '/') + ' is locked — ask an admin to unlock it first', 'error'); return; }
   const sub = (db.skillSubmissions || []).find(s => s.id === id);
-  if (!sub || sub.status !== 'approved') return;
-  const note = prompt(`Reopen the approved ${sub.cls} — ${sub.month} assessment so the teacher can correct it?\n\nReason:`, '');
+  if (!sub || !(sub.status === 'approved' || sub.status === 'pending')) { toast('ℹ️ Only submitted or approved assessments can be returned'); return; }
+  const note = prompt(`Return the ${sub.status} ${sub.cls} — ${sub.month} assessment to the teacher for re-assessment?\n\nReason (the teacher will see this):`, '');
   if (note === null) return;
-  skSetDecision(sub, 'returned', String(note).trim() || 'Reopened for correction', 'reopened');
-  toast('↩ Reopened — the teacher can edit and resubmit');
+  if (!String(note).trim()) { toast('⚠ Give a reason so the teacher knows what to re-assess', 'error'); return; }
+  skSetDecision(sub, 'returned', String(note).trim(), 'returned for re-assessment');
+  toast('↩ Returned — the teacher can re-assess and resubmit');
 }
 
 // Status banner + Submit button shown on the Skills Assessment page.
@@ -31195,11 +31301,11 @@ function skPageBanner(sub, cls, month) {
   }
   if (sub.status === 'pending') {
     return box('var(--amber-light)', 'var(--gold)', `<span>⏳ <b>Pending review</b> — submitted by ${esc(sub.submittedBy || '—')} on ${skWhen(sub.submittedAt)}. Ratings are locked while it is under review.</span>` +
-      (approver ? `<button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="openSkillReview('${sub.id}')">👁 Review &amp; decide</button>` : ''));
+      (approver ? `<button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="openSkillReview('${sub.id}')">👁 Review &amp; decide</button>` : '') + (isSkillsReassessor() && !approver ? `<button class="btn btn-sm btn-outline" style="margin-left:auto" onclick="skillSubReopen('${sub.id}')">↩ Return for re-assessment</button>` : '') + (skCanEditAssessed() ? `<span style="flex-basis:100%;font-size:11.5px;color:var(--muted)">✏️ You are authorised to edit assessed ratings — changes update this record and are logged.</span>` : ''));
   }
   if (sub.status === 'approved') {
     return box('var(--green-light)', 'var(--green)', `<span>✅ <b>Approved</b> by ${esc(sub.reviewedBy || '—')} on ${skWhen(sub.reviewedAt)}${sub.decisionNote ? ` — “${esc(sub.decisionNote)}”` : ''}. Ratings are locked and included in the Student Assessment Report.</span>` +
-      (approver ? `<button class="btn btn-sm btn-outline" style="margin-left:auto" onclick="skillSubReopen('${sub.id}')">↩ Reopen</button>` : ''));
+      (isSkillsReassessor() ? `<button class="btn btn-sm btn-outline" style="margin-left:auto" onclick="skillSubReopen('${sub.id}')">↩ Return for re-assessment</button>` : '') + (skCanEditAssessed() ? `<span style="flex-basis:100%;font-size:11.5px;color:var(--muted)">✏️ You are authorised to edit assessed ratings — changes update this approved record and are logged.</span>` : ''));
   }
   return box('var(--red-light)', 'var(--red)', `<span>↩ <b>Returned for revision</b> by ${esc(sub.reviewedBy || '—')} on ${skWhen(sub.reviewedAt)} — “${esc(sub.decisionNote || 'please revise')}”. Update the ratings, then submit again.</span>`);
 }
@@ -31256,7 +31362,7 @@ function openSkillReview(id) {
   const skillList = skillsForSubmission(sub).map(sk => ({ label: sk.label, avg: avgs.bySkill[sk.key] })).filter(x => x.avg !== null).sort((a, b) => a.avg - b.avg);
   const weakest = skillList[0], strongest = skillList[skillList.length - 1];
   const canDecide = isSkillsApprover() && sub.status === 'pending';
-  const canReopen = isSkillsApprover() && sub.status === 'approved';
+  const canReopen = isSkillsReassessor() && (sub.status === 'approved' || (sub.status === 'pending' && !isSkillsApprover()));
   const chip = (label, value, sub2) => `<div style="flex:1;min-width:130px;background:var(--cream2);border-radius:10px;padding:10px 14px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)">${label}</div><div style="font-size:18px;font-weight:700;color:var(--navy)">${value}</div>${sub2 ? `<div style="font-size:11px;color:var(--muted)">${sub2}</div>` : ''}</div>`;
   const oc = skColor(avgs.overall);
   const overallDelta = (prevAvgs && avgs.overall !== null && prevAvgs.overall !== null) ? avgs.overall - prevAvgs.overall : null;
@@ -31290,7 +31396,8 @@ function openSkillReview(id) {
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="closeModal('sk-review-modal')">Close</button>
-        ${canReopen ? `<button class="btn btn-outline" onclick="skillSubReopen('${sub.id}')">↩ Reopen</button>` : ''}
+        ${skCanEditAssessed() && (sub.status === 'pending' || sub.status === 'approved') ? `<button class="btn btn-outline" onclick="skEditFromReview('${sub.id}')">✏️ Edit ratings</button>` : ''}
+        ${canReopen ? `<button class="btn btn-outline" onclick="skillSubReopen('${sub.id}')">↩ Return for re-assessment</button>` : ''}
         ${canDecide ? `<button class="btn btn-danger" onclick="skillSubReturn('${sub.id}', document.getElementById('sk-review-note').value)">↩ Return for revision</button>
         <button class="btn btn-primary" onclick="skillSubApprove('${sub.id}', document.getElementById('sk-review-note').value)">✔ Approve</button>` : ''}
       </div>
@@ -48972,6 +49079,51 @@ function renderStaffPerformanceReport() {
   });
 }
 
+// ── Performance Appraisal: who may return / edit an appraisal that has already been sent ──
+function aprCfg() { return (db.approvalConfig && db.approvalConfig.appraisal) || {}; }
+function aprRoleList(key, dflt) { const c = aprCfg(); return Array.isArray(c[key]) ? c[key] : dflt; }
+function aprIsReviewer() { return !!(currentUser && (currentUser.role === 'Admin' || aprRoleList('reviewerRoles', ['Admin', 'Headteacher']).includes(currentUser.role))); }
+function aprCanReturn() { return !!(currentUser && (currentUser.role === 'Admin' || aprRoleList('reassessRoles', ['Admin', 'Headteacher']).includes(currentUser.role)) && canAccessPage('appraisals')); }
+// Edit an appraisal that has already been sent to the teacher (Admin always can).
+function aprCanEditAppraised() {
+  if (!currentUser) return false;
+  if (currentUser.role === 'Admin') return true;
+  if (!canAccessPage('appraisals')) return false;
+  const c = aprCfg();
+  if (c.reviewersCanEdit !== false && aprIsReviewer()) return true;
+  if (aprRoleList('editAppraisedRoles', []).includes(currentUser.role)) return true;
+  return aprRoleList('editAppraisedUsers', []).map(u => String(u).toLowerCase()).includes(String(currentUser.username || '').toLowerCase());
+}
+// Drafts / returned appraisals follow the normal page permission; sent ones need the special right above.
+function aprCanEditRecord(a) {
+  if (!a) return false;
+  return a.published ? aprCanEditAppraised() : (currentUser && (currentUser.role === 'Admin' || canEditCurrentPage('appraisals'))) || aprCanEditAppraised();
+}
+function aprLog(a, action, note) {
+  const now = new Date().toISOString(), who = currentUser ? currentUser.username : 'system';
+  const h = a.history = a.history || [];
+  const last = h[h.length - 1];
+  if (action === 'edited' && last && last.action === 'edited' && last.by === who && (Date.parse(now) - Date.parse(last.at)) < 10 * 60000) { last.at = now; return; }
+  h.push({ action, by: who, at: now, note: note || '' });
+}
+
+function aprReturnForReappraisal(id) {
+  if (!aprCanReturn()) { toast('⛔ You do not have permission to return appraisals for re-appraisal'); return; }
+  if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_','/') + ' is locked — ask an admin to unlock it first', 'error'); return; }
+  const a = (db.appraisals || []).find(x => x.id === id);
+  if (!a) return;
+  if (!a.published) { toast('ℹ️ This appraisal has not been sent yet — you can edit it directly'); return; }
+  const emp = (db.employees || []).find(e => e.id == a.employeeId);
+  const note = prompt(`Return ${emp ? emp.name + "'s " : 'this '}${a.term || ''} appraisal for re-appraisal?\n\nIt will be hidden from My Appraisal until it is edited and sent again.\n\nReason:`, '');
+  if (note === null) return;
+  if (!String(note).trim()) { toast('⚠ Give a reason so the reviewer knows what to revisit', 'error'); return; }
+  a.published = false; a.publishedAt = null; a.publishedBy = null;
+  a.returned = { active: true, by: currentUser ? currentUser.username : 'system', at: new Date().toISOString(), reason: String(note).trim() };
+  aprLog(a, 'returned for re-appraisal', String(note).trim());
+  saveDb(); renderAppraisals();
+  toast('↩ Returned for re-appraisal — hidden from the teacher until sent again');
+}
+
 function renderAppraisals() {
   const el = document.getElementById('ap-inner');
   if (!el) return;
@@ -49008,7 +49160,9 @@ function renderAppraisals() {
     const pct = aprOverallPercent(a.criteria || {});
     const statusBadge = a.published
       ? `<span class="badge" style="background:var(--green-light);color:var(--green)">📤 Sent</span>${a.publishedAt ? `<div style="font-size:9.5px;color:var(--muted);margin-top:2px">${a.publishedAt}</div>` : ''}`
-      : `<span class="badge" style="background:var(--amber-light);color:var(--amber)">📩 Draft</span>`;
+      : (a.returned && a.returned.active
+        ? `<span class="badge" style="background:var(--red-light);color:var(--red)" title="${esc(a.returned.reason || '')}">↩ Returned</span><div style="font-size:9.5px;color:var(--muted);margin-top:2px;max-width:150px">${esc(a.returned.reason || '')}</div>`
+        : `<span class="badge" style="background:var(--amber-light);color:var(--amber)">📩 Draft</span>`);
     return `<tr>
       <td>${a.date}</td>
       <td><b>${emp ? emp.name : 'Unknown'}</b>${emp ? `<div style="font-size:11px;color:var(--muted)">${emp.role||''}</div>` : ''}</td>
@@ -49019,6 +49173,8 @@ function renderAppraisals() {
       <td>${a.reviewer || '—'}</td>
       <td style="display:flex;gap:5px;padding:8px 10px">
         <button class="btn btn-sm btn-outline" onclick="viewAppraisal('${a.id}')" title="View">👁️</button>
+        ${aprCanEditRecord(a) ? `<button class="btn btn-sm btn-outline" onclick="openAppraisalModal('${a.id}')" title="Edit appraisal">✏️</button>` : ''}
+        ${a.published && aprCanReturn() ? `<button class="btn btn-sm btn-outline" onclick="aprReturnForReappraisal('${a.id}')" title="Return for re-appraisal">↩</button>` : ''}
         ${canEditApr && !a.published ? `<button class="btn btn-sm btn-primary" onclick="sendAppraisalToTeacher('${a.id}')" title="Send to teacher">📤 Send</button>` : ''}
         ${canEditApr ? `<button class="btn btn-sm btn-danger" onclick="deleteAppraisal('${a.id}')">✕</button>` : ''}
       </td>
@@ -49066,8 +49222,12 @@ function renderAppraisals() {
     </div>`;
 }
 
-function openAppraisalModal() {
-  if (!requirePageAccess('appraisals', { level: 'edit', action: 'create appraisals' })) return;
+function openAppraisalModal(editId) {
+  const editing = editId ? (db.appraisals || []).find(x => x.id === editId) : null;
+  window._aprEditId = editing ? editing.id : null;
+  if (editId && !editing) { toast('Appraisal not found'); return; }
+  if (editing) { if (!aprCanEditRecord(editing)) { toast('⛔ You do not have permission to edit this appraisal'); return; } }
+  else if (!requirePageAccess('appraisals', { level: 'edit', action: 'create appraisals' })) return;
   const employees = db.employees || [];
   document.getElementById('apr-employee').innerHTML = employees.map(e => `<option value="${e.id}">${esc(e.name)} — ${e.role||''}</option>`).join('') || '<option value="">No staff found — add staff in Payroll first</option>';
   const cts = (typeof getCurrentTermStatus === 'function') ? getCurrentTermStatus() : {};
@@ -49078,7 +49238,37 @@ function openAppraisalModal() {
   document.getElementById('apr-reviewer').value = '';
   document.getElementById('apr-date').value = today();
 
+  const ttl = document.querySelector('#appraisal-modal .modal-title');
+  const saveBtn = document.querySelector('#appraisal-modal .btn.btn-primary[onclick="saveAppraisal()"]');
+  const empSel = document.getElementById('apr-employee'), termSel = document.getElementById('apr-term');
+  empSel.disabled = false; termSel.disabled = false;
+  if (ttl) ttl.textContent = editing ? '✏️ Edit Performance Appraisal' : '⭐ New Performance Appraisal';
+  if (saveBtn) saveBtn.textContent = editing ? '💾 Save Changes' : '💾 Save Appraisal';
+
   aprEmployeeChanged(); // builds the criteria list for whichever employee is selected by default
+  if (editing) {
+    empSel.value = String(editing.employeeId); empSel.disabled = true;
+    termSel.value = editing.term; termSel.disabled = true;
+    _aprActiveCriteria = editing.criteriaSet || getAppraisalCriteriaForEmployee((db.employees || []).find(e => e.id == editing.employeeId));
+    _aprCriteriaValues = Object.assign({}, editing.criteria || {});
+    _aprCriteriaComments = Object.assign({}, editing.criteriaComments || {});
+    const heading = document.getElementById('apr-criteria-heading');
+    const emp = (db.employees || []).find(e => e.id == editing.employeeId);
+    if (heading) heading.textContent = emp ? `KPIs for: ${emp.role || 'General Staff'}` : '';
+    renderAprCriteriaList();
+    _aprActiveCriteria.forEach(c => {
+      const box = document.getElementById('apr-rate-' + c.key), v = _aprCriteriaValues[c.key];
+      if (!box) return;
+      if (c.auto) { box.innerHTML = v ? `<span class="rating-stars" style="font-size:13px">${'★'.repeat(v)}${'☆'.repeat(5 - v)}</span> <span style="font-size:10px;color:var(--muted)">kept from the original appraisal</span>` : '<span style="color:var(--muted)">not scored</span>'; }
+      else [...box.children].forEach((btn, idx) => btn.classList.toggle('active', idx < (v || 0)));
+    });
+    aprUpdateOverallPreview();
+    document.getElementById('apr-strengths').value = editing.strengths || '';
+    document.getElementById('apr-improvements').value = editing.improvements || '';
+    document.getElementById('apr-goals').value = editing.goals || '';
+    document.getElementById('apr-reviewer').value = editing.reviewer || '';
+    document.getElementById('apr-date').value = editing.date || today();
+  }
   document.getElementById('appraisal-modal').classList.add('open');
 }
 let _aprCriteriaValues = {};
@@ -49202,7 +49392,9 @@ function aprRecomputePunctuality() {
 }
 
 function saveAppraisal() {
-  if (!requirePageAccess('appraisals', { level: 'edit', action: 'save appraisals' })) return;
+  const editingRec = window._aprEditId ? (db.appraisals || []).find(x => x.id === window._aprEditId) : null;
+  if (editingRec) { if (!aprCanEditRecord(editingRec)) { toast('⛔ You do not have permission to edit this appraisal'); return; } }
+  else if (!requirePageAccess('appraisals', { level: 'edit', action: 'save appraisals' })) return;
   if (isYearLocked()) { toast('🔒 ' + ACTIVE_YEAR.replace('_','/') + ' is locked — ask an admin to unlock it first', 'error'); return; }
   const employeeId = document.getElementById('apr-employee').value;
   const term = document.getElementById('apr-term').value;
@@ -49212,7 +49404,7 @@ function saveAppraisal() {
   if (!date) { toast('⚠ Enter the date'); return; }
   if (Object.keys(_aprCriteriaValues).length === 0) { toast('⚠ Rate at least one criterion'); return; }
 
-  const existing = (db.appraisals || []).find(a => a.employeeId == employeeId && a.term === term && a.year === ACTIVE_YEAR);
+  const existing = editingRec ? null : (db.appraisals || []).find(a => a.employeeId == employeeId && a.term === term && a.year === ACTIVE_YEAR);
   if (existing) {
     const emp = (db.employees || []).find(e => e.id == employeeId);
     if (!confirm(`${emp ? emp.name : 'This staff member'} already has an appraisal for ${term} · ${ACTIVE_YEAR.replace('_','/')}. Save another one anyway?`)) return;
@@ -49226,6 +49418,24 @@ function saveAppraisal() {
     const el = document.getElementById('apr-comment-' + c.key);
     if (el) aprSetComment(c.key, el.value);
   });
+
+  if (editingRec) {
+    editingRec.date = date;
+    editingRec.criteria = { ..._aprCriteriaValues };
+    editingRec.criteriaComments = { ..._aprCriteriaComments };
+    editingRec.criteriaSet = _aprActiveCriteria;
+    editingRec.strengths = document.getElementById('apr-strengths').value.trim();
+    editingRec.improvements = document.getElementById('apr-improvements').value.trim();
+    editingRec.goals = document.getElementById('apr-goals').value.trim();
+    editingRec.reviewer = document.getElementById('apr-reviewer').value.trim();
+    aprLog(editingRec, 'edited', editingRec.published ? 'Edited after being sent' : 'Edited');
+    saveDb();
+    window._aprEditId = null;
+    closeModal('appraisal-modal');
+    renderAppraisals();
+    toast(`✅ Appraisal updated (${aprOverallPercent(_aprCriteriaValues)}%)${editingRec.published ? ' — the teacher now sees the updated result' : ''}`);
+    return;
+  }
 
   db.appraisals.push({
     id: 'APR-' + String(db.nextAppraisalId++).padStart(4, '0'),
@@ -49270,6 +49480,8 @@ function sendAppraisalToTeacher(id) {
   }
   if (!confirm(`Send this ${a.term || 'appraisal'} result to ${emp ? emp.name : 'this staff member'}? They'll be able to see it immediately under My Appraisal.`)) return;
 
+  if (a.returned) a.returned.active = false;
+  aprLog(a, 'sent', '');
   a.published = true;
   a.publishedAt = today();
   a.publishedBy = currentUser ? currentUser.username : 'system';
@@ -49306,6 +49518,8 @@ function viewAppraisal(id) {
     ${textBlock('Strengths', a.strengths)}
     ${textBlock('Areas for Improvement', a.improvements)}
     ${textBlock('Goals', a.goals)}
+    ${a.returned && a.returned.active ? textBlock('Returned for re-appraisal', (a.returned.reason || '') + ' — ' + (a.returned.by || '')) : ''}
+    ${(a.history || []).length ? `<div style="margin-top:12px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)"><b style="color:var(--navy)">History</b><br>${a.history.map(h => esc(h.action) + ' · ' + esc(h.by || '') + ' · ' + esc(String(h.at || '').slice(0, 16).replace('T', ' ')) + (h.note ? ' — ' + esc(h.note) : '')).join('<br>')}</div>` : ''}
   `);
 }
 
