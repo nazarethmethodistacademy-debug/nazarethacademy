@@ -5952,6 +5952,13 @@
     <div style="padding:14px 20px 4px;font-size:12px;color:var(--muted)">
       Each academic year has its own separate data. Switch years to view or manage a different year's records.
     </div>
+    <div id="year-mode-box" style="display:none;margin:4px 20px 8px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--cream)">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--navy);margin-bottom:6px">Switch mode</div>
+      <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin-bottom:6px;cursor:pointer"><input type="radio" name="year-mode" id="year-mode-normal" value="normal" style="width:auto;margin-top:2px" onchange="setYearSwitchMode('normal')"><span><b>👤 Normal — Admin only</b><br><span style="color:var(--muted)">Only you view the other year; all other users stay on the school year.</span></span></label>
+      <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;cursor:pointer"><input type="radio" name="year-mode" id="year-mode-strict" value="strict" style="width:auto;margin-top:2px" onchange="setYearSwitchMode('strict')"><span><b>🌐 Strict — all users</b><br><span style="color:var(--muted)">Moves every user to the chosen year (they are reloaded).</span></span></label>
+      <div id="year-mode-hint" style="font-size:11px;color:var(--muted);margin-top:8px"></div>
+      <button id="year-return-btn" class="btn btn-outline btn-sm" style="display:none;margin-top:8px" onclick="returnToSchoolYear()">↩ Return to the school-wide year</button>
+    </div>
     <div class="year-list" id="year-list-container"></div>
     <div class="year-add-row" id="year-add-row">
       <select id="year-new-select"></select>
@@ -9646,8 +9653,14 @@ function addYearToRegistry(yearKey) {
 }
 
 // Active year key — e.g. '2025_2026'  (used in Firebase path & localStorage)
+const YEAR_OVERRIDE_KEY = 'nazareth_admin_year_override';
+// "Normal" year switch (Admin only): this Admin's own view of another year, NOT broadcast to other users.
+function _adminYearOverride() { try { return localStorage.getItem(YEAR_OVERRIDE_KEY) || ''; } catch (e) { return ''; } }
+function _clearAdminYearOverride() { try { localStorage.removeItem(YEAR_OVERRIDE_KEY); } catch (e) {} }
 let ACTIVE_YEAR = (function() {
   try {
+    const ov = localStorage.getItem(YEAR_OVERRIDE_KEY);
+    if (ov) return ov;
     const saved = localStorage.getItem('nazareth_active_year');
     if (saved) return saved;
   } catch(e) {}
@@ -9670,9 +9683,19 @@ let ACTIVE_YEAR = (function() {
 // ends up looking at the same year, not whatever they last had cached locally.
 const ACTIVE_YEAR_FB_PATH = 'active_year';
 
-function setActiveYear(yearKey) {
+// scope: 'all' (Strict — broadcast to every user, default) · 'me' (Normal — this Admin only, no broadcast)
+//        'local' (adopt the school-wide year on this device, no broadcast).
+function setActiveYear(yearKey, scope) {
+  scope = scope || 'all';
   ACTIVE_YEAR = yearKey;
+  if (scope === 'me') {
+    safeLocalStorageSet(YEAR_OVERRIDE_KEY, yearKey);
+    return;
+  }
+  _clearAdminYearOverride();
   safeLocalStorageSet('nazareth_active_year', yearKey);
+  if (scope === 'local') { window._sharedYear = yearKey; return; }
+  window._sharedYear = yearKey;
   if (fbDb) {
     fbDb.ref(ACTIVE_YEAR_FB_PATH).set(yearKey)
       .catch(err => console.warn('Could not broadcast active year to other users:', err));
@@ -9712,7 +9735,7 @@ function openYearModal() {
   // view-only list so they can see which year is active without being able
   // to change it for everyone else.
   const isAdmin = currentUser && currentUser.role === 'Admin';
-  const canSwitchYear = currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Class Teacher' || currentUser.role === 'Teacher');
+  const canSwitchYear = isAdmin; // only Admin switches (Normal = own view, Strict = everyone)
   const registry = loadYearsRegistry();
   const container = document.getElementById('year-list-container');
 
@@ -9743,6 +9766,14 @@ function openYearModal() {
   const adminActions = document.getElementById('year-admin-actions');
   if (adminActions) adminActions.style.display = isAdmin ? '' : 'none';
 
+  const modeBox = document.getElementById('year-mode-box');
+  if (modeBox) {
+    modeBox.style.display = isAdmin ? '' : 'none';
+    const r = document.getElementById(_yearSwitchMode === 'strict' ? 'year-mode-strict' : 'year-mode-normal'); if (r) r.checked = true;
+    const rb = document.getElementById('year-return-btn');
+    if (rb) rb.style.display = (_adminYearOverride() && window._sharedYear && window._sharedYear !== ACTIVE_YEAR) ? '' : 'none';
+    _yearModeHint();
+  }
   document.getElementById('year-modal').classList.add('open');
 }
 
@@ -10337,10 +10368,26 @@ function switchYear(key) {
   // switch between already-created years; other roles can still open the
   // modal to see which year is active (see openYearModal()), they just
   // can't change it.
-  if (!requireRole('Admin', 'Class Teacher', 'Teacher')) return;
+  if (!requireRole('Admin')) return;
   if (key === ACTIVE_YEAR) { closeModal('year-modal'); return; }
+  const strict = _yearSwitchMode === 'strict';
+  if (strict && !confirm('STRICT switch to ' + yearKeyToDisplay(key).long + '?\n\nEvery user will be moved to this academic year (anyone logged in is reloaded).\n\nContinue?')) return;
   closeModal('year-modal');
-  _doSwitchYear(key);
+  _doSwitchYear(key, false, strict ? 'all' : 'me');
+}
+let _yearSwitchMode = 'normal'; // 'normal' = Admin only · 'strict' = all users
+function setYearSwitchMode(m) { _yearSwitchMode = m === 'strict' ? 'strict' : 'normal'; if (typeof _yearModeHint === 'function') _yearModeHint(); }
+function _yearModeHint() {
+  const el = document.getElementById('year-mode-hint'); if (!el) return;
+  el.textContent = _yearSwitchMode === 'strict'
+    ? 'Everyone is moved to the chosen year and reloaded. Use this when the school-wide year really changes.'
+    : 'Only you (Admin) view the chosen year. Everyone else stays on the school-wide year (' + yearKeyToDisplay(window._sharedYear || ACTIVE_YEAR).long + ').';
+}
+function returnToSchoolYear() {
+  const shared = window._sharedYear;
+  closeModal('year-modal');
+  if (!shared || shared === ACTIVE_YEAR) { _clearAdminYearOverride(); _updateYearLabels(); return; }
+  _doSwitchYear(shared, false, 'local');
 }
 
 // ══════════════ ACADEMIC YEAR LOCK (admin: close/reopen a finished year) ══════════════
@@ -10405,11 +10452,11 @@ function applyYearLockUI() {
   }
 }
 
-function _doSwitchYear(key, runCarryForward) {
+function _doSwitchYear(key, runCarryForward, scope) {
   // Detach old Firebase listener
   if (fbDb) fbDb.ref(FB_PATH).off();
 
-  setActiveYear(key);
+  setActiveYear(key, scope);
   // Update FB_PATH dynamically
   window.FB_PATH = 'nazareth_academy/' + ACTIVE_YEAR;
 
@@ -10446,7 +10493,8 @@ function _updateYearLabels() {
   const disp = yearKeyToDisplay(ACTIVE_YEAR);
   // Topbar chip
   const chip = document.getElementById('active-year-label');
-  if (chip) chip.textContent = disp.short;
+  const _ov = _adminYearOverride() && currentUser && currentUser.role === 'Admin' && window._sharedYear && window._sharedYear !== ACTIVE_YEAR;
+  if (chip) { chip.textContent = disp.short + (_ov ? ' 👤' : ''); chip.title = _ov ? 'Admin-only view — the school-wide year is ' + yearKeyToDisplay(window._sharedYear).long : ''; }
   // Sidebar footer
   const sbl = document.getElementById('sidebar-year-label');
   if (sbl) sbl.textContent = disp.long;
@@ -10478,8 +10526,17 @@ let _activeYearWatcherAttached = false;
 function watchActiveYearForChanges() {
   if (!fbDb || _activeYearWatcherAttached) return;
   _activeYearWatcherAttached = true;
+  let _lastSharedSeen;
   fbDb.ref(ACTIVE_YEAR_FB_PATH).on('value', snap => {
     const sharedYear = snap.val();
+    window._sharedYear = sharedYear || window._sharedYear;
+    const changed = _lastSharedSeen !== undefined && sharedYear !== _lastSharedSeen;
+    _lastSharedSeen = sharedYear;
+    if (_adminYearOverride() && currentUser && currentUser.role === 'Admin') {
+      // Admin-only (Normal) view: ignore the school-wide year — unless a STRICT switch just happened, which applies to everyone.
+      if (!changed) { _updateYearLabels(); return; }
+      _clearAdminYearOverride();
+    }
     if (sharedYear && sharedYear !== ACTIVE_YEAR) {
       toast('📅 The academic year was switched to ' + sharedYear.replace('_','/') + ' by an admin — reloading…', 'info');
       setTimeout(() => location.reload(), 2500);
@@ -23348,6 +23405,126 @@ function fdsMatch(x) {
 }
 window.fdsSet = (k, v) => { if (k === 'cls') _fdsClass = v; else _fdsFilter = v; renderFeedingReport(); };
 
+// ── WEEKLY FEEDING FEE TREND (Feeding Report) ──
+let _fdwClass = 'all';
+window.fdwSet = v => { _fdwClass = v; renderFeedingReport(); };
+function _fdwMonday(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00'); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+function fdrWeeklyTrendData() {
+  const term = (typeof _fdrActiveTerm !== 'undefined') ? _fdrActiveTerm : 'all';
+  const cal = (db.academicCalendar && db.academicCalendar.terms) || {};
+  const todayStr = today();
+  let from = '', to = '';
+  TERMS.forEach(t => {
+    if (term !== 'all' && t !== term) return;
+    const td = cal[t]; if (!td || !td.start || !td.end) return;
+    if (!from || td.start < from) from = td.start;
+    const e = td.end < todayStr ? td.end : todayStr;
+    if (e >= td.start && (!to || e > to)) to = e;
+  });
+  const classes = _fdwClass === 'all' ? CLASSES : CLASSES.filter(c => c === _fdwClass);
+  const students = (db.admissions || []).filter(s => s && classes.includes(s.cls) && isEnrolledStudent(s));
+  const weeks = {};
+  const wk = date => { const m = _fdwMonday(date); return weeks[m] = weeks[m] || { start: m, collected: 0, expected: 0, payers: new Set(), prepaid: 0 }; };
+  // collected: actual money recorded (term-filtered by date)
+  classes.forEach(c => {
+    const pre = 'fd_' + c.replace(/\s/g, '_') + '|';
+    Object.keys(db.feedingLedger || {}).forEach(k => {
+      if (k.indexOf(pre) !== 0) return;
+      const date = k.slice(k.indexOf('|') + 1);
+      if (term !== 'all' && fdrTermForDate(date) !== term) return;
+      Object.keys(db.feedingLedger[k] || {}).forEach(sid => {
+        const a = feedingAmountFor(c, date, sid);
+        if (a > 0) { const w = wk(date); w.collected += a; w.payers.add(sid); }
+      });
+    });
+  });
+  // expected: what school days in each week should have brought in
+  if (from && to) {
+    const cur = new Date(from + 'T00:00:00'), end = new Date(to + 'T00:00:00');
+    let guard = 0;
+    while (cur <= end && guard++ < 400) {
+      const date = cur.toISOString().slice(0, 10), dow = cur.getDay();
+      cur.setDate(cur.getDate() + 1);
+      if (dow === 0 || dow === 6 || getNonSchoolDayEvent(date)) continue;
+      if (!fdrTermForDate(date) || (term !== 'all' && fdrTermForDate(date) !== term)) continue;
+      const w = wk(date);
+      students.forEach(s => {
+        const j = s.date || s.admissionDate || '';
+        if (j && j > date) return;
+        if (feedingDisabledByAbsence(s.cls, date, s.id)) return;
+        w.expected += feedingRateOnDate(s.cls, date, s.id);
+        if (feedingCoveredBy(s.cls, date, s.id)) w.prepaid++;
+      });
+    }
+  }
+  const list = Object.values(weeks).filter(w => w.collected > 0 || w.expected > 0).sort((a, b) => a.start < b.start ? -1 : 1);
+  list.forEach(w => { w.collected = Math.round(w.collected * 100) / 100; w.expected = Math.round(w.expected * 100) / 100; w.n = w.payers.size; });
+  return { term, list, classes };
+}
+function fdrWeeklySvg(list) {
+  const W = 760, H = 280, L = 50, R = 14, T = 20, B = 46;
+  const maxV = Math.max(1, ...list.map(w => Math.max(w.collected, w.expected)));
+  const mag = Math.pow(10, Math.floor(Math.log10(maxV))), nice = [1, 2, 2.5, 5, 10].map(m => m * mag).find(v => v >= maxV) || maxV;
+  const n = list.length, slot = (W - L - R) / n, bw = Math.min(34, slot * 0.6);
+  const x = i => L + slot * i + slot / 2, y = v => T + (H - T - B) * (1 - v / nice);
+  let g = '';
+  for (let t = 0; t <= 4; t++) { const v = nice * t / 4, yy = y(v); g += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="#e3e7ee"/><text x="${L - 6}" y="${yy + 3}" text-anchor="end" font-size="10" fill="#6b7686">${Math.round(v).toLocaleString()}</text>`; }
+  const step = Math.max(1, Math.ceil(n / 12));
+  let body = '';
+  list.forEach((w, i) => {
+    body += `<rect x="${x(i) - bw / 2}" y="${y(w.collected)}" width="${bw}" height="${Math.max(0, (H - B) - y(w.collected))}" rx="2" fill="#1f3a68" opacity=".88"><title>Week of ${w.start}: collected GHS ${fmt(w.collected)} of ${fmt(w.expected)} expected</title></rect>`;
+    if (i % step === 0 || i === n - 1) { const d = new Date(w.start + 'T00:00:00'); g += `<text x="${x(i)}" y="${H - B + 14}" text-anchor="middle" font-size="9" fill="#44505f">${d.getDate()} ${d.toLocaleString('en-GB', { month: 'short' })}</text>`; }
+  });
+  body += `<polyline fill="none" stroke="#12805c" stroke-width="2" points="${list.map((w, i) => x(i) + ',' + y(w.expected)).join(' ')}"/>` + list.map((w, i) => `<circle cx="${x(i)}" cy="${y(w.expected)}" r="2.6" fill="#12805c"/>`).join('');
+  if (n >= 3) {
+    const sx = list.reduce((a, _, i) => a + i, 0), sy = list.reduce((a, w) => a + w.collected, 0), sxy = list.reduce((a, w, i) => a + i * w.collected, 0), sxx = list.reduce((a, _, i) => a + i * i, 0);
+    const den = n * sxx - sx * sx;
+    if (den) { const sl = (n * sxy - sx * sy) / den, ic = (sy - sl * sx) / n; body += `<line x1="${x(0)}" y1="${y(Math.max(0, ic))}" x2="${x(n - 1)}" y2="${y(Math.max(0, ic + sl * (n - 1)))}" stroke="#c9961a" stroke-width="2" stroke-dasharray="6 4"/>`; }
+  }
+  if (n <= 14) list.forEach((w, i) => { if (w.collected > 0) body += `<text x="${x(i)}" y="${y(w.collected) - 5}" text-anchor="middle" font-size="9" font-weight="700" fill="#1a2233">${Math.round(w.collected)}</text>`; });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Weekly feeding fee collection trend" style="min-width:${Math.min(W, 60 + n * 34)}px;max-width:100%;height:auto;display:block">${g}${body}</svg>`;
+}
+function fdrWeeklyTrendHtml(forPrint) {
+  const D = fdrWeeklyTrendData(), L = D.list;
+  const classSel = `<select onchange="fdwSet(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px"><option value="all">All classes</option>${CLASSES.map(c => `<option value="${esc(c)}" ${_fdwClass === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>`;
+  const head = `<div class="section-header" style="margin-bottom:14px;margin-top:20px"><div><div class="section-title">📈 Weekly Feeding Fee Trend</div>
+      <div class="section-sub">Money collected each week vs what was expected · ${D.term === 'all' ? 'Full Year' : esc(D.term)} (follows the term tabs above) · ${_fdwClass === 'all' ? 'All classes' : esc(_fdwClass)}</div></div>
+      ${forPrint ? '' : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${classSel}<button class="btn btn-outline btn-sm" onclick="fdwExportCsv()">⬇ CSV</button><button class="btn btn-outline btn-sm" onclick="fdwPrint()">🖨️ Print</button></div>`}</div>`;
+  if (!L.length) return head + `<div class="card" style="padding:18px;color:var(--muted);font-size:12px">No weekly data yet — set the term dates in the Academic Calendar and record feeding payments.</div>`;
+  const tot = L.reduce((a, w) => a + w.collected, 0), exp = L.reduce((a, w) => a + w.expected, 0);
+  const best = L.reduce((a, w) => w.collected > a.collected ? w : a, L[0]), low = L.reduce((a, w) => w.collected < a.collected ? w : a, L[0]);
+  const sl = scSlope(L.map(w => w.collected));
+  const avg = tot / L.length, trend = sl == null ? 'not enough weeks' : (sl > avg * 0.03 ? '📈 rising' : sl < -avg * 0.03 ? '📉 declining' : '➡️ steady');
+  const dt = d => scDate(d);
+  const rows = L.map(w => { const pct = w.expected ? Math.round(w.collected / w.expected * 100) : null;
+    return `<tr><td>${esc(dt(w.start))}</td><td style="text-align:right;color:var(--green);font-weight:600">${fmt(w.collected)}</td><td style="text-align:right">${fmt(w.expected)}</td><td style="text-align:right;font-weight:600;color:${pct == null ? 'var(--muted)' : pct >= 90 ? 'var(--green)' : pct >= 60 ? 'var(--amber)' : 'var(--red)'}">${pct == null ? '—' : pct + '%'}</td><td style="text-align:right">${w.n}</td><td style="text-align:right">${w.prepaid || '—'}</td></tr>`; }).join('');
+  return head + `<div class="kpi-grid kpi-grid-4" style="margin-bottom:14px">
+      <div class="kpi-card gold"><div class="kpi-label">Weekly Average</div><div class="kpi-value">GHS ${fmt(avg)}</div><div class="kpi-sub">over ${L.length} weeks</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Best Week</div><div class="kpi-value">GHS ${fmt(best.collected)}</div><div class="kpi-sub">week of ${esc(dt(best.start))}</div></div>
+      <div class="kpi-card red"><div class="kpi-label">Lowest Week</div><div class="kpi-value">GHS ${fmt(low.collected)}</div><div class="kpi-sub">week of ${esc(dt(low.start))}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Trend</div><div class="kpi-value" style="font-size:18px">${trend}</div><div class="kpi-sub">${exp ? Math.round(tot / exp * 100) + '% of expected collected' : ''}</div></div>
+    </div>
+    <div class="card" style="margin-bottom:14px"><div style="padding:12px 16px;overflow-x:auto">${fdrWeeklySvg(L)}
+      <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:6px"><span><span style="display:inline-block;width:10px;height:10px;background:#1f3a68;border-radius:2px"></span> Collected (GHS)</span><span><span style="display:inline-block;width:14px;border-top:2px solid #12805c"></span> Expected</span><span><span style="display:inline-block;width:14px;border-top:2px dashed #c9961a"></span> Trend of collections</span></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">An advance payment is counted in the week it was paid; the days it covers carry no money, so the following weeks can look lower than expected.</div></div></div>
+    <div class="card" style="margin-bottom:16px"><div style="overflow-x:auto"><table><thead><tr><th>Week starting</th><th style="text-align:right">Collected (GHS)</th><th style="text-align:right">Expected (GHS)</th><th style="text-align:right">Collection rate</th><th style="text-align:right">Students paying</th><th style="text-align:right">Prepaid days</th></tr></thead><tbody>${rows}</tbody>
+      <tfoot><tr><td><b>Total</b></td><td style="text-align:right;color:var(--green)"><b>${fmt(tot)}</b></td><td style="text-align:right"><b>${fmt(exp)}</b></td><td style="text-align:right"><b>${exp ? Math.round(tot / exp * 100) + '%' : '—'}</b></td><td></td><td></td></tr></tfoot></table></div></div>`;
+}
+function fdwExportCsv() {
+  const D = fdrWeeklyTrendData(), q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const lines = [['Week starting', 'Collected (GHS)', 'Expected (GHS)', 'Collection %', 'Students paying', 'Prepaid days'].join(',')];
+  D.list.forEach(w => lines.push([q(w.start), w.collected, w.expected, w.expected ? Math.round(w.collected / w.expected * 100) : '', w.n, w.prepaid].join(',')));
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' }));
+  a.download = 'Weekly Feeding Trend - ' + (D.term === 'all' ? 'Full Year' : D.term) + ' - ' + String(ACTIVE_YEAR).replace('_', '-') + '.csv';
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function fdwPrint() {
+  scPrintFrame('Weekly Feeding Trend', `<div class="cr-doc"><h2 style="margin:0 0 4px;color:#1f3a68">${esc(schoolName())} — Weekly Feeding Fee Trend</h2><div style="font-size:11px;color:#6b7686;margin-bottom:8px">${esc(String(ACTIVE_YEAR).replace('_', '/'))} · printed ${esc(today())}</div>${fdrWeeklyTrendHtml(true)}</div>`);
+}
+
 function fdrStudentStatementHtml() {
   const D = fdsBuild();
   const classes = _fdsClass === 'all' ? CLASSES : CLASSES.filter(c => c === _fdsClass);
@@ -23693,6 +23870,7 @@ function renderFeedingReport() {
       </table>
     </div>
 
+    ${(() => { try { return fdrWeeklyTrendHtml(); } catch (e) { console.error(e); return '<div class="card" style="padding:14px;color:var(--red)">Weekly trend could not be built: ' + esc(e.message) + '</div>'; } })()}
     ${(() => { try { return fdrStudentStatementHtml(); } catch (e) { console.error(e); return '<div class="card" style="padding:14px;color:var(--red)">Student feeding statement could not be built: ' + esc(e.message) + '</div>'; } })()}
 
     <div style="font-size:11px;color:var(--muted);padding:8px 4px">
@@ -28301,7 +28479,11 @@ function showApp(user) {
   if (fbDb) {
     fbDb.ref(ACTIVE_YEAR_FB_PATH).once('value').then(snap => {
       const sharedYear = snap.val();
-      if (sharedYear && sharedYear !== ACTIVE_YEAR) {
+      window._sharedYear = sharedYear || window._sharedYear;
+      if (_adminYearOverride() && currentUser && currentUser.role === 'Admin') {
+        // Admin's own (Normal) year view — keep it; the school-wide year stays as everyone else's.
+      } else if (sharedYear && sharedYear !== ACTIVE_YEAR) {
+        _clearAdminYearOverride();
         // Someone else switched the year since we last synced — adopt it now, before
         // any data loads, so we never briefly show the wrong year's numbers.
         ACTIVE_YEAR = sharedYear;
