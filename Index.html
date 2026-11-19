@@ -8185,7 +8185,7 @@
       <div class="form-group full"><label>Areas for Improvement</label><input id="apr-improvements" placeholder="What needs work"></div>
       <div class="form-group full"><label>Goals for Next Period</label><input id="apr-goals" placeholder="Agreed goals"></div>
       <div class="form-group"><label>Reviewer</label><input id="apr-reviewer" placeholder="e.g. Headteacher"></div>
-      <div class="form-group"><label>Date *</label><input type="date" id="apr-date" onchange="if(document.getElementById('apr-rate-punctuality')) aprRecomputePunctuality()"></div>
+      <div class="form-group"><label>Date *</label><input type="date" id="apr-date" onchange="if(document.getElementById('apr-rate-punctuality')) aprRecomputePunctuality(); if(document.getElementById('apr-rate-systemUsage')) aprRecomputeSystemUsage()"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('appraisal-modal')">Cancel</button>
@@ -9605,6 +9605,7 @@ const DB_SEED = {
   // Bulk feeding exemptions: [{id, cls:'All'|className, month:'YYYY-MM', reason, setBy, setAt}] — whole class free of feeding fee for that month.
   feedingExemptions: [],
   // Advance feeding payments: feedingCovered[ledgerKey][sid] = {from:'YYYY-MM-DD'} marks a day as prepaid (no money recorded that day).
+  attendanceMeta: {},   // {registerKey: {by, entered}} — first entry of each class register
   feedingCovered: {},
   feedingSettings: { advanceCover: true },
   // ── BOARD REPORT — narrative sections no report can auto-generate ──
@@ -10266,6 +10267,7 @@ async function executeCloseYear() {
     newDb.feedingSmsLog = [];
     newDb.feedingLedger = {};
     newDb.feedingCovered = {};
+    newDb.attendanceMeta = {};
     newDb.grades        = {};
     newDb.attendance    = {};
     newDb.payrollRuns   = [];
@@ -12045,7 +12047,7 @@ function ensureDbShape() {
     'skillComments', 'attendance', 'staffAttendance', 'dutyRoster', 'feeding', 'feedingBudgetOverrides',
     'fixedAssets', 'approvalConfig', 'generalSettings',
     'carryForwards', 'boardReportNotes', 'staffHrDetails', 'mgmtComments',
-    'grades', 'usageLog', 'fees', 'feedingFees', 'feedingDiscounts', 'feedingCovered', 'feedingSettings', 'teacherExternalParamOverrides', 'teacherVoteSettings'
+    'grades', 'usageLog', 'fees', 'feedingFees', 'feedingDiscounts', 'feedingCovered', 'feedingSettings', 'attendanceMeta', 'teacherExternalParamOverrides', 'teacherVoteSettings'
   ];
   OBJ_KEYS.forEach(k => {
     try { db[k] = ensureObject(db[k]); } catch (e) { db[k] = {}; }
@@ -12649,6 +12651,7 @@ function initDb(callback) {
       // Feeding fields
       db.feedingLedger  = data.feedingLedger  || {};
       db.feedingCovered = data.feedingCovered || {};
+      db.attendanceMeta = data.attendanceMeta || {};
       db.feedingSettings = data.feedingSettings || { advanceCover: true };
       db.feedingSmsLog  = data.feedingSmsLog  || [];
       // Access Control, Year Lock, and Fee Component config — previously missing
@@ -33613,6 +33616,7 @@ function renderAttendance() {
     if (!db.attendance[k]) db.attendance[k] = {};
     studentsList.forEach(s => { db.attendance[k][s.id] = status; });
     logUsage('attendance', k);
+    markRegisterEntry(k);
     softLocalEdit(2500);
     saveDb();
     // Paint column in place — stay on the same week
@@ -33688,7 +33692,7 @@ function renderAttendance() {
     const next = cur === '' ? 'P' : cur === 'P' ? 'A' : cur === 'A' ? 'L' : '';
     if (next === '') delete db.attendance[k][studentId];
     else db.attendance[k][studentId] = next;
-    if (next !== '') logUsage('attendance', k);
+    if (next !== '') { logUsage('attendance', k); markRegisterEntry(k); }
     softLocalEdit(2500);
     try { attPaintCell(cls, date, studentId, next); attPaintDaySummary(cls, date); } catch (e) { console.warn(e); }
     saveDb();
@@ -48408,35 +48412,89 @@ function getAppraisalCriteriaForEmployee(emp) {
   return APPRAISAL_CRITERIA; // Bursar, Secretary, Admin, or any other position
 }
 
-// Auto-scored (not manually rated): how frequently and promptly a staff member
-// enters real records into Ecole Systems (grades, via Grade Entry's Final Exams/
-// Mid Term/Class Score/Homework categories — the clearest "did the teacher keep
-// the system up to date" signal available). Requires the staff member's profile
-// (Payroll → Employee) to have a Login Username set, linking their account to
-// this activity. Returns { score: 1-5 or 0 (unlinked/no data), entries, daysSinceLast, linked }.
-function computeSystemUsageScore(username) {
+// Auto-scored (not manually rated): how FREQUENTLY (daily usage) and how PROMPTLY (timely entry)
+// a staff member uses Ecole Systems, over the 30 days up to the assessment date (asAt).
+//   Daily usage  (60%) — share of school days on which the user did anything in the system:
+//                 logged in, entered grades/class scores, rated skills, marked a register,
+//                 or clocked in. 80% of school days active already earns full marks (not every
+//                 day needs an entry).
+//   Timely entry (40%) — (a) how recent their last entry is as at the assessment date, and
+//                 (b) when they take class registers, whether each register was entered on the
+//                 day it belongs to (or the next day) — see db.attendanceMeta.
+// Needs the staff member's Login Username (Payroll → Employee). Returns the score (0-5) plus the
+// figures behind it. 0 = never used the system at all; 1 = linked but nothing in the window.
+function computeSystemUsageScore(username, asAt, emp) {
   if (!username) return { score: 0, entries: 0, daysSinceLast: null, linked: false };
+  const asAtStr = asAt || today();
+  const D = s => new Date(s + 'T00:00:00');
+  const span = (a, b) => Math.round((D(b) - D(a)) / 86400000);
+  const startD = D(asAtStr); startD.setDate(startD.getDate() - 29);
+  const startStr = startD.toISOString().slice(0, 10);
+  const inWin = d => d && d >= startStr && d <= asAtStr;
 
-  const records = [];
-  Object.values(db.grades || {}).forEach(g => { if (g && g.recordedBy === username && g.date) records.push(g.date); });
-  Object.values(db.gradeComponents || {}).forEach(g => { if (g && g.recordedBy === username && g.date) records.push(g.date); });
+  // School days in the window (Mon–Fri, minus holidays/breaks/closures)
+  let schoolDays = 0, weekdays = 0;
+  for (let c = new Date(startD), g = 0; c <= D(asAtStr) && g < 40; c.setDate(c.getDate() + 1), g++) {
+    const ds = c.toISOString().slice(0, 10), dow = c.getDay();
+    if (dow === 0 || dow === 6) continue;
+    weekdays++;
+    let off = false; try { off = !!getNonSchoolDayEvent(ds); } catch (e) {}
+    if (!off) schoolDays++;
+  }
+  if (!schoolDays) schoolDays = weekdays || 1;
 
-  if (!records.length) return { score: 1, entries: 0, daysSinceLast: null, linked: true };
+  const active = new Set();
+  let entries = 0, everActive = false, latest = '';
+  const touch = d => { if (d <= asAtStr && d > latest) latest = d; };
+  [db.grades, db.gradeComponents].forEach(store => {
+    Object.values(store || {}).forEach(g => {
+      if (!g || g.recordedBy !== username || !g.date) return;
+      everActive = true;
+      if (g.date <= asAtStr) touch(g.date);
+      if (inWin(g.date)) { active.add(g.date); entries++; }
+    });
+  });
+  const mine = (db.usageLog || {})[usageUserKey(username)] || {};
+  Object.keys(mine).forEach(d => {
+    const day = mine[d] || {};
+    if (!(day.login > 0 || day.skills > 0 || day.attendance > 0)) return;
+    everActive = true;
+    if (d <= asAtStr) touch(d);
+    if (inWin(d)) { active.add(d); entries += (day.skills || 0) + (day.attendance || 0); }
+  });
+  if (emp) {
+    Object.keys(db.staffAttendance || {}).forEach(d => {
+      const r = (db.staffAttendance[d] || {})[emp.id];
+      if (!r || !(r.in || r.clockIn)) return;
+      if (d <= asAtStr) touch(d);
+      if (inWin(d)) active.add(d);
+    });
+  }
+  // Registers this user took: on time = entered on the register's own day or the next day
+  let regTotal = 0, regOnTime = 0;
+  Object.keys(db.attendanceMeta || {}).forEach(k => {
+    const m = db.attendanceMeta[k];
+    if (!m || m.by !== username) return;
+    everActive = true;
+    const regDate = k.slice(k.indexOf('|') + 1);
+    if (!inWin(regDate) || !m.entered) return;
+    regTotal++;
+    if (span(regDate, m.entered) <= 1) regOnTime++;
+  });
 
-  const todayStr = today();
-  const daysAgo = dateStr => Math.round((new Date(todayStr) - new Date(dateStr)) / 86400000);
-  const last30 = records.filter(d => daysAgo(d) <= 30).length;
-  const mostRecent = records.reduce((latest, d) => (d > latest ? d : latest), records[0]);
-  const daysSinceLast = daysAgo(mostRecent);
+  const activeDays = active.size;
+  const usageRate = Math.min(1, activeDays / schoolDays);
+  const daysSinceLast = latest ? span(latest, asAtStr) : null;
+  const base = { entries, daysSinceLast, linked: true, asAt: asAtStr, activeDays, schoolDays, usageRate: Math.round(usageRate * 100), regTotal, regOnTime };
 
-  let score;
-  if (daysSinceLast <= 3 && last30 >= 15) score = 5;
-  else if (daysSinceLast <= 7 && last30 >= 8) score = 4;
-  else if (daysSinceLast <= 14 && last30 >= 3) score = 3;
-  else if (daysSinceLast <= 30 && last30 >= 1) score = 2;
-  else score = 1;
+  if (!activeDays) return Object.assign(base, { score: everActive ? 1 : 0, never: !everActive });
 
-  return { score, entries: last30, daysSinceLast, linked: true };
+  const usagePart = Math.min(1, usageRate / 0.8);
+  const recency = daysSinceLast <= 1 ? 1 : daysSinceLast <= 3 ? 0.8 : daysSinceLast <= 7 ? 0.5 : daysSinceLast <= 14 ? 0.25 : 0;
+  const timely = regTotal ? (recency + regOnTime / regTotal) / 2 : recency;
+  const idx = 0.6 * usagePart + 0.4 * timely;
+  const score = idx >= 0.9 ? 5 : idx >= 0.75 ? 4 : idx >= 0.55 ? 3 : idx >= 0.3 ? 2 : 1;
+  return Object.assign(base, { score, index: Math.round(idx * 100) });
 }
 
 // Auto-scores the Punctuality & Attendance criterion from real Staff
@@ -48445,44 +48503,80 @@ function computeSystemUsageScore(username) {
 // guessing a star rating. Uses employee id, not username, so this works for
 // every staff member with an attendance history — even one with no login
 // account at all, unlike computeSystemUsageScore() above which needs one.
-// Scored on ALL attendance recorded up to and including the assessment date (asAt, default today):
-// days attended (Present + Late) out of the total days recorded (Present + Late + Absent).
+// Scored as DAYS PRESENT out of ALL SCHOOL DAYS from the start of the academic calendar (or the date
+// the staff member joined, if later) up to and including the assessment date (asAt, default today).
+// School days = Mon–Fri inside the Academic Calendar terms, minus holidays/breaks/closures. A school day
+// with no clock-in record counts as not present. Present = clocked in on time or late ("Late" still
+// counts as present; lateness only matters for the top score).
 function computePunctualityScore(emp, asAt) {
   if (!emp) return { score: 0, days: 0, present: 0, late: 0, absent: 0, linked: false };
   const empId = String(emp.id);
   const asAtStr = asAt || today();
-
-  let present = 0, late = 0, absent = 0;
+  const joined = emp.hrDateJoined || emp.hire || '';
   const staffAtt = db.staffAttendance || {};
-  Object.keys(staffAtt).forEach(date => {
-    if (date > asAtStr || !staffAtt[date]) return; // everything up to the assessment date (also skips bad/blank days)
-    const rec = staffAtt[date][empId];
-    if (!rec || !rec.status) return;
-    if (rec.status === 'Present') present++;
-    else if (rec.status === 'Late') late++;
-    else if (rec.status === 'Absent') absent++;
-  });
 
-  const total = present + late + absent;
-  if (total === 0) {
-    // Never clocked in at all (no attendance record of any kind, on any date) → 0/5.
-    // Has history, but none in the last 30 days → 1/5 as before.
-    const ever = Object.keys(staffAtt).some(date => { const r = staffAtt[date] && staffAtt[date][empId]; return r && (r.status || r.in || r.clockIn); });
-    const everBefore = Object.keys(staffAtt).some(date => date <= asAtStr && staffAtt[date] && staffAtt[date][empId] && (staffAtt[date][empId].status || staffAtt[date][empId].in || staffAtt[date][empId].clockIn));
-    return { score: everBefore ? 1 : 0, days: 0, present, late, absent, linked: true, never: !everBefore, asAt: asAtStr };
+  // Every school day up to the assessment date
+  const days = [];
+  const cal = (db.academicCalendar && db.academicCalendar.terms) || {};
+  const seen = new Set();
+  TERMS.forEach(t => {
+    const td = cal[t]; if (!td || !td.start || !td.end) return;
+    const from = (joined && joined > td.start) ? joined : td.start;
+    const to = td.end < asAtStr ? td.end : asAtStr;
+    if (from > to) return;
+    const cur = new Date(from + 'T00:00:00'), end = new Date(to + 'T00:00:00');
+    for (let g = 0; cur <= end && g < 400; cur.setDate(cur.getDate() + 1), g++) {
+      const ds = cur.toISOString().slice(0, 10), dow = cur.getDay();
+      if (dow === 0 || dow === 6 || seen.has(ds)) continue;
+      let off = false; try { off = !!getNonSchoolDayEvent(ds); } catch (e) {}
+      if (!off) { seen.add(ds); days.push(ds); }
+    }
+  });
+  // Calendar not set up → fall back to the days staff attendance was actually taken for anyone
+  let basis = 'calendar';
+  if (!days.length) {
+    basis = 'recorded';
+    Object.keys(staffAtt).forEach(d => { if (d <= asAtStr && (!joined || d >= joined) && staffAtt[d] && Object.keys(staffAtt[d]).length) days.push(d); });
   }
 
-  const attendanceRate = (present + late) / total; // clocking in late still counts as showing up
-  const lateRate = late / total;
+  let present = 0, late = 0;
+  days.forEach(d => {
+    const rec = (staffAtt[d] || {})[empId];
+    if (!rec) return;
+    if (rec.status === 'Late') late++;
+    else if (rec.status === 'Present' || ((rec.in || rec.clockIn) && !rec.status)) present++;
+  });
+  const total = days.length;
+  const attended = present + late;
+  const absent = total - attended;
 
+  if (attended === 0) {
+    // Never clocked in on any school day up to the date → 0/5 (or 1/5 is not used: no presence at all is 0)
+    const everBefore = Object.keys(staffAtt).some(d => d <= asAtStr && staffAtt[d] && staffAtt[d][empId] && (staffAtt[d][empId].status || staffAtt[d][empId].in || staffAtt[d][empId].clockIn));
+    return { score: 0, days: total, present, late, absent, attended: 0, rate: 0, linked: true, never: !everBefore, asAt: asAtStr, basis };
+  }
+
+  const rate = attended / total;       // present days ÷ all school days
+  const lateRate = late / total;
   let score;
-  if (attendanceRate >= 0.95 && lateRate <= 0.05) score = 5;
-  else if (attendanceRate >= 0.90 && lateRate <= 0.15) score = 4;
-  else if (attendanceRate >= 0.80) score = 3;
-  else if (attendanceRate >= 0.60) score = 2;
+  if (rate >= 0.95 && lateRate <= 0.05) score = 5;
+  else if (rate >= 0.90 && lateRate <= 0.15) score = 4;
+  else if (rate >= 0.80) score = 3;
+  else if (rate >= 0.60) score = 2;
   else score = 1;
 
-  return { score, days: total, present, late, absent, linked: true, asAt: asAtStr, attended: present + late, rate: Math.round(attendanceRate * 1000) / 10 };
+  return { score, days: total, present, late, absent, attended, rate: Math.round(rate * 1000) / 10, linked: true, asAt: asAtStr, basis };
+}
+
+// Remember WHO first entered a class register and WHEN (entry day vs register day) — the basis of
+// the "timely entry" part of the System Usage appraisal score. Only the first entry counts, so
+// later corrections never make a register look late. Stored in the normal database (saveDb).
+function markRegisterEntry(k) {
+  try {
+    if (!currentUser || !currentUser.username) return;
+    if (!db.attendanceMeta) db.attendanceMeta = {};
+    if (!db.attendanceMeta[k]) db.attendanceMeta[k] = { by: currentUser.username, entered: today() };
+  } catch (e) { console.warn('markRegisterEntry', e); }
 }
 
 // ══════════════ USAGE LOG ══════════════
@@ -50227,11 +50321,12 @@ function aprRecomputeSystemUsage() {
     return;
   }
 
-  const usage = computeSystemUsageScore(emp.username);
+  const asAt = (document.getElementById('apr-date') || {}).value || today();
+  const usage = computeSystemUsageScore(emp.username, asAt, emp);
   _aprCriteriaValues.systemUsage = usage.score;
-  const detail = usage.entries === 0
-    ? 'No records entered in the system yet'
-    : `${usage.entries} record${usage.entries!==1?'s':''} in the last 30 days · last entry ${usage.daysSinceLast===0?'today':usage.daysSinceLast+'d ago'}`;
+  const detail = !usage.activeDays
+    ? (usage.never ? 'Has never used the system — scored 0/5' : 'No activity in the 30 days to ' + asAt)
+    : `Active ${usage.activeDays} of ${usage.schoolDays} school days (${usage.usageRate}%) · ${usage.entries} record${usage.entries!==1?'s':''} · last entry ${usage.daysSinceLast===0?'that day':usage.daysSinceLast+'d before'}${usage.regTotal ? ' · registers on time ' + usage.regOnTime + '/' + usage.regTotal : ''} (30 days to ${asAt})`;
   el.innerHTML = `<span class="rating-stars" style="font-size:13px">${'★'.repeat(usage.score)}${'☆'.repeat(5-usage.score)}</span> <span style="font-size:10px;color:var(--muted)">${detail}</span>`;
   aprUpdateOverallPreview();
 }
@@ -50256,8 +50351,10 @@ function aprRecomputePunctuality() {
   const p = computePunctualityScore(emp, asAt);
   _aprCriteriaValues.punctuality = p.score;
   const detail = p.days === 0
-    ? (p.never ? 'No Staff Attendance records up to ' + asAt + ' — scored 0/5' : 'No clock-in records up to ' + asAt + ' — encourage use of Staff Attendance')
-    : `${p.attended} of ${p.days} recorded day${p.days!==1?'s':''} attended (${p.rate}%) as at ${asAt} · ${p.present} on-time, ${p.late} late, ${p.absent} absent`;
+    ? 'No school days found up to ' + asAt + ' — set the term dates in the Academic Calendar'
+    : (p.attended === 0
+        ? (p.never ? 'Has never clocked in — present 0 of ' + p.days + ' school days as at ' + asAt + ', scored 0/5' : 'Present 0 of ' + p.days + ' school days as at ' + asAt + ', scored 0/5')
+        : `Present ${p.attended} of ${p.days} school days (${p.rate}%) as at ${asAt} · ${p.present} on time, ${p.late} late, ${p.absent} not clocked in${p.basis === 'recorded' ? ' · (calendar not set — counted days attendance was taken)' : ''}`);
   el.innerHTML = `<span class="rating-stars" style="font-size:13px">${'★'.repeat(p.score)}${'☆'.repeat(5-p.score)}</span> <span style="font-size:10px;color:var(--muted)">${detail}</span>`;
   aprUpdateOverallPreview();
 }
