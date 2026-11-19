@@ -3934,6 +3934,17 @@
     .kg-rc-edit { display: none !important; }
     .kg-rc-print-line { display: inline !important; }
     .rc-print-header { display: flex !important; }
+    /* Each report card carries its own school header — the page-level letterhead would push the first card down and onto a 2nd page */
+    body:has(.page.active .rc-student-card) .print-header,
+    body:has(.page.active .kg-rc-card) .print-header { display: none !important; }
+    /* Page breaks between cards are only honoured in normal block flow: the app shell's flex layout and
+       fixed heights made later cards run together / get cut off. Flatten the shell while printing cards. */
+    body:has(.page.active .rc-student-card), body:has(.page.active .kg-rc-card),
+    body:has(.page.active .rc-student-card) #app-root, body:has(.page.active .kg-rc-card) #app-root,
+    body:has(.page.active .rc-student-card) .main, body:has(.page.active .kg-rc-card) .main,
+    body:has(.page.active .rc-student-card) .content, body:has(.page.active .kg-rc-card) .content {
+      display: block !important; height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important;
+    }
     .rc-remarks { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .rc-ht-comment { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .rc-ht-sig { display: flex !important; }
@@ -25406,30 +25417,70 @@ function printPage() {
 // tail onto a second page. This measures each card right before printing and,
 // if it's too tall, wraps its content and scales it down uniformly to fit —
 // text stays proportional (no squishing), it just prints slightly smaller.
-const RC_PAGE_HEIGHT_PX = 1000; // ~A4 minus 12mm top+bottom margins and .content padding, at 96dpi
+const RC_PAGE_HEIGHT_PX = 985;  // A4 minus 12mm top+bottom margins at 96dpi (≈1032px) with a safety margin
+// Width a card really has on the printed page (A4 minus 12mm side margins ≈ 703px). The screen is
+// usually wider, so text wraps less on screen than on paper — measuring at screen width under-
+// estimated the card's height and let the tail spill onto a 2nd page. Measure at paper width.
+const RC_PRINT_WIDTH_PX = 690;
 
-function shrinkReportCardsToFit(root, pageHeightPx) {
+// Temporarily make every @media print rule apply on screen so cards can be measured exactly as they
+// will print (print-only header/signature blocks appear, edit boxes disappear, etc.). Returns an undo fn.
+function _applyPrintRulesForMeasure() {
+  const saved = [];
+  try {
+    Array.from(document.styleSheets).forEach(sheet => {
+      let rules; try { rules = sheet.cssRules; } catch (e) { return; }
+      Array.from(rules || []).forEach(r => {
+        if (r.type === 4 && r.media && /print/i.test(r.media.mediaText)) { saved.push([r, r.media.mediaText]); r.media.mediaText = 'all'; }
+      });
+    });
+  } catch (e) { console.warn('print-rule measure', e); }
+  return () => saved.forEach(([r, t]) => { try { r.media.mediaText = t; } catch (e) {} });
+}
+
+function shrinkReportCardsToFit(root, pageHeightPx, widthPx) {
   root = root || document;
   pageHeightPx = pageHeightPx || RC_PAGE_HEIGHT_PX;
-  root.querySelectorAll('.rc-student-card, .kg-rc-card').forEach(card => {
-    // Undo any previous pass first, in case content changed since the last print
+  widthPx = (widthPx === undefined) ? RC_PRINT_WIDTH_PX : widthPx;
+  const cards = Array.from(root.querySelectorAll('.rc-student-card, .kg-rc-card'));
+  // Undo any previous pass first, in case content changed since the last print
+  cards.forEach(card => {
     if (card.dataset.rcShrunk) {
-      const wrap = card.querySelector(':scope > .rc-shrink-wrap');
-      if (wrap) { while (wrap.firstChild) card.insertBefore(wrap.firstChild, wrap); wrap.remove(); }
+      _rcUnwrap(card);
       card.style.height = '';
       card.style.overflow = '';
       delete card.dataset.rcShrunk;
     }
-    const naturalHeight = card.scrollHeight;
+  });
+  // Measure every card as it will PRINT: print-media rules on + the card's real paper width
+  const undoPrint = _applyPrintRulesForMeasure();
+  const heights = cards.map(card => {
+    const _w = card.style.width, _mw = card.style.maxWidth, _bs = card.style.boxSizing;
+    if (widthPx) { card.style.width = widthPx + 'px'; card.style.maxWidth = 'none'; card.style.boxSizing = 'border-box'; }
+    const h = card.scrollHeight;
+    if (widthPx) { card.style.width = _w; card.style.maxWidth = _mw; card.style.boxSizing = _bs; }
+    return h;
+  });
+  undoPrint();
+  cards.forEach((card, i) => {
+    const naturalHeight = heights[i];
     if (naturalHeight > pageHeightPx) {
       const scale = pageHeightPx / naturalHeight;
+      // outer = the box the PRINT LAYOUT sees (fixed height, clips); inner = the scaled-down content.
+      // A transform alone doesn't change layout height, so without the clipping outer box the page
+      // break logic still saw the full unscaled height and pushed the tail onto a 2nd page.
       const wrap = document.createElement('div');
       wrap.className = 'rc-shrink-wrap';
-      wrap.style.transform = 'scale(' + scale.toFixed(4) + ')';
-      wrap.style.transformOrigin = 'top center';
-      wrap.style.width = (100 / scale).toFixed(2) + '%';
-      wrap.style.marginLeft = (-(100 / scale - 100) / 2).toFixed(2) + '%';
-      while (card.firstChild) wrap.appendChild(card.firstChild);
+      wrap.style.height = pageHeightPx + 'px';
+      wrap.style.setProperty('overflow', 'hidden', 'important');
+      const inner = document.createElement('div');
+      inner.className = 'rc-shrink-inner';
+      inner.style.transform = 'scale(' + scale.toFixed(4) + ')';
+      inner.style.transformOrigin = 'top center';
+      inner.style.width = (100 / scale).toFixed(2) + '%';
+      inner.style.marginLeft = (-(100 / scale - 100) / 2).toFixed(2) + '%';
+      while (card.firstChild) inner.appendChild(card.firstChild);
+      wrap.appendChild(inner);
       card.appendChild(wrap);
       card.style.height = pageHeightPx + 'px';
       card.style.overflow = 'hidden';
@@ -25437,11 +25488,17 @@ function shrinkReportCardsToFit(root, pageHeightPx) {
     }
   });
 }
+function _rcUnwrap(card) {
+  const wrap = card.querySelector(':scope > .rc-shrink-wrap');
+  if (!wrap) return;
+  const inner = wrap.querySelector(':scope > .rc-shrink-inner') || wrap;
+  while (inner.firstChild) card.insertBefore(inner.firstChild, wrap);
+  wrap.remove();
+}
 function resetReportCardShrink() {
   document.querySelectorAll('.rc-student-card, .kg-rc-card').forEach(card => {
     if (!card.dataset.rcShrunk) return;
-    const wrap = card.querySelector(':scope > .rc-shrink-wrap');
-    if (wrap) { while (wrap.firstChild) card.insertBefore(wrap.firstChild, wrap); wrap.remove(); }
+    _rcUnwrap(card);
     card.style.height = '';
     card.style.overflow = '';
     delete card.dataset.rcShrunk;
@@ -30100,7 +30157,7 @@ async function _exportCardsToPDF(cardEls, filename) {
   // Same one-page-per-card shrink used for Print, calibrated to this container's
   // 800px capture width mapping to a 194mm-wide / 281mm-tall usable A4 page area
   // (210mm - 2×8mm margin wide, 297mm - 2×8mm margin tall) at html2pdf's default fit.
-  shrinkReportCardsToFit(wrap, 1159);
+  shrinkReportCardsToFit(wrap, 1159, 0); // 0 = measure at the capture container's own width
 
   try {
     await html2pdf().set({
@@ -30221,6 +30278,8 @@ function printReportSmart(containerIdOrEl, options) {
   if (opts.orientation === 'landscape') landscape = true;
   else if (opts.orientation === 'portrait') landscape = false;
   else landscape = reportNeedsLandscape(source);
+  // Report cards are always A4 portrait, one card per page
+  try { if (source.querySelector('.rc-student-card, .kg-rc-card')) landscape = false; } catch (e) {}
 
   applyReportPrintHideClasses(opts);
   let style = document.getElementById('smart-print-orient-style');
