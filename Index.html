@@ -880,6 +880,9 @@
   .table-scroll > table.sticky-header thead th,
   .mobile-table-view > table.sticky-header thead th { top: 0 !important; }
   .sticky-header thead th:first-child { border-top-left-radius: 10px; }
+  /* School data not loaded (bad internet) → pages are view-only so nothing can be edited/saved by mistake */
+  body.db-readonly .page { pointer-events: none; opacity: .55; }
+  @media (max-width: 900px) { #db-load-banner { bottom: 78px !important; } } /* sit above the phone bottom nav */
   .sticky-header thead th:last-child { border-top-right-radius: 10px; }
 
   /* Frozen first column — opt-in via class="att-name-col" on the Student <th>/<td> in
@@ -8182,7 +8185,7 @@
       <div class="form-group full"><label>Areas for Improvement</label><input id="apr-improvements" placeholder="What needs work"></div>
       <div class="form-group full"><label>Goals for Next Period</label><input id="apr-goals" placeholder="Agreed goals"></div>
       <div class="form-group"><label>Reviewer</label><input id="apr-reviewer" placeholder="e.g. Headteacher"></div>
-      <div class="form-group"><label>Date *</label><input type="date" id="apr-date"></div>
+      <div class="form-group"><label>Date *</label><input type="date" id="apr-date" onchange="if(document.getElementById('apr-rate-punctuality')) aprRecomputePunctuality()"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('appraisal-modal')">Cancel</button>
@@ -9024,6 +9027,10 @@
 </div>
 
 <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+<div id="db-load-banner" role="alert" style="display:none;position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:10050;width:calc(100% - 24px);max-width:640px;background:#92400e;color:#fff;border-radius:12px;padding:12px 14px;box-shadow:0 8px 28px rgba(0,0,0,.35);font-size:13px;line-height:1.45">
+  <div id="db-load-msg" style="margin-bottom:8px"></div>
+  <button class="btn btn-sm" style="background:#fff;color:#92400e;font-weight:700" onclick="retryLoadDb()">🔄 Retry now</button>
+</div>
 
 <!-- Firebase SDK — loaded here so it's ready before app code runs -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -9341,28 +9348,15 @@ const DB_SEED = {
   // { '2026-09-28': { notes:'', slots: { '2026-09-28|morning': empId, ... } } }
   dutyRoster: {},
   staffHrRecords: [],
-  admissions: [
-    {id:'NAZ-001',name:'Akosua Mensah',dob:'',gender:'Female',nat:'Ghana',cls:'Creche',year:2026,appdate:'',parent:'Mrs Abena Mensah',rel:'Mother',phone1:'',phone2:'',email:'',address:'',status:'Admitted',fee:580,feeTerm:'Term 1',notes:''},
-    {id:'NAZ-002',name:'Ebenezer Anderson',dob:'',gender:'Male',nat:'Ghana',cls:'Basic 1',year:2026,appdate:'',parent:'',rel:'',phone1:'',phone2:'',email:'',address:'',status:'Admitted',fee:580,feeTerm:'Term 1',notes:''},
-    {id:'NAZ-003',name:'Emmanuel Benson',dob:'',gender:'Female',nat:'Ghana',cls:'Basic 2',year:2026,appdate:'',parent:'',rel:'',phone1:'',phone2:'',email:'',address:'',status:'Admitted',fee:800,feeTerm:'Term 1',notes:''},
-    {id:'NAZ-004',name:'Samuel Addo',dob:'',gender:'Female',nat:'Ghana',cls:'Basic 3',year:2026,appdate:'',parent:'',rel:'',phone1:'',phone2:'',email:'',address:'',status:'Admitted',fee:800,feeTerm:'Term 1',notes:''},
-    {id:'NAZ-005',name:'Kwesi Amo',dob:'',gender:'Female',nat:'Ghana',cls:'Nursery 1',year:2026,appdate:'',parent:'',rel:'',phone1:'',phone2:'',email:'',address:'',status:'Admitted',fee:800,feeTerm:'Term 1',notes:''},
-    {id:'NAZ-006',name:'Kwame Duku',dob:'',gender:'Male',nat:'Ghana',cls:'Basic 3',year:2026,appdate:'',parent:'',rel:'',phone1:'',phone2:'',email:'',address:'',status:'Admitted',fee:800,feeTerm:'Term 1',notes:''},
-    {id:'NAZ-007',name:'Efua Daniels',dob:'',gender:'Female',nat:'Ghana',cls:'Basic 3',year:2026,appdate:'',parent:'',rel:'',phone1:'',phone2:'',email:'',address:'',status:'Admitted',fee:800,feeTerm:'Term 1',notes:''},
-    {id:'NAZ-008',name:'Ebo',dob:'',gender:'Female',nat:'Ghana',cls:'KG 1',year:2026,appdate:'',parent:'',rel:'',phone1:'',phone2:'',email:'',address:'',status:'Admitted',fee:800,feeTerm:'Term 1',notes:''},
-    {id:'NAZ-009',name:'Kukuwa',dob:'',gender:'Female',nat:'Ghana',cls:'KG 2',year:2026,appdate:'',parent:'',rel:'',phone1:'',phone2:'',email:'',address:'',status:'Admitted',fee:800,feeTerm:'Term 1',notes:''},
-    {id:'NAZ-010',name:'Kofi Ato',dob:'',gender:'Female',nat:'Ghana',cls:'Nursery 2',year:2026,appdate:'',parent:'',rel:'',phone1:'',phone2:'',email:'',address:'',status:'Admitted',fee:800,feeTerm:'Term 1',notes:''},
-  ],
+  admissions: [],
   payments: {},
-  revenue: [
-    {id:1,date:'2026-01-18',desc:'Feeding fees – Term 1',ref:'',term:'Term 1',cat:'Feeding Fees',amount:500,notes:''}
-  ],
-  expenses: [
-    {id:1,date:'2026-03-21',desc:'Education Week event costs',ref:'',term:'Term 1',cat:'Event Expenses',amount:400,notes:''}
-  ],
-  nextAdmId: 11,
-  nextRevId: 2,
-  nextExpId: 2,
+  // No sample students / revenue / expenses here on purpose: if the real data can't be
+  // loaded (bad internet) the app must show an empty, read-only state — never fake records.
+  revenue: [],
+  expenses: [],
+  nextAdmId: 1,
+  nextRevId: 1,
+  nextExpId: 1,
   nextTxId:  1,
   txHistory: [],
   smsLog:    [],      // {studentId, term, phone, text, status, apiCode, timestamp, recordedBy}
@@ -12254,8 +12248,15 @@ function saveDb(bypassLock) {
     toast(`🔒 ${ACTIVE_YEAR.replace('_','/')} is locked — no changes can be saved. Ask an admin to unlock it first.`, 'error');
     return;
   }
+  if (fbDb && !window._dbLoaded) {
+    // The real data has not arrived from the server — whatever is in memory is NOT the school's data.
+    // Writing it would overwrite real records, so refuse.
+    if (Date.now() - _dbBlockToastAt > 4000) { _dbBlockToastAt = Date.now(); toast('⛔ School data has not loaded — nothing was saved. Check your connection and tap Retry.', 'error'); }
+    return Promise.resolve();
+  }
   if (!fbDb) {
     console.warn('Firebase not available — saving locally');
+    window._mirrorWriteOk = true; mirrorSaveNow();
     persistLocalDbMirror('no-firebase');
     enqueueOfflineSync('Local-only save', []);
     setSyncStatus('offline');
@@ -12305,6 +12306,10 @@ function saveDb(bypassLock) {
   }
 
   _isSaving = true;
+  // Remember (on this device) which sections are not yet confirmed by the server, so a refresh
+  // before the connection returns cannot lose them.
+  changedKeys.forEach(k => _pendingKeys.add(k));
+  mirrorSaveNow();
   // Snapshot ONLY the fields we're about to write, so a failed save can be
   // rolled back precisely — no need to clone the whole database to do that.
   const _rollback = {};
@@ -12331,7 +12336,8 @@ function saveDb(bypassLock) {
 
   return fbDb.ref().update(updates)
     .then(() => {
-      changedKeys.forEach(key => { _lastSavedSnapshot[key] = serialized[key]; });
+      changedKeys.forEach(key => { _lastSavedSnapshot[key] = serialized[key]; _pendingKeys.delete(key); });
+      mirrorSaveSoon();
       try { window._liveAnalyticsAt = Date.now(); } catch (e) {}
       try { if (typeof aidCacheInvalidate === 'function') aidCacheInvalidate('saveDb'); } catch (e) {}
       try { if (typeof persistCriticalLocalMirrors === 'function') persistCriticalLocalMirrors(); } catch (e) {}
@@ -12362,7 +12368,7 @@ function saveDb(bypassLock) {
       console.warn('Firebase save failed:', err);
       // Restore only the fields this save touched — the rest of db was never
       // part of this write and doesn't need to be touched at all.
-      Object.keys(_rollback).forEach(key => { db[key] = _rollback[key]; });
+      Object.keys(_rollback).forEach(key => { db[key] = _rollback[key]; _pendingKeys.delete(key); });
       _isSaving = false;
       setSyncStatus('offline');
       toast('⚠ Cloud sync failed — changes kept locally and queued.', 'error');
@@ -12374,13 +12380,115 @@ function saveDb(bypassLock) {
     });
 }
 
+// ══════════════ LOAD SAFETY + OFFLINE COPY ══════════════
+// 1) _dbLoaded stays false until the REAL school data has arrived from the server; while false,
+//    saveDb() refuses to write (so empty/stale in-memory data can never overwrite real records).
+// 2) Every change and every server load is mirrored to IndexedDB on this device. If the server
+//    can't be reached the last copy is shown read-only; changes that never reached the server
+//    ("pending") are offered for upload the next time the real data loads.
+window._dbLoaded = false; window._dbMirrorMode = false; window._mirrorWriteOk = false;
+let _pendingKeys = new Set();
+let _mirrorTimer = null, _dbWatchdog = null, _dbBlockToastAt = 0;
+function mirrorKey() { return 'db:' + ACTIVE_YEAR; }
+function _mirrorOpen() {
+  return new Promise((res, rej) => {
+    try {
+      const r = indexedDB.open('ecole_local_mirror', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    } catch (e) { rej(e); }
+  });
+}
+function mirrorPut(key, val) {
+  return _mirrorOpen().then(d => new Promise((res, rej) => { const tx = d.transaction('kv', 'readwrite'); tx.objectStore('kv').put(val, key); tx.oncomplete = () => { d.close(); res(); }; tx.onerror = () => { d.close(); rej(tx.error); }; }));
+}
+function dbMirrorRead() {
+  return _mirrorOpen().then(d => new Promise((res, rej) => { const rq = d.transaction('kv').objectStore('kv').get(mirrorKey()); rq.onsuccess = () => { d.close(); res(rq.result || null); }; rq.onerror = () => { d.close(); rej(rq.error); }; })).catch(() => null);
+}
+function mirrorSaveNow() {
+  if (!window._mirrorWriteOk) return;
+  try {
+    const snap = {};
+    Object.keys(db).forEach(k => { if (k !== 'usageLog') snap[k] = db[k]; });
+    const payload = JSON.parse(JSON.stringify({ at: new Date().toISOString(), year: ACTIVE_YEAR, db: snap, pending: Array.from(_pendingKeys) }));
+    mirrorPut(mirrorKey(), payload).catch(e => console.warn('mirror save failed', e));
+  } catch (e) { console.warn('mirrorSaveNow', e); }
+}
+function mirrorSaveSoon() { if (!window._mirrorWriteOk) return; clearTimeout(_mirrorTimer); _mirrorTimer = setTimeout(mirrorSaveNow, 1500); }
+function dbApplyMirror(pl) {
+  Object.keys(pl.db || {}).forEach(k => { db[k] = pl.db[k]; });
+  try { ensureDbShape(); } catch (e) { console.warn('ensureDbShape (mirror)', e); }
+}
+function dbShowBanner(msg) {
+  const b = document.getElementById('db-load-banner'), m = document.getElementById('db-load-msg');
+  if (!b || !m) return;
+  m.innerHTML = msg; b.style.display = 'block'; document.body.classList.add('db-readonly');
+}
+function dbHideBanner() {
+  const b = document.getElementById('db-load-banner'); if (b) b.style.display = 'none';
+  document.body.classList.remove('db-readonly');
+}
+function dbLoadWatchdogStart() {
+  clearTimeout(_dbWatchdog);
+  _dbWatchdog = setTimeout(dbLoadTimedOut, (typeof navigator !== 'undefined' && navigator.onLine === false) ? 1500 : 8000);
+}
+function dbLoadTimedOut() {
+  if (window._dbLoaded) return;
+  const cb = window._initDbCallback;
+  dbShowBanner('⚠ <b>Could not load the school data</b> — check your internet connection. Saving is switched off so your real records stay safe.');
+  setSyncStatus('offline');
+  dbMirrorRead().then(pl => {
+    if (window._dbLoaded) return;
+    if (pl && pl.db && pl.year === ACTIVE_YEAR) {
+      dbApplyMirror(pl);
+      window._dbMirrorMode = true;
+      const when = pl.at ? new Date(pl.at).toLocaleString() : 'earlier';
+      dbShowBanner('📴 <b>You are offline.</b> Showing the copy of the school data last saved on this device (' + esc(when) + '). It is <b>view-only</b> until the connection returns' + ((pl.pending && pl.pending.length) ? ' — your unsent changes are kept and will be offered for upload.' : '.'));
+    }
+    window._mirrorWriteOk = false; // never overwrite the saved copy with an unverified one
+    if (cb && !cb._called) { cb._called = true; try { cb(); } catch (e) { console.warn('boot (offline)', e); } }
+  });
+}
+function retryLoadDb() {
+  if (!fbDb) { toast('⚠ No cloud connection available on this device', 'error'); return; }
+  const m = document.getElementById('db-load-msg'); if (m) m.innerHTML = '⏳ Trying to reach the server…';
+  try { fbDb.ref(FB_PATH).off(); } catch (e) {}
+  initDb(window._initDbCallback || function () {});
+}
+window.addEventListener('online', () => { if (!window._dbLoaded && typeof fbDb !== 'undefined' && fbDb) retryLoadDb(); });
+window.addEventListener('beforeunload', e => { if (_pendingKeys.size) { e.preventDefault(); e.returnValue = 'Some changes have not reached the server yet.'; return e.returnValue; } });
+function dbOfferPendingUpload() {
+  if (window._pendingOfferDone) { window._mirrorWriteOk = true; mirrorSaveSoon(); return; }
+  window._pendingOfferDone = true;
+  dbMirrorRead().then(pl => {
+    const keys = (pl && pl.year === ACTIVE_YEAR && pl.db && Array.isArray(pl.pending)) ? pl.pending.filter(k => k in pl.db && !FB_LOCKED_KEYS.includes(k)) : [];
+    if (!keys.length) { _pendingKeys.clear(); window._mirrorWriteOk = true; mirrorSaveNow(); return; }
+    const when = pl.at ? new Date(pl.at).toLocaleString() : 'earlier';
+    const ok = confirm('Changes made on this device (' + when + ') never reached the server.\n\nSections affected: ' + keys.slice(0, 8).join(', ') + (keys.length > 8 ? '…' : '') + '\n\nOK = upload them now (replaces the server\'s version of those sections — anyone who edited the same sections meanwhile will be overwritten).\nCancel = discard them and keep the server\'s data.');
+    if (ok) {
+      keys.forEach(k => { db[k] = JSON.parse(JSON.stringify(pl.db[k])); });
+      _pendingKeys = new Set(keys);
+      window._mirrorWriteOk = true;
+      Promise.resolve(saveDb(true)).then(() => { toast('☁ Uploaded the changes saved on this device', 'success'); try { const pg = document.querySelector('.page.active'); if (pg && typeof navigate === 'function') navigate(pg.id.replace('page-', '')); } catch (e) {} }).catch(() => toast('⚠ Upload failed — your changes are still kept on this device', 'error'));
+    } else { _pendingKeys.clear(); window._mirrorWriteOk = true; mirrorSaveNow(); }
+  });
+}
+
 // ── LOAD from Firebase & subscribe to real-time updates ──
 function initDb(callback) {
+  window._initDbCallback = callback;
+  window._dbLoaded = false; window._pendingOfferDone = false; window._mirrorWriteOk = false;
   if (!fbDb) {
-    console.warn('Firebase not available — falling back to seed data');
-    callback._called = true; callback();
+    // No cloud SDK on this device: stand-alone mode — the device copy IS the data.
+    console.warn('Firebase not available — using this device\'s saved copy');
+    dbMirrorRead().then(pl => { if (pl && pl.db) dbApplyMirror(pl); }).catch(() => {}).then(() => {
+      window._dbLoaded = true; window._mirrorWriteOk = true;
+      if (!callback._called) { callback._called = true; callback(); }
+    });
     return;
   }
+  dbLoadWatchdogStart();
   fbDb.ref(FB_PATH).on('value', snap => {
     // While a local save is in-flight, Firebase may echo back old server data
     // (especially when a write is rejected by security rules). Bail out here to
@@ -12388,7 +12496,11 @@ function initDb(callback) {
     if (_isSaving) return;
 
     const data = snap.val();
-    if (data && data.admissions) {
+    // The server has answered: this is the real data (or a confirmed-empty year).
+    clearTimeout(_dbWatchdog);
+    window._dbLoaded = true; window._dbMirrorMode = false;
+    dbHideBanner();
+    if (data) {
       // Full merge first so unknown / newly added top-level keys are never dropped
       try {
         if (typeof mergeServerDb === 'function') mergeServerDb(data);
@@ -12603,6 +12715,7 @@ function initDb(callback) {
     // switching academic year, saveDb() needs an accurate "what does Firebase
     // actually have right now" snapshot to diff future saves against.
     refreshSaveSnapshot();
+    setTimeout(dbOfferPendingUpload, 400); // after the screen has rendered
 
     if (!callback._called) {
       // First load — boot the app
@@ -48332,17 +48445,17 @@ function computeSystemUsageScore(username) {
 // guessing a star rating. Uses employee id, not username, so this works for
 // every staff member with an attendance history — even one with no login
 // account at all, unlike computeSystemUsageScore() above which needs one.
-function computePunctualityScore(emp) {
+// Scored on ALL attendance recorded up to and including the assessment date (asAt, default today):
+// days attended (Present + Late) out of the total days recorded (Present + Late + Absent).
+function computePunctualityScore(emp, asAt) {
   if (!emp) return { score: 0, days: 0, present: 0, late: 0, absent: 0, linked: false };
   const empId = String(emp.id);
-  const todayStr = today();
-  const daysAgo = dateStr => Math.round((new Date(todayStr) - new Date(dateStr)) / 86400000);
+  const asAtStr = asAt || today();
 
   let present = 0, late = 0, absent = 0;
   const staffAtt = db.staffAttendance || {};
   Object.keys(staffAtt).forEach(date => {
-    const age = daysAgo(date);
-    if (!(age <= 30 && age >= 0) || !staffAtt[date]) return; // last 30 days only (also skips bad/blank days)
+    if (date > asAtStr || !staffAtt[date]) return; // everything up to the assessment date (also skips bad/blank days)
     const rec = staffAtt[date][empId];
     if (!rec || !rec.status) return;
     if (rec.status === 'Present') present++;
@@ -48355,7 +48468,8 @@ function computePunctualityScore(emp) {
     // Never clocked in at all (no attendance record of any kind, on any date) → 0/5.
     // Has history, but none in the last 30 days → 1/5 as before.
     const ever = Object.keys(staffAtt).some(date => { const r = staffAtt[date] && staffAtt[date][empId]; return r && (r.status || r.in || r.clockIn); });
-    return { score: ever ? 1 : 0, days: 0, present, late, absent, linked: true, never: !ever };
+    const everBefore = Object.keys(staffAtt).some(date => date <= asAtStr && staffAtt[date] && staffAtt[date][empId] && (staffAtt[date][empId].status || staffAtt[date][empId].in || staffAtt[date][empId].clockIn));
+    return { score: everBefore ? 1 : 0, days: 0, present, late, absent, linked: true, never: !everBefore, asAt: asAtStr };
   }
 
   const attendanceRate = (present + late) / total; // clocking in late still counts as showing up
@@ -48368,7 +48482,7 @@ function computePunctualityScore(emp) {
   else if (attendanceRate >= 0.60) score = 2;
   else score = 1;
 
-  return { score, days: total, present, late, absent, linked: true };
+  return { score, days: total, present, late, absent, linked: true, asAt: asAtStr, attended: present + late, rate: Math.round(attendanceRate * 1000) / 10 };
 }
 
 // ══════════════ USAGE LOG ══════════════
@@ -50138,11 +50252,12 @@ function aprRecomputePunctuality() {
     return;
   }
 
-  const p = computePunctualityScore(emp);
+  const asAt = (document.getElementById('apr-date') || {}).value || today();
+  const p = computePunctualityScore(emp, asAt);
   _aprCriteriaValues.punctuality = p.score;
   const detail = p.days === 0
-    ? (p.never ? 'Has never clocked in — no Staff Attendance records, scored 0/5' : 'No clock-in records in the last 30 days — encourage use of Staff Attendance')
-    : `${p.days} day${p.days!==1?'s':''} tracked · ${p.present} on-time, ${p.late} late, ${p.absent} absent (last 30 days)`;
+    ? (p.never ? 'No Staff Attendance records up to ' + asAt + ' — scored 0/5' : 'No clock-in records up to ' + asAt + ' — encourage use of Staff Attendance')
+    : `${p.attended} of ${p.days} recorded day${p.days!==1?'s':''} attended (${p.rate}%) as at ${asAt} · ${p.present} on-time, ${p.late} late, ${p.absent} absent`;
   el.innerHTML = `<span class="rating-stars" style="font-size:13px">${'★'.repeat(p.score)}${'☆'.repeat(5-p.score)}</span> <span style="font-size:10px;color:var(--muted)">${detail}</span>`;
   aprUpdateOverallPreview();
 }
