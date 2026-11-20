@@ -12350,6 +12350,7 @@ function saveDb(bypassLock) {
   return fbDb.ref().update(updates)
     .then(() => {
       changedKeys.forEach(key => { _lastSavedSnapshot[key] = serialized[key]; _pendingKeys.delete(key); });
+      window._lastCloudSaveAt = Date.now(); _saveRetryCount = 0; clearTimeout(_saveRetryTimer);
       mirrorSaveSoon();
       try { window._liveAnalyticsAt = Date.now(); } catch (e) {}
       try { if (typeof aidCacheInvalidate === 'function') aidCacheInvalidate('saveDb'); } catch (e) {}
@@ -12381,8 +12382,9 @@ function saveDb(bypassLock) {
       console.warn('Firebase save failed:', err);
       // Restore only the fields this save touched — the rest of db was never
       // part of this write and doesn't need to be touched at all.
-      Object.keys(_rollback).forEach(key => { db[key] = _rollback[key]; _pendingKeys.delete(key); });
+      Object.keys(_rollback).forEach(key => { db[key] = _rollback[key]; /* stays pending: it will be retried */ });
       _isSaving = false;
+      try { scheduleSaveRetry(); } catch (e) {}
       setSyncStatus('offline');
       toast('⚠ Cloud sync failed — changes kept locally and queued.', 'error');
       // fallback to localStorage + offline queue
@@ -12391,6 +12393,103 @@ function saveDb(bypassLock) {
       try { persistLocalDbMirror('sync-failed'); } catch (e) {}
       throw err; // re-throw so callers awaiting this promise (e.g. saveAccessControl) see the failure too
     });
+}
+
+// ── Automatic retry of failed cloud saves (5s, 15s, 30s, then every 60s) ──
+let _saveRetryTimer = null, _saveRetryCount = 0;
+function scheduleSaveRetry() {
+  clearTimeout(_saveRetryTimer);
+  const delays = [5000, 15000, 30000, 60000];
+  const wait = delays[Math.min(_saveRetryCount, delays.length - 1)];
+  _saveRetryCount++;
+  _saveRetryTimer = setTimeout(() => {
+    if (!window._dbLoaded || window._dbMirrorMode) return;
+    try {
+      Promise.resolve(saveDb(true)).then(() => {
+        if (!_pendingKeys.size) { toast('☁ Waiting changes have now reached the server', 'success'); }
+      }).catch(() => {});
+    } catch (e) { scheduleSaveRetry(); }
+  }, wait);
+}
+window.addEventListener('online', () => { if (_pendingKeys.size) { _saveRetryCount = 0; scheduleSaveRetry(); } });
+
+// ── Ask the browser not to evict this app's data when the device is short of space ──
+(function () {
+  try {
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().then(ok => { window._storagePersistent = !!ok; }).catch(() => {});
+  } catch (e) {}
+})();
+
+// ══════════════ OFF-DEVICE DAILY SNAPSHOT (Firebase, separate path) ══════════════
+// One complete copy per day, kept for 7 days, in a path the live app never reads. If this device
+// is lost or its browser data is cleared, an Admin on another device can still restore from it.
+const BK_CLOUD_ROOT = 'nazareth_academy_snapshots';
+const BK_CLOUD_KEEP_DAYS = 7;
+function bkCloudBase() { return BK_CLOUD_ROOT + '/' + ACTIVE_YEAR; }
+function bkCloudSnapshotIfDue(force) {
+  try {
+    if (typeof fbDb === 'undefined' || !fbDb || !window._dbLoaded || window._dbMirrorMode) return;
+    if (!currentUser || currentUser.role !== 'Admin') return;
+    const today = new Date().toISOString().slice(0, 10), lsKey = 'nazareth_cloud_snap_' + ACTIVE_YEAR;
+    if (!force && localStorage.getItem(lsKey) === today) return;
+    const payload = buildBackupPayload('Daily cloud snapshot ' + today, 'cloud');
+    ['employees','nextEmpId','payrollRuns','nextPrId'].forEach(k => { delete payload.data[k]; }); // server-managed keys
+    payload.sha256 = bkContentHash(payload);
+    const clean = sanitizeUndefined(payload), base = bkCloudBase();
+    const old = new Date(Date.now() - BK_CLOUD_KEEP_DAYS * 86400000).toISOString().slice(0, 10);
+    const up = {};
+    up[base + '/data/' + today] = clean;
+    up[base + '/index/' + today] = { at: payload.timestamp, by: payload.createdBy, students: (payload.data.admissions || []).filter(Boolean).length, sha256: payload.sha256 };
+    up[base + '/data/' + old] = null; up[base + '/index/' + old] = null;
+    fbDb.ref().update(up).then(() => {
+      try { localStorage.setItem(lsKey, today); } catch (e) {}
+      window._lastCloudSnapAt = Date.now(); if (force) toast('☁ Cloud snapshot saved', 'success');
+    }).catch(err => { window._cloudSnapError = (err && err.message) || 'failed'; if (force) toast('⚠ Cloud snapshot failed: ' + window._cloudSnapError, 'error'); console.warn('cloud snapshot', err); });
+  } catch (e) { console.warn('cloud snapshot', e); }
+}
+async function restoreFromCloudSnapshot() {
+  if (!requireRole('Admin')) return;
+  if (typeof fbDb === 'undefined' || !fbDb) { toast('⚠ No cloud connection', 'error'); return; }
+  try {
+    const idx = (await fbDb.ref(bkCloudBase() + '/index').once('value')).val() || {};
+    const days = Object.keys(idx).sort().reverse();
+    if (!days.length) { toast('⚠ No cloud snapshots exist yet for this year'); return; }
+    const menu = days.map((d, i) => (i + 1) + '. ' + d + ' (' + (idx[d].students || '?') + ' students, by ' + (idx[d].by || '?') + ')').join('\n');
+    const n = parseInt(prompt('Cloud snapshots (newest first):\n\n' + menu + '\n\nEnter the number to load:', '1'), 10);
+    if (!n || !days[n - 1]) return;
+    const payload = (await fbDb.ref(bkCloudBase() + '/data/' + days[n - 1]).once('value')).val();
+    const errs = bkValidatePayload(payload);
+    if (errs.length) { toast('⚠ That snapshot is damaged: ' + errs.join('; '), 'error'); return; }
+    _restorePayload = payload; showRestorePreview(payload);
+    toast('ℹ Cloud snapshot loaded — review and click Restore to confirm');
+  } catch (e) { toast('⚠ Could not read cloud snapshots: ' + (e && e.message || e), 'error'); }
+}
+
+// ── Storage health panel (Backup page) ──
+async function bkRenderStorageHealth() {
+  const el = document.getElementById('storage-health-card'); if (!el) return;
+  let quota = '—', persist = '—', vault = 0;
+  try {
+    if (navigator.storage && navigator.storage.estimate) { const e = await navigator.storage.estimate(); quota = (e.usage / 1048576).toFixed(1) + ' MB of ' + (e.quota / 1048576).toFixed(0) + ' MB used'; }
+    if (navigator.storage && navigator.storage.persisted) persist = (await navigator.storage.persisted()) ? '✅ Protected from automatic clean-up' : '⚠ Browser may clear it when space is low';
+    vault = (await bkVaultList()).length;
+  } catch (e) {}
+  const ago = t => t ? Math.max(1, Math.round((Date.now() - t) / 60000)) + ' min ago' : 'not yet this session';
+  const pend = _pendingKeys.size;
+  el.innerHTML = `<div class="card" style="margin-bottom:14px"><div style="padding:14px 18px">
+    <div style="font-weight:700;margin-bottom:8px">🧱 Storage health</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:12.5px">
+      <div class="export-stat-pill">☁ Last cloud save: <strong>${ago(window._lastCloudSaveAt)}</strong></div>
+      <div class="export-stat-pill">${pend ? '⏳ <strong>' + pend + '</strong> section(s) waiting to upload (auto-retrying)' : '✅ Nothing waiting to upload'}</div>
+      <div class="export-stat-pill">🗄 Device vault: <strong>${vault}</strong> copies</div>
+      <div class="export-stat-pill">🌍 Cloud snapshot: <strong>${window._cloudSnapError ? '⚠ ' + esc(window._cloudSnapError) : ago(window._lastCloudSnapAt)}</strong></div>
+      <div class="export-stat-pill">💽 Device storage: <strong>${esc(quota)}</strong></div>
+      <div class="export-stat-pill">🔒 ${esc(persist)}</div>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" onclick="bkCloudSnapshotIfDue(true)">☁ Take cloud snapshot now</button>
+      <button class="btn btn-outline btn-sm" onclick="restoreFromCloudSnapshot()">🌍 Load from cloud snapshot</button>
+    </div></div></div>`;
 }
 
 // ══════════════ LOAD SAFETY + OFFLINE COPY ══════════════
@@ -26956,7 +27055,7 @@ const BK_STORE_KEY    = 'nazareth_backups';       // manual backup history in lo
 const BK_AUTO_KEY     = 'nazareth_auto_backups';  // rotating auto-backup slots (array of 3)
 const BK_SETTINGS_KEY = 'nazareth_bk_settings';
 const RESTORE_LOG_KEY = 'nazareth_restore_log';   // audit log of all restore / reset events
-const BK_VERSION      = '1.0';
+const BK_VERSION      = '1.1';
 const BK_AUTO_SLOTS   = 3;                        // number of rotating auto-backup slots
 
 // ── Restore event log helpers ──
@@ -27006,6 +27105,49 @@ function saveBkSettings(s) {
 }
 
 // ── Build a full backup payload ──
+// ── Full-database helpers ──
+// Keys handled explicitly by the core restore code; everything else in the db is
+// copied generically so a backup/restore covers the ENTIRE database.
+const BK_CORE_KEYS = ['admissions','payments','revenue','expenses','nextAdmId','nextRevId','nextExpId','txHistory','nextTxId','pettyCash','nextPcId'];
+const BK_FEEDING_KEYS = ['feedingLedger','feedingDiscounts','feedingExemptions','feedingCovered','feedingSettings','feedingFees'];
+function bkAllDbKeys() {
+  return Object.keys(db || {}).filter(k => k && k[0] !== '_' && typeof db[k] !== 'function' && db[k] !== undefined);
+}
+function bkDeep(v) { try { return JSON.parse(JSON.stringify(v)); } catch (e) { return v; } }
+function bkNiceKey(k) { return k.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()); }
+function bkCountOf(v) {
+  if (Array.isArray(v)) return v.filter(x => x != null).length;
+  if (v && typeof v === 'object') return Object.keys(v).length;
+  return null;
+}
+// Copy every key present in the backup (that is not already handled) into db.
+// Keys missing from an older backup are left untouched.
+function bkApplyExtraKeys(d, onlyKeys) {
+  const applied = [];
+  Object.keys(d || {}).forEach(k => {
+    if (!k || k[0] === '_' || BK_CORE_KEYS.includes(k)) return;
+    if (onlyKeys && !onlyKeys.includes(k)) return;
+    if (d[k] === undefined) return;
+    db[k] = bkDeep(d[k]);
+    applied.push(k);
+  });
+  return applied;
+}
+// Human-readable list of what a payload will replace, and what it leaves alone.
+function bkDescribePayload(payload) {
+  const d = (payload && payload.data) || {};
+  const lines = [], present = new Set(Object.keys(d));
+  const add = (label, v) => { const n = bkCountOf(v); lines.push(label + (n != null ? ' (' + n + ')' : '')); };
+  [['admissions','Students'],['payments','Payment records'],['revenue','Revenue entries'],['expenses','Expense entries'],['pettyCash','Petty cash'],['txHistory','Transaction history']]
+    .forEach(([k, l]) => { if (present.has(k)) add(l, d[k]); });
+  if (payload.fees) lines.push('Fee schedules');
+  if (payload.feedingFees) lines.push('Feeding fee schedules');
+  const skip = new Set(BK_CORE_KEYS);
+  Object.keys(d).forEach(k => { if (!skip.has(k) && !/^next[A-Z]/.test(k)) add(bkNiceKey(k), d[k]); });
+  const missing = bkAllDbKeys().filter(k => !present.has(k) && !/^next[A-Z]/.test(k) && !BK_CORE_KEYS.includes(k));
+  return { lines, missing };
+}
+
 function buildBackupPayload(label, reason) {
   const deep = (v) => {
     try { return JSON.parse(JSON.stringify(v)); } catch (e) { return v; }
@@ -27059,7 +27201,14 @@ function buildBackupPayload(label, reason) {
     },
     checksum: null
   };
+  // Capture EVERY remaining db key (feeding, users, settings, workflows, ...)
+  bkAllDbKeys().forEach(k => {
+    if (payload.data[k] === undefined) payload.data[k] = deep(db[k]);
+  });
+  payload.recordCounts.dbKeys = Object.keys(payload.data).length;
+  payload.fullDatabase = true;
   payload.checksum = buildChecksumFromPayload(payload);
+  payload.sha256 = bkContentHash(payload);
   return payload;
 }
 
@@ -27070,7 +27219,7 @@ function buildChecksumFromPayload(payload) {
             Object.keys(d.payments || {}).length + '|' +
             (d.revenue || []).length + '|' +
             (d.expenses || []).length + '|' +
-            adm.reduce((a,b) => a + (b.fee||0), 0) + '|' +
+            adm.reduce((a,b) => a + ((b && b.fee)||0), 0) + '|' +
             Object.keys(d.grades || {}).length + '|' +
             Object.keys(d.attendance || {}).length;
   try { return btoa(s); } catch (e) { return String(s.length); }
@@ -27087,9 +27236,109 @@ function buildChecksum() {
   }});
 }
 
+// ── SHA-256 over the FULL content (the old checksum only compared record counts) ──
+function bkSha256(str) {
+  const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  const bytes = new TextEncoder().encode(str);
+  const l = bytes.length, total = ((l + 9 + 63) >> 6) << 6;
+  const buf = new Uint8Array(total); buf.set(bytes); buf[l] = 0x80;
+  const dv = new DataView(buf.buffer);
+  dv.setUint32(total - 8, Math.floor(l / 0x20000000)); dv.setUint32(total - 4, (l << 3) >>> 0);
+  let h0=0x6a09e667,h1=0xbb67ae85,h2=0x3c6ef372,h3=0xa54ff53a,h4=0x510e527f,h5=0x9b05688c,h6=0x1f83d9ab,h7=0x5be0cd19;
+  const w = new Uint32Array(64);
+  const rr = (x,n) => (x >>> n) | (x << (32 - n));
+  for (let o = 0; o < total; o += 64) {
+    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(o + i*4);
+    for (let i = 16; i < 64; i++) {
+      const s0 = rr(w[i-15],7) ^ rr(w[i-15],18) ^ (w[i-15] >>> 3);
+      const s1 = rr(w[i-2],17) ^ rr(w[i-2],19) ^ (w[i-2] >>> 10);
+      w[i] = (w[i-16] + s0 + w[i-7] + s1) >>> 0;
+    }
+    let a=h0,b=h1,c=h2,d=h3,e=h4,f=h5,g=h6,h=h7;
+    for (let i = 0; i < 64; i++) {
+      const S1 = rr(e,6) ^ rr(e,11) ^ rr(e,25), ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + K[i] + w[i]) >>> 0;
+      const S0 = rr(a,2) ^ rr(a,13) ^ rr(a,22), mj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + mj) >>> 0;
+      h=g; g=f; f=e; e=(d + t1) >>> 0; d=c; c=b; b=a; a=(t1 + t2) >>> 0;
+    }
+    h0=(h0+a)>>>0;h1=(h1+b)>>>0;h2=(h2+c)>>>0;h3=(h3+d)>>>0;h4=(h4+e)>>>0;h5=(h5+f)>>>0;h6=(h6+g)>>>0;h7=(h7+h)>>>0;
+  }
+  return [h0,h1,h2,h3,h4,h5,h6,h7].map(x => x.toString(16).padStart(8,'0')).join('');
+}
+function bkContentHash(payload) {
+  try { return bkSha256(JSON.stringify(payload.data || {}) + '|' + JSON.stringify(payload.fees || null) + '|' + JSON.stringify(payload.feedingFees || null)); }
+  catch (e) { return null; }
+}
+
 function verifyChecksum(payload) {
-  if (!payload || !payload.checksum) return 'unknown';
-  return buildChecksumFromPayload(payload) === payload.checksum ? 'ok' : 'mismatch';
+  if (!payload) return 'unknown';
+  if (payload.sha256) return bkContentHash(payload) === payload.sha256 ? 'ok' : 'mismatch';
+  if (!payload.checksum) return 'unknown';
+  try { return buildChecksumFromPayload(payload) === payload.checksum ? 'ok' : 'mismatch'; } catch (e) { return 'unknown'; }
+}
+
+// ── Structural validation: refuse files that would damage the database ──
+function bkValidatePayload(payload) {
+  const errs = [];
+  if (!payload || typeof payload !== 'object') return ['Not a backup file'];
+  const d = payload.data;
+  if (!d || typeof d !== 'object') return ['Backup has no data section'];
+  ['admissions','revenue','expenses'].forEach(k => { if (!Array.isArray(d[k])) errs.push(k + ' must be a list'); });
+  if (d.payments && (typeof d.payments !== 'object' || Array.isArray(d.payments))) errs.push('payments is malformed');
+  ['feedingLedger','feedingDiscounts','feedingExemptions','attendance','grades'].forEach(k => {
+    if (d[k] != null && typeof d[k] !== 'object') errs.push(k + ' is malformed');
+  });
+  if (Array.isArray(d.admissions) && d.admissions.some(a => a != null && (typeof a !== 'object' || !a.id))) errs.push('a student record has no ID');
+  return errs;
+}
+
+// ── Device vault: IndexedDB copy of every backup (far larger quota than localStorage) ──
+function bkVaultOpen() {
+  return new Promise((res, rej) => {
+    try {
+      const r = indexedDB.open('nazareth_backup_vault', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('snaps', { keyPath: 'ts' });
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    } catch (e) { rej(e); }
+  });
+}
+async function bkVaultPut(payload) {
+  try {
+    const dbh = await bkVaultOpen();
+    await new Promise((res, rej) => {
+      const tx = dbh.transaction('snaps', 'readwrite'), st = tx.objectStore('snaps');
+      st.put({ ts: payload.timestamp + '|' + Math.random().toString(36).slice(2,5), label: payload.label, reason: payload.reason, sha256: payload.sha256, students: (payload.data.admissions || []).length, payload });
+      const c = st.getAllKeys(); c.onsuccess = () => { const ks = c.result.sort(); while (ks.length > 15) st.delete(ks.shift()); };
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+    });
+    return true;
+  } catch (e) { console.warn('vault', e); return false; }
+}
+async function bkVaultList() {
+  try {
+    const dbh = await bkVaultOpen();
+    return await new Promise((res, rej) => { const r = dbh.transaction('snaps').objectStore('snaps').getAll(); r.onsuccess = () => res(r.result.sort((a,b) => a.ts < b.ts ? 1 : -1)); r.onerror = () => rej(r.error); });
+  } catch (e) { return []; }
+}
+async function restoreFromVault() {
+  if (!requireRole('Admin')) return;
+  const list = await bkVaultList();
+  if (!list.length) { toast('⚠ The device vault is empty'); return; }
+  const menu = list.map((e,i) => (i+1) + '. ' + new Date(e.payload.timestamp).toLocaleString('en-GH') + ' — ' + (e.label || '') + ' (' + e.students + ' students)').join('\n');
+  const n = parseInt(prompt('Device vault backups (newest first):\n\n' + menu + '\n\nEnter the number to load:', '1'), 10);
+  if (!n || !list[n-1]) return;
+  const payload = list[n-1].payload, errs = bkValidatePayload(payload);
+  if (errs.length) { toast('⚠ That backup is damaged: ' + errs.join('; '), 'error'); return; }
+  _restorePayload = payload; showRestorePreview(payload);
+  toast('ℹ Vault backup loaded — review and click Restore to confirm');
+}
+// Make a backup safe BEFORE it is trusted: re-read it exactly as a file would be and compare hashes.
+function bkSelfCheck(payload) {
+  try {
+    const back = JSON.parse(JSON.stringify(payload));
+    return bkContentHash(back) === payload.sha256 && bkValidatePayload(back).length === 0;
+  } catch (e) { return false; }
 }
 
 // ══════════════ BACKUP FILE ENCRYPTION (Web Crypto API) ══════════════
@@ -27206,7 +27455,13 @@ function pushAutoSlot(payload) {
   };
   slots.unshift(entry);                   // newest first
   while (slots.length > BK_AUTO_SLOTS) slots.pop(); // keep only N slots
-  saveAutoSlots(slots);
+  entry.sha256 = payload.sha256;
+  bkVaultPut(payload);                    // second copy in IndexedDB
+  try { saveAutoSlots(slots); } catch (e) { console.warn('auto slot save failed, vault only', e); }
+  try {
+    const back = loadAutoSlots()[0];
+    if (!back || back.sha256 !== payload.sha256) toast('⚠ Browser storage is full — this backup is kept in the device vault only. Download a manual backup too.', 'error');
+  } catch (e) {}
   // Also record in advanced version history (same payload, longer retention)
   try { pushVersionSnapshot(payload, payload.reason || 'auto'); } catch (e) { console.warn('version history', e); }
 }
@@ -27224,6 +27479,8 @@ const VERSION_MODULES = [
   { key: 'skills', label: 'Skills assessments', paths: ['skillsAssessments', 'skillSubmissions', 'skillParams'] },
   { key: 'staff', label: 'Staff / HR', paths: ['employees', 'staffAttendance', 'appraisals', 'training'] },
   { key: 'academic', label: 'Subjects & calendar', paths: ['subjects', 'academicCalendar'] },
+  { key: 'feeding', label: 'Feeding (payments, discounts, exemptions, settings)', paths: [] },
+  { key: 'other', label: 'Everything else (users, settings, workflows, other records)', paths: [] },
   { key: 'fees', label: 'Fee schedules', paths: [] } // special: payload.fees / feedingFees
 ];
 
@@ -27351,7 +27608,8 @@ function restoreVersionFull(id) {
   if (!requireRole('Admin')) return;
   const entry = getVersionById(id);
   if (!entry || !entry.payload) { toast('⚠ Version not found', 'error'); return; }
-  if (!confirm('Restore FULL database from version\n' + (entry.label || entry.id) + '\n\nCurrent data will be replaced. A safeguard snapshot is taken first.')) return;
+  const _vd = bkDescribePayload(entry.payload);
+  if (!confirm('Restore FULL database from version\n' + (entry.label || entry.id) + '\n\nThis will REPLACE:\n• ' + _vd.lines.join('\n• ') + (_vd.missing.length ? '\n\nNot in this version (current data kept):\n' + _vd.missing.map(bkNiceKey).join(', ') : '') + '\n\nA safeguard snapshot is taken first.')) return;
   try {
     const safeguard = buildBackupPayload('Pre-restore safeguard', 'safeguard');
     pushVersionSnapshot(safeguard, 'safeguard');
@@ -27456,6 +27714,12 @@ function applyVersionPayload(payload, modulesOrNull) {
     if (d.subjects) db.subjects = d.subjects;
     if (d.academicCalendar) db.academicCalendar = d.academicCalendar;
   }
+  if (has('feeding')) bkApplyExtraKeys(d, BK_FEEDING_KEYS);
+  if (all) bkApplyExtraKeys(d);
+  if (has('other')) {
+    const grouped = new Set(['carryForwards','grades','gradeComponents','attendance','skillsAssessments','skillSubmissions','skillParams','employees','staffAttendance','appraisals','training','subjects','academicCalendar'].concat(BK_FEEDING_KEYS));
+    bkApplyExtraKeys(d, Object.keys(d).filter(k => !grouped.has(k)));
+  }
   if (has('fees')) {
     if (payload.fees) {
       try {
@@ -27519,6 +27783,8 @@ function createManualBackup() {
 
   const settings = loadBkSettings();
   const payload  = buildBackupPayload(label || 'Manual backup');
+  if (!bkSelfCheck(payload)) { toast('⚠ Backup failed its self-check and was NOT saved. Reload and try again.', 'error'); return; }
+  bkVaultPut(payload);
   const list     = loadBackupList();
 
   // Keep only most recent N manual backups in localStorage
@@ -27677,6 +27943,7 @@ async function _bkPwdConfirm() {
 function runAutoBackupIfDue() {
   const settings = loadBkSettings();
   if (!settings.autoEnabled) return;
+  try { bkCloudSnapshotIfDue(false); } catch (e) {}
 
   const slots  = loadAutoSlots();
   const newest = slots[0] || null;
@@ -27721,6 +27988,8 @@ function handleRestoreFile(file) {
       if (!payload.version || !payload.data || !payload.data.admissions) {
         toast('⚠ Invalid backup file — not a Ecole Systems backup'); return;
       }
+      const _ve = bkValidatePayload(payload);
+      if (_ve.length) { toast('⚠ Backup file is damaged: ' + _ve.join('; '), 'error'); return; }
       _restorePayload = payload;
       showRestorePreview(payload);
     } catch(err) {
@@ -27733,8 +28002,9 @@ function handleRestoreFile(file) {
 function showRestorePreview(payload) {
   const integrity = verifyChecksum(payload);
   const d = payload.data;
-  const integrityText = integrity === 'ok' ? '✅ Checksum verified — data intact'
-                      : integrity === 'mismatch' ? '⚠ Checksum mismatch — file may be modified'
+  const _desc = bkDescribePayload(payload);
+  const integrityText = integrity === 'ok' ? '✅ Content check (SHA-256) passed — file is intact'
+                      : integrity === 'mismatch' ? '⚠ Content check FAILED — file is damaged or was modified'
                       : 'ℹ No checksum available';
   document.getElementById('restore-preview').innerHTML =
     `<strong>${payload.label}</strong><br>
@@ -27743,7 +28013,9 @@ function showRestorePreview(payload) {
      Students: ${d.admissions.length} &nbsp;·&nbsp;
      Revenue entries: ${d.revenue.length} &nbsp;·&nbsp;
      Expense entries: ${d.expenses.length}<br>
-     ${integrityText}`;
+     ${integrityText}<br>
+     <div style="margin-top:8px"><strong>Restoring will REPLACE:</strong> ${esc(_desc.lines.join(', '))}.</div>
+     ${_desc.missing.length ? `<div style="margin-top:6px;color:var(--muted)"><strong>Not in this backup (current data kept):</strong> ${esc(_desc.missing.map(bkNiceKey).join(', '))}.</div>` : ''}`;
   document.getElementById('restore-preview').classList.add('visible');
   document.getElementById('restore-confirm-btn').style.display = '';
 }
@@ -27755,13 +28027,32 @@ function confirmRestore() {
   const warnMsg = integrity === 'mismatch'
     ? '\n\n⚠ WARNING: Checksum mismatch detected. The file may have been modified. Continue anyway?'
     : '';
-  if (!confirm(`This will REPLACE all current data with the backup from:\n${new Date(_restorePayload.timestamp).toLocaleString('en-GH')}\n\nAll current records will be overwritten. This cannot be undone.${warnMsg}`)) return;
+  const _ve2 = bkValidatePayload(_restorePayload);
+  if (_ve2.length) { toast('⚠ Restore blocked — backup is damaged: ' + _ve2.join('; '), 'error'); return; }
+  if (window._dbLoaded === false) { toast('⚠ Wait until live data has finished loading before restoring', 'error'); return; }
+  let _shrink = '';
+  try {
+    const cur = (db.admissions || []).filter(Boolean).length, bk = (_restorePayload.data.admissions || []).filter(Boolean).length;
+    if (cur >= 5 && bk < cur * 0.7) _shrink += `\n\n⚠ This backup has only ${bk} students but you currently have ${cur}.`;
+    if (_restorePayload.academicYear && typeof ACTIVE_YEAR !== 'undefined' && ACTIVE_YEAR && _restorePayload.academicYear !== ACTIVE_YEAR) _shrink += `\n\n⚠ This backup is from academic year "${_restorePayload.academicYear}" but the active year is "${ACTIVE_YEAR}".`;
+  } catch (e) {}
+  const _cd = bkDescribePayload(_restorePayload);
+  if (!confirm(`This will REPLACE the following with the backup from:\n${new Date(_restorePayload.timestamp).toLocaleString('en-GH')}\n\n• ${_cd.lines.join('\n• ')}` +
+    (_cd.missing.length ? `\n\nNot in this backup (current data is kept):\n${_cd.missing.map(bkNiceKey).join(', ')}` : '') +
+    `${_shrink}\n\nA safeguard copy of the current data is taken first.${warnMsg}`)) return;
 
   // Create a safeguard auto-backup of current state before restoring
+  let _sgOk = false, safeguard = null;
   try {
-    const safeguard = buildBackupPayload('Pre-restore safeguard');
+    safeguard = buildBackupPayload('Pre-restore safeguard', 'safeguard');
     pushAutoSlot(safeguard);
+    const top = loadAutoSlots()[0];
+    _sgOk = !!(top && top.sha256 === safeguard.sha256);
   } catch(e) {}
+  if (!_sgOk && safeguard) {
+    try { downloadBackupFile(safeguard); } catch (e) {}
+    if (!confirm('The safeguard copy could not be stored in the browser, so it was downloaded to your device instead.\n\nContinue with the restore?')) return;
+  }
 
   // Apply the restore
   const d = _restorePayload.data;
@@ -27776,6 +28067,9 @@ function confirmRestore() {
   db.nextExpId  = d.nextExpId  || db.expenses.length + 1;
   db.txHistory  = d.txHistory  || [];
   db.nextTxId   = d.nextTxId   || 1;
+
+  // Everything else in the backup (feeding, staff, grades, users, settings, ...)
+  const _extraApplied = bkApplyExtraKeys(d);
 
   // Restore fees if present
   if (_restorePayload.fees) {
@@ -27795,11 +28089,14 @@ function confirmRestore() {
 
   // Ensure payment keys for all students
   db.admissions.forEach(s => {
+    if (!s) return;
     TERMS.forEach(t => {
       const key = s.id+'|'+t;
       if (!db.payments[key]) db.payments[key] = {paid:0, notes:''};
     });
   });
+
+  try { if (typeof ensureDbShape === 'function') ensureDbShape(); } catch (e) {}
 
   // ── Audit log ──
   logRestoreEvent('file_restore', {
@@ -27902,6 +28199,7 @@ function renderBackupPage() {
     </div>
   </div>
 
+  <div id="storage-health-card"></div>${(setTimeout(bkRenderStorageHealth, 0), '')}
   <!-- Status pills -->
   <div class="backup-status-strip">
     <div class="export-stat-pill">🎓 <strong>${db.admissions.length}</strong> Students</div>
@@ -28019,6 +28317,7 @@ function renderBackupPage() {
       </div>
       <div class="backup-card-footer">
         <button class="btn btn-outline" onclick="restoreFromAutoBackup(0)" style="flex:1">⚡ Load Latest Auto-Backup</button>
+        <button class="btn btn-outline" onclick="restoreFromVault()" style="flex:1">🗄 Device Vault (extra copies)</button>
         <button class="btn btn-danger" id="restore-confirm-btn" onclick="confirmRestore()" style="display:none;flex:1">⚠ Restore Now</button>
       </div>
     </div>
