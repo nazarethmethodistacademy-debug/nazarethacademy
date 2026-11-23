@@ -3737,7 +3737,20 @@
     .stat-tab-bar { display: none !important; }
 
     /* ── Student Performance Report — A4 print ── */
+    /* Printed pages must never show scrollbars or clip content inside scroll boxes */
+    * { scrollbar-width: none !important; }
+    *::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+    html, body, #app-root, .main, .content, .page,
+    #page-staffperformance, #page-staffperformance * {
+      overflow: visible !important; max-height: none !important;
+    }
+    #page-staffperformance canvas { max-width: 100% !important; }
     #page-studentperformance .spr-no-print,
+    #satr-inner .spr-no-print,
+    #page-staffperformance .spr-no-print,
+    #sperf-inner .spr-no-print,
+    #sperf-inner button,
+    #sperf-inner select,
     #spr-inner .spr-no-print,
     #spr-inner .section-header .btn,
     #spr-inner button,
@@ -12862,7 +12875,7 @@ function initDb(callback) {
             if (typeof renderSkillsAssessment === 'function') preserveScroll(() => renderSkillsAssessment());
           },
           skillsreport: renderSkillsReport,
-          skillsdetailed: renderSkillsDetailed,
+          skillsclass: renderSkillsClassReport,
           promotion: renderPromotionManagement,
           academiccalendar: renderAcademicCalendar,
           attendance:  function(){
@@ -14268,7 +14281,7 @@ const pageTitles = {
   schoolstructure:'School Structure', staffdatabase:'Teachers & Staff Database', parentdatabase:'Parent Database', appraisals:'Performance Appraisal', staffperformance:'Staff Performance Report', teacherexternal:'Teachers External Assessments', training:'Training & Development',
   feeschedule:'Fee Schedule', feedingschedule:'Feeding Revenue', stats:'Statistical Report', myappraisal:'My Appraisal', votebestteacher:'Vote: Best Teacher', myworkspace:'My Workspace', staffdirectory:'Staff Directory', accesscontrol:'Access Control',
   export:'Export to Excel', backup:'Backup & Restore',
-  balancesheet:'Balance Sheet', assetmanagement:'Asset Management', cashflow:'Statement of Cash Flows', reportcard:'Report Cards', classanalytics:'Class Analytics', studentperformance:'Student Performance Report', skillsreport:'Student Assessment Report', skillsdetailed:'Skill Assessment — Detailed',
+  balancesheet:'Balance Sheet', assetmanagement:'Asset Management', cashflow:'Statement of Cash Flows', reportcard:'Report Cards', classanalytics:'Class Analytics', studentperformance:'Student Performance Report', skillsreport:'Student Assessment Report', skillsclass:'Class-by-Class Assessment',
   grades:'Grade Entry', skillsassessment:'Skills Assessment', promotion:'Promotion Management', academiccalendar:'Academic Calendar', attendance:'Attendance Register', attendancereport:'Attendance Report', staffattendance:'Staff Attendance', staffleave:'Staff Leave', staffattendancereport:'Staff Attendance Report', dutyroster:'Teachers on Duty Roster', timetable:'Class Timetable', subjects:'Subject Management',
   announce_pta:'Announcements — PTA', announce_graduation:'Announcements — Graduation',
   announce_midterms:'Announcements — Mid Terms', announce_events:'Announcements — Events',
@@ -14342,7 +14355,7 @@ const MODULE_DEFS = {
       { icon:'🧑‍🎓', label:'Student Records',             page:'studentrecords' },
       { icon:'📈', label:'Student Performance Report',   page:'studentperformance' },
       { icon:'📊', label:'Student Assessment Report',     page:'skillsreport' },
-      { icon:'🔎', label:'Skill Assessment — Detailed',   page:'skillsdetailed' },
+      { icon:'🏫', label:'Class-by-Class Assessment',     page:'skillsclass' },
       { icon:'📈', label:'Staff Attendance Report',       page:'staffattendancereport' },
       { icon:'⭐', label:'Staff Performance Report',      page:'staffperformance' },
       { icon:'📋', label:'Teachers External Assessments', page:'teacherexternal' },
@@ -14541,7 +14554,7 @@ const _dynamicPages = {
   grades:           'ge-inner',
   skillsassessment: 'sa-inner',
   skillsreport:     'skr-inner',
-  skillsdetailed:   'skd-inner',
+  skillsclass:      'skc-inner',
   promotion:        'pr-inner',
   academiccalendar: 'ac-inner',
   attendance:       'att-inner',
@@ -14703,7 +14716,7 @@ function navigate(page, _isBack) {
   if (page === 'grades') renderGradeEntry();
   if (page === 'skillsassessment') renderSkillsAssessment();
   if (page === 'skillsreport') renderSkillsReport();
-  if (page === 'skillsdetailed') renderSkillsDetailed();
+  if (page === 'skillsclass') renderSkillsClassReport();
   if (page === 'promotion') renderPromotionManagement();
   if (page === 'academiccalendar') renderAcademicCalendar();
   if (page === 'attendance') renderAttendance();
@@ -28726,7 +28739,7 @@ function defaultPagePermission(role, page) {
   if (!role || !page) return 'none';
   if (ADMIN_ONLY_PAGES.includes(page)) return 'none';
   // Student Assessment Report — Headteacher by default; Admin always via getEffectivePermission
-  if (page === 'skillsreport' || page === 'skillsdetailed') {
+  if (page === 'skillsreport' || page === 'skillsclass') {
     return role === 'Headteacher' ? 'edit' : 'none';
   }
   // Performance Appraisal — Headteacher can manage by default; others none until ACL grants it
@@ -32886,148 +32899,262 @@ function renderSkillsReport() {
   }
 }
 
-// ══════════════ SKILL ASSESSMENT REPORT — DETAILED ══════════════
-// A flat, drill-down companion to the Student Assessment Report above: one row
-// per student per submitted month, every skill as its own column, with search,
-// sorting and CSV export — for when someone needs the raw numbers rather than
-// the class/trend aggregates. Reads the same submitted snapshots (db.skillSubmissions).
-function skdState() {
-  return window._skdState || (window._skdState = { month: 'all', cls: 'all', status: 'active', q: '', sortBy: 'name', sortDir: 'asc' });
+// ══════════════ CLASS-BY-CLASS STUDENT ASSESSMENT REPORT ══════════════
+// One full section per class: KPIs, skill strengths vs the school average, rating
+// distribution, month-by-month trend, auto-written insights and a per-student table with
+// heat-cells, change since last month, rank and a trend sparkline. Reads the same submitted
+// snapshots (db.skillSubmissions) as the other Student Assessment reports.
+window._skcCharts = window._skcCharts || {};
+function skcState() { return window._skcState || (window._skcState = { month: 'latest', cls: 'all', status: 'active' }); }
+// Print: redraw every chart at print size and swap it for a static picture, so nothing is clipped or oversized.
+function skcPrintPrep() {
+  const root = document.getElementById('skc-inner'); if (!root) return;
+  Object.keys(window._skcCharts || {}).forEach(k => {
+    const c = window._skcCharts[k];
+    if (!c || !c.canvas || !c.canvas.isConnected || c.canvas.parentNode.querySelector('.skc-printimg')) return;
+    const n = (c.data.labels || []).length, bar = /bar$/.test(k), ov = k === 'ov';
+    const w = (bar || ov) ? 640 : 310, h = ov ? Math.max(170, n * 24 + 50) : bar ? Math.max(150, Math.min(240, n * 22 + 40)) : 200;
+    try { c.resize(w, h); } catch (e) {}
+    try {
+      const img = new Image(); img.className = 'skc-printimg'; img.src = c.canvas.toDataURL('image/png');
+      c.canvas.parentNode.appendChild(img); c.canvas.classList.add('skc-hidecv');
+    } catch (e) {}
+  });
 }
-function skdSet(key, value) { skdState()[key] = value; renderSkillsDetailed(); }
-function skdSort(col) {
-  const S = skdState();
-  if (S.sortBy === col) S.sortDir = S.sortDir === 'asc' ? 'desc' : 'asc';
-  else { S.sortBy = col; S.sortDir = col === 'avg' ? 'desc' : 'asc'; }
-  renderSkillsDetailed();
+function skcPrintDone() {
+  document.querySelectorAll('#skc-inner .skc-printimg').forEach(i => i.remove());
+  document.querySelectorAll('#skc-inner .skc-hidecv').forEach(c => c.classList.remove('skc-hidecv'));
+  Object.values(window._skcCharts || {}).forEach(c => { try { c && c.resize && c.resize(); } catch (e) {} });
 }
-
-function skdRows() {
-  const S = skdState();
-  const all = db.skillSubmissions || [];
-  const okStatus = s => S.status === 'approved' ? s.status === 'approved'
-                      : S.status === 'pending'  ? s.status === 'pending'
-                      : (s.status === 'approved' || s.status === 'pending');
-  const scoped = all.filter(s => okStatus(s) && (S.cls === 'all' || s.cls === S.cls) && (S.month === 'all' || s.month === S.month));
-  let rows = scoped.flatMap(skRows);
-  if (S.q.trim()) {
-    const q = S.q.trim().toLowerCase();
-    rows = rows.filter(r => _lc(r.name).includes(q) || _lc(r.id).includes(q));
+window.addEventListener('beforeprint', skcPrintPrep);
+window.addEventListener('afterprint', skcPrintDone);
+function skcSet(key, value) { skcState()[key] = value; renderSkillsClassReport(); }
+function skcData() {
+  const S = skcState(), MONTHS = skillMonths();
+  const okStatus = s => S.status === 'approved' ? s.status === 'approved' : S.status === 'pending' ? s.status === 'pending' : (s.status === 'approved' || s.status === 'pending');
+  const all = (db.skillSubmissions || []).filter(okStatus);
+  const monthsWith = MONTHS.filter(m => all.some(s => s.month === m));
+  const classes = [...new Set(all.map(s => s.cls))].sort((a, b) => CLASSES.indexOf(a) - CLASSES.indexOf(b));
+  return { S, MONTHS, all, monthsWith, classes };
+}
+function skcSpark(vals) {
+  const pts = vals.map((v, i) => v === null ? null : [vals.length === 1 ? 35 : 4 + i * (62 / (vals.length - 1)), 22 - ((v - 1) / 3) * 18]);
+  const ok = pts.filter(Boolean);
+  if (ok.length < 2) return '<span style="color:var(--muted);font-size:11px">—</span>';
+  const last = vals.filter(v => v !== null).pop(), c = skColor(last).hex;
+  return `<svg width="70" height="26" viewBox="0 0 70 26"><polyline fill="none" stroke="${c}" stroke-width="2" points="${ok.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}"/><circle cx="${ok[ok.length - 1][0].toFixed(1)}" cy="${ok[ok.length - 1][1].toFixed(1)}" r="2.6" fill="${c}"/></svg>`;
+}
+function skcClassModel(cls, D) {
+  const S = D.S;
+  const subsAll = D.all.filter(s => s.cls === cls);
+  const monthsCls = D.MONTHS.filter(m => subsAll.some(s => s.month === m));
+  const month = S.month === 'latest' ? monthsCls[monthsCls.length - 1] : S.month;
+  if (!month || !monthsCls.includes(month)) return null;
+  const cur = subsAll.filter(s => s.month === month);
+  const mi = D.MONTHS.indexOf(month);
+  const prevMonth = monthsCls.filter(m => D.MONTHS.indexOf(m) < mi).pop() || null;
+  const prev = prevMonth ? subsAll.filter(s => s.month === prevMonth) : [];
+  const school = D.all.filter(s => s.month === month);
+  const rows = cur.flatMap(skRows);
+  const seen = new Set(), skills = [];
+  cur.forEach(s => skillsForSubmission(s).forEach(sk => { if (!seen.has(sk.key)) { seen.add(sk.key); skills.push(sk); } }));
+  const skillStats = skills.map(sk => ({ sk, avg: skPool(cur, sk.key), school: skPool(school, sk.key), prev: prev.length ? skPool(prev, sk.key) : null }));
+  const valid = skillStats.filter(x => x.avg !== null);
+  const dist = [0, 0, 0, 0];
+  rows.forEach(r => skillsForRow(r).forEach(sk => { const v = r.ratings[sk.key]; if (v >= 1 && v <= 4) dist[v - 1]++; }));
+  const total = dist.reduce((a, b) => a + b, 0);
+  const overall = skPool(cur), schoolOverall = skPool(school), prevOverall = prev.length ? skPool(prev) : null;
+  // each student's average per month (for change + sparkline)
+  const hist = {};
+  monthsCls.forEach(m => subsAll.filter(s => s.month === m).flatMap(skRows).forEach(r => { (hist[r.id] = hist[r.id] || {})[m] = r.avg; }));
+  const students = rows.map(r => {
+    const h = hist[r.id] || {};
+    const prevAvg = prevMonth && h[prevMonth] !== undefined ? h[prevMonth] : null;
+    return { r, avg: r.avg, delta: (r.avg !== null && prevAvg !== null) ? r.avg - prevAvg : null, spark: monthsCls.map(m => h[m] === undefined ? null : h[m]), attention: skNeedsAttention(r) };
+  }).sort((a, b) => (b.avg === null ? -1 : b.avg) - (a.avg === null ? -1 : a.avg));
+  students.forEach((s, i) => { s.rank = s.avg === null ? null : 1 + students.filter(x => x.avg !== null && x.avg > s.avg).length; });
+  const trend = monthsCls.map(m => ({ m, cls: skPool(subsAll.filter(s => s.month === m)), school: skPool(D.all.filter(s => s.month === m)) }));
+  const goodPct = total ? Math.round((dist[2] + dist[3]) / total * 100) : null;
+  const sd = (() => { const a = students.map(s => s.avg).filter(v => v !== null); if (a.length < 2) return null; const m = skMean(a); return Math.sqrt(a.reduce((x, v) => x + (v - m) * (v - m), 0) / a.length); })();
+  // auto-written insights
+  const ins = [];
+  if (valid.length) {
+    const hi = valid.reduce((a, b) => b.avg > a.avg ? b : a), lo = valid.reduce((a, b) => b.avg < a.avg ? b : a);
+    ins.push(`<b>Strongest skill:</b> ${esc(hi.sk.label)} (${hi.avg.toFixed(1)})`);
+    if (lo.sk.key !== hi.sk.key) ins.push(`<b>Weakest skill:</b> ${esc(lo.sk.label)} (${lo.avg.toFixed(1)})${lo.school !== null && lo.avg < lo.school - 0.05 ? ` — ${(lo.school - lo.avg).toFixed(1)} below the school average` : ''}`);
+    const below = valid.filter(x => x.school !== null && x.avg < x.school - 0.15);
+    if (below.length) ins.push(`<b>Below school average:</b> ${below.map(x => esc(x.sk.label)).join(', ')}`);
+    const dl = valid.filter(x => x.prev !== null).map(x => ({ x, d: x.avg - x.prev }));
+    if (dl.length) {
+      const up = dl.reduce((a, b) => b.d > a.d ? b : a), dn = dl.reduce((a, b) => b.d < a.d ? b : a);
+      if (up.d > 0.049) ins.push(`<b>Most improved since ${esc(prevMonth)}:</b> ${esc(up.x.sk.label)} ▲ ${up.d.toFixed(1)}`);
+      if (dn.d < -0.049) ins.push(`<b>Biggest decline since ${esc(prevMonth)}:</b> ${esc(dn.x.sk.label)} ▼ ${Math.abs(dn.d).toFixed(1)}`);
+    }
   }
-  const dir = S.sortDir === 'desc' ? -1 : 1;
-  rows = rows.slice().sort((a, b) => {
-    if (S.sortBy === 'avg') { const av = a.avg === null ? -1 : a.avg, bv = b.avg === null ? -1 : b.avg; return (av - bv) * dir; }
-    if (S.sortBy === 'cls') return (_cmp(a.cls, b.cls) || _cmp(a.name, b.name)) * dir;
-    if (S.sortBy === 'month') return (skillMonths().indexOf(a.month) - skillMonths().indexOf(b.month)) * dir;
-    return _cmp(a.name, b.name) * dir;
-  });
-  return rows;
+  if (overall !== null && schoolOverall !== null) { const g = overall - schoolOverall; ins.push(`<b>Class vs school:</b> ${Math.abs(g) < 0.05 ? 'in line with the school average' : (g > 0 ? g.toFixed(1) + ' above' : Math.abs(g).toFixed(1) + ' below') + ' the school average (' + schoolOverall.toFixed(1) + ')'}`); }
+  if (sd !== null) ins.push(`<b>Spread:</b> ${sd < 0.35 ? 'students are fairly even' : sd < 0.6 ? 'moderate gap between students' : 'wide gap between the strongest and weakest students'} (SD ${sd.toFixed(2)})`);
+  const att = students.filter(s => s.attention);
+  if (att.length) ins.push(`<b style="color:var(--red)">${att.length} student${att.length > 1 ? 's need' : ' needs'} attention:</b> ${att.slice(0, 6).map(s => esc(s.r.name)).join(', ')}${att.length > 6 ? '…' : ''}`);
+  const status = [...new Set(cur.map(s => s.status))].map(x => SKILL_SUB_LABELS[x] || x).join(', ');
+  return { cls, month, prevMonth, cur, rows, skills, skillStats, dist, total, overall, schoolOverall, prevOverall, students, trend, goodPct, sd, ins, status, monthsCls };
 }
-
-function skdExportCsv() {
-  const rows = skdRows();
-  if (!rows.length) { toast('Nothing to export for this selection'); return; }
+function skcExportCsv() {
+  const D = skcData(), S = D.S;
+  const list = (S.cls === 'all' ? D.classes : [S.cls]).map(c => skcClassModel(c, D)).filter(Boolean);
+  if (!list.length) { toast('Nothing to export for this selection'); return; }
   const q = v => '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"';
-  const SKX = skillsForClasses([...new Set(rows.map(r => r.cls))]);
-  const lines = [['Class', 'Month', 'Student ID', 'Student', ...SKX.map(sk => sk.label), 'Average', 'Status', 'Comments'].map(q).join(',')];
-  rows.forEach(r => {
-    const ok = new Set(skillsForRow(r).map(x => x.key));
-    const commentsCol = SKX.filter(sk => ok.has(sk.key) && (r.comments || {})[sk.key]).map(sk => `${sk.label}: ${r.comments[sk.key]}`).join(' | ');
-    lines.push([r.cls, r.month, r.id, r.name, ...SKX.map(sk => ok.has(sk.key) ? (r.ratings[sk.key] || '') : 'n/a'), r.avg === null ? '' : r.avg.toFixed(2), SKILL_SUB_LABELS[r.status] || r.status, commentsCol].map(q).join(','));
-  });
+  const SKX = skillsForClasses(list.map(m => m.cls));
+  const lines = [['Class', 'Month', 'Rank', 'Student ID', 'Student', ...SKX.map(sk => sk.label), 'Average', 'Change vs previous month', 'Status'].map(q).join(',')];
+  list.forEach(m => m.students.forEach(s => {
+    const ok = new Set(skillsForRow(s.r).map(x => x.key));
+    lines.push([m.cls, m.month, s.rank || '', s.r.id, s.r.name, ...SKX.map(sk => ok.has(sk.key) ? (s.r.ratings[sk.key] || '') : 'n/a'), s.avg === null ? '' : s.avg.toFixed(2), s.delta === null ? '' : s.delta.toFixed(2), SKILL_SUB_LABELS[s.r.status] || s.r.status].map(q).join(','));
+  }));
   const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'skill-assessment-detailed.csv';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'class-by-class-assessment.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-
-function renderSkillsDetailed() {
-  const el = document.getElementById('skd-inner');
+function renderSkillsClassReport() {
+  const el = document.getElementById('skc-inner');
   if (!el) return;
-  const S = skdState();
-  const MONTHS = skillMonths();
-  const rows = skdRows();
-  const scopedClasses = [...new Set(rows.map(r => r.cls))].sort((a, b) => CLASSES.indexOf(a) - CLASSES.indexOf(b));
-  const SKX = skillsForClasses(S.cls === 'all' ? scopedClasses : [S.cls]);
+  const D = skcData(), S = D.S;
+  if (S.cls !== 'all' && !D.classes.includes(S.cls)) S.cls = 'all';
+  if (S.month !== 'latest' && !D.monthsWith.includes(S.month)) S.month = 'latest';
+  const targets = S.cls === 'all' ? D.classes : [S.cls];
+  const models = targets.map(c => skcClassModel(c, D)).filter(Boolean);
+  const missing = targets.filter(c => !models.some(m => m.cls === c));
+  const sel = (id, value, opts) => `<select onchange="skcSet('${id}', this.value)" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);font-size:12.5px;background:var(--white)">${opts.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(value) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+  const dlt = d => d === null ? '<span style="color:var(--muted)">—</span>' : `<span style="font-weight:700;color:${d > 0.049 ? 'var(--green)' : d < -0.049 ? 'var(--red)' : 'var(--muted)'}">${d > 0.049 ? '▲' : d < -0.049 ? '▼' : '•'} ${Math.abs(d).toFixed(1)}</span>`;
+  const kpi = (label, val, sub, cls2) => `<div class="kpi-card ${cls2 || 'navy'}"><div class="kpi-label">${label}</div><div class="kpi-value">${val}</div><div class="kpi-sub">${sub || ''}</div></div>`;
+  const pending = [];
 
-  const overallVals = rows.flatMap(r => skillsForRow(r).map(sk => r.ratings[sk.key]).filter(v => v > 0));
-  const overall = skMean(overallVals);
-  const oc = skColor(overall);
-  const attentionCount = rows.filter(skNeedsAttention).length;
-  const uniqueStudents = new Set(rows.map(r => r.id)).size;
+  // ── School overview (only when several classes are shown) ──
+  let overview = '';
+  if (models.length > 1) {
+    const allRows = models.flatMap(m => m.rows);
+    const ov = skMean(models.map(m => m.overall).filter(v => v !== null));
+    const attN = models.reduce((a, m) => a + m.students.filter(s => s.attention).length, 0);
+    const best = models.filter(m => m.overall !== null).sort((a, b) => b.overall - a.overall);
+    overview = `<div class="card skc-block" style="margin-bottom:16px">
+      <div class="card-header"><span class="card-title">🏫 School Overview</span><span style="font-size:11px;color:var(--muted)">${models.length} class${models.length > 1 ? 'es' : ''} reported${missing.length ? ' · no submission: ' + missing.map(esc).join(', ') : ''}</span></div>
+      <div class="kpi-grid kpi-grid-5 skc-kpis" style="padding:14px 20px 0">
+        ${kpi('Classes Reported', models.length, missing.length ? missing.length + ' without data' : 'with data', 'navy')}
+        ${kpi('Students Assessed', new Set(allRows.map(r => r.id)).size, '', 'gold')}
+        ${kpi('Overall Average', ov === null ? '—' : ov.toFixed(1), 'out of 4', ov !== null && ov >= 3 ? 'green' : 'gold')}
+        ${kpi('Top Class', best.length ? esc(best[0].cls) : '—', best.length ? best[0].overall.toFixed(1) : '', 'green')}
+        ${kpi('Need Attention', attN, 'students', attN ? 'red' : 'green')}
+      </div>
+      <div style="padding:14px 20px"><div style="position:relative;height:${Math.max(180, models.length * 30 + 60)}px"><canvas id="skc-ov"></canvas></div></div>
+    </div>`;
+    pending.push(() => {
+      const cv = document.getElementById('skc-ov'); if (!cv) return;
+      const sorted = models.slice().sort((a, b) => (b.overall === null ? 0 : b.overall) - (a.overall === null ? 0 : a.overall));
+      window._skcCharts.ov = new Chart(cv, { type: 'bar', data: { labels: sorted.map(m => m.cls), datasets: [{ label: 'Class average', data: sorted.map(m => m.overall === null ? null : +m.overall.toFixed(2)), backgroundColor: sorted.map(m => skColor(m.overall).hex) }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { min: 1, max: 4, title: { display: true, text: 'Average rating (1–4)' } } } } });
+    });
+  }
 
-  const arrow = col => S.sortBy !== col ? '' : (S.sortDir === 'asc' ? ' ▲' : ' ▼');
-  const skillHead = SKX.map(sk => `<th style="min-width:56px;padding:7px 3px;font-size:10px;text-align:center">${esc(sk.label)}</th>`).join('');
-  const bodyRows = rows.map(r => {
-    const ok = new Set(skillsForRow(r).map(x => x.key));
-    const cells = SKX.map(sk => {
-      if (!ok.has(sk.key)) return `<td style="text-align:center;color:var(--muted);font-size:11px">n/a</td>`;
-      const v = r.ratings[sk.key];
-      const cm = (r.comments || {})[sk.key];
-      const c = skColor(v || null);
-      return `<td style="text-align:center;font-weight:600;background:${c.bg};color:${c.fg}" ${cm ? `title="${esc(cm)}"` : ''}>${v || '—'}${cm ? ' <span style="font-size:9px">💬</span>' : ''}</td>`;
+  const blocks = models.map((m, i) => {
+    const oc = skColor(m.overall);
+    const chg = (m.overall !== null && m.prevOverall !== null) ? m.overall - m.prevOverall : null;
+    const head = ['Rank', 'Student', ...m.skills.map(sk => sk.label), 'Avg', 'Change', 'Trend'];
+    const rowsHtml = m.students.map(s => {
+      const ok = new Set(skillsForRow(s.r).map(x => x.key));
+      const c = skColor(s.avg);
+      return `<tr>
+        <td style="text-align:center;font-weight:700;color:var(--navy)">${s.rank || '—'}</td>
+        <td style="padding:6px 10px;white-space:nowrap"><div style="font-weight:500;font-size:13px;color:var(--navy)">${esc(s.r.name)}${s.attention ? ' <span title="Needs attention" style="color:var(--red)">⚠</span>' : ''}</div><div style="font-size:10px;color:var(--muted)">${esc(s.r.id)}</div></td>
+        ${m.skills.map(sk => { if (!ok.has(sk.key)) return '<td style="text-align:center;color:var(--muted);font-size:11px">n/a</td>'; const v = s.r.ratings[sk.key], k = skColor(v || null); return `<td style="text-align:center;font-weight:600;background:${k.bg};color:${k.fg}">${v || '—'}</td>`; }).join('')}
+        <td style="text-align:center;font-weight:700;background:${c.bg};color:${c.fg}">${s.avg === null ? '—' : s.avg.toFixed(1)}</td>
+        <td style="text-align:center;font-size:12px">${dlt(s.delta)}</td>
+        <td style="text-align:center">${skcSpark(s.spark)}</td></tr>`;
     }).join('');
-    const ac = skColor(r.avg);
-    return `<tr>
-      <td style="padding:7px 12px"><div style="font-weight:500;font-size:13px;color:var(--navy)">${esc(r.name)}</div><div style="font-size:10px;color:var(--muted)">${esc(r.id)}</div></td>
-      <td style="white-space:nowrap">${esc(r.cls)}</td>
-      <td style="white-space:nowrap">${esc(r.month)}</td>
-      ${cells}
-      <td style="text-align:center;font-weight:700;background:${ac.bg};color:${ac.fg}">${r.avg === null ? '—' : r.avg.toFixed(1)}</td>
-      <td><span class="badge ${SKILL_SUB_BADGE[r.status]}">${SKILL_SUB_LABELS[r.status]}</span></td>
-    </tr>`;
+    pending.push(() => {
+      const id = k => document.getElementById('skc-' + k + '-' + i);
+      const key = k => 'c' + i + k;
+      ['bar', 'dist', 'trend'].forEach(k => { const o = window._skcCharts[key(k)]; if (o) { try { o.destroy(); } catch (e) {} window._skcCharts[key(k)] = null; } });
+      if (id('bar') && m.skillStats.length) window._skcCharts[key('bar')] = new Chart(id('bar'), { type: 'bar', data: { labels: m.skillStats.map(x => x.sk.label), datasets: [{ label: m.cls, data: m.skillStats.map(x => x.avg === null ? null : +x.avg.toFixed(2)), backgroundColor: m.skillStats.map(x => skColor(x.avg).hex) }, { label: 'School average', data: m.skillStats.map(x => x.school === null ? null : +x.school.toFixed(2)), backgroundColor: 'rgba(100,116,139,.35)' }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }, scales: { x: { min: 1, max: 4 }, y: { ticks: { font: { size: 10 } } } } } });
+      if (id('dist') && m.total) window._skcCharts[key('dist')] = new Chart(id('dist'), { type: 'doughnut', data: { labels: [1, 2, 3, 4].map(n => SKILL_RATING_LABELS[n]), datasets: [{ data: m.dist, backgroundColor: ['#dc2626', '#7c3aed', '#ca8a04', '#16a34a'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } } } });
+      if (id('trend') && m.trend.length) window._skcCharts[key('trend')] = new Chart(id('trend'), { type: 'line', data: { labels: m.trend.map(t => t.m), datasets: [{ label: m.cls, data: m.trend.map(t => t.cls === null ? null : +t.cls.toFixed(2)), borderColor: '#0f1f3d', backgroundColor: '#0f1f3d', borderWidth: 3, tension: .25, spanGaps: true }, { label: 'School average', data: m.trend.map(t => t.school === null ? null : +t.school.toFixed(2)), borderColor: '#c9a227', backgroundColor: '#c9a227', borderDash: [5, 4], borderWidth: 2, tension: .25, spanGaps: true }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }, scales: { y: { min: 1, max: 4 } } } });
+    });
+    const cardBox = (title, canvasId, h) => `<div class="skc-chartbox" style="flex:1 1 280px;min-width:260px;border:1px solid var(--border);border-radius:10px;padding:10px 12px;break-inside:avoid"><div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:6px">${title}</div><div style="position:relative;height:${h}px"><canvas id="${canvasId}"></canvas></div></div>`;
+    return `<div class="card skc-class" style="margin-bottom:18px">
+      <div class="card-header" style="flex-wrap:wrap;gap:8px"><span class="card-title" style="font-size:16px">🏫 ${esc(m.cls)} <span style="font-weight:400;font-size:12px;color:var(--muted)">· ${esc(m.month)} · ${esc(m.status)}</span></span><span style="font-size:11px;color:var(--muted)">Submitted by ${esc([...new Set(m.cur.map(s => s.submittedBy).filter(Boolean))].join(', ') || '—')}</span></div>
+      <div class="kpi-grid kpi-grid-5 skc-kpis" style="padding:14px 20px 0">
+        ${kpi('Students', m.students.length, m.skills.length + ' skills assessed', 'navy')}
+        ${kpi('Class Average', m.overall === null ? '—' : `<span style="color:${oc.hex}">${m.overall.toFixed(1)}</span>`, m.schoolOverall === null ? '' : 'school ' + m.schoolOverall.toFixed(1), 'gold')}
+        ${kpi('Change', chg === null ? '—' : dlt(chg), m.prevMonth ? 'vs ' + esc(m.prevMonth) : 'no earlier month', 'navy')}
+        ${kpi('Good / Excellent', m.goodPct === null ? '—' : m.goodPct + '%', 'of all ratings', 'green')}
+        ${kpi('Need Attention', m.students.filter(s => s.attention).length, 'avg below 2.5 or any 1', m.students.some(s => s.attention) ? 'red' : 'green')}
+      </div>
+      <div class="skc-charts" style="display:flex;gap:12px;flex-wrap:wrap;padding:14px 20px 0;--skc-bar-h:${Math.max(150, Math.min(240, m.skills.length * 22 + 40))}px">
+        ${cardBox('Skill averages vs school', 'skc-bar-' + i, Math.max(190, m.skills.length * 36 + 60))}
+        ${cardBox('Rating distribution', 'skc-dist-' + i, 220)}
+        ${cardBox('Month-by-month trend', 'skc-trend-' + i, 220)}
+      </div>
+      <div class="skc-notes" style="padding:14px 20px 0"><div style="border:1px solid var(--border);border-left:4px solid var(--gold);border-radius:8px;padding:10px 14px;background:var(--cream2);break-inside:avoid">
+        <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:4px">📌 Analytics</div>
+        <ul style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.6">${m.ins.map(x => `<li>${x}</li>`).join('') || '<li>Not enough data yet.</li>'}</ul></div></div>
+      <div style="overflow-x:auto;padding:14px 0 4px"><table>
+        <thead><tr>${head.map((h, j) => `<th style="${j < 2 ? 'padding-left:10px;' : 'text-align:center;'}font-size:10px;min-width:${j === 1 ? 140 : 44}px">${esc(h)}</th>`).join('')}</tr></thead>
+        <tbody>${rowsHtml}</tbody></table></div>
+    </div>`;
   }).join('');
 
-  const sel = (id, value, opts) => `<select onchange="skdSet('${id}', this.value)" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);font-size:12.5px;background:var(--white)">${opts.map(o => `<option value="${o[0]}" ${String(o[0])===String(value)?'selected':''}>${esc(o[1])}</option>`).join('')}</select>`;
-  const sortTh = (col, label, extra) => `<th style="cursor:pointer;white-space:nowrap;${extra||''}" onclick="skdSort('${col}')">${esc(label)}${arrow(col)}</th>`;
-
   el.innerHTML = `
+    <style>
+    .skc-printimg { display: none; }
+    @media print {
+      #skc-inner .spr-no-print { display: none !important; }
+      #skc-inner .section-header { break-after: avoid; }
+      #skc-inner .skc-block { break-inside: avoid; page-break-inside: avoid; box-shadow: none !important; }
+      #skc-inner .skc-class { break-before: page; page-break-before: always; box-shadow: none !important; }
+      #skc-inner .skc-class:first-of-type { break-before: auto; page-break-before: auto; }
+      #skc-inner .skc-block + .skc-class { break-before: page; page-break-before: always; }
+      #skc-inner .card-header { break-after: avoid; }
+      #skc-inner .skc-kpis, #skc-inner .skc-charts, #skc-inner .skc-notes { break-inside: avoid; page-break-inside: avoid; }
+      #skc-inner .skc-kpis { grid-template-columns: repeat(5, 1fr) !important; gap: 8px !important; }
+      #skc-inner .skc-kpis .kpi-card { padding: 8px 10px !important; box-shadow: none !important; }
+      #skc-inner .skc-kpis .kpi-value { font-size: 20px !important; }
+      #skc-inner .skc-kpis .kpi-label { font-size: 8.5px !important; }
+      #skc-inner .skc-kpis .kpi-sub { font-size: 9px !important; }
+      #skc-inner .skc-charts { gap: 8px !important; }
+      #skc-inner .skc-chartbox { flex: 1 1 45% !important; min-width: 0 !important; padding: 6px 8px !important; }
+      #skc-inner .skc-chartbox:first-child { flex: 1 1 100% !important; }
+      #skc-inner .skc-chartbox > div { height: auto !important; }
+      #skc-inner .skc-printimg { display: block !important; width: 100%; height: auto; }
+      #skc-inner .skc-hidecv { display: none !important; }
+      #skc-inner .skc-class table { font-size: 9px; width: 100% !important; table-layout: fixed; }
+      #skc-inner .skc-class th { min-width: 0 !important; font-size: 7px !important; letter-spacing: 0 !important; white-space: normal !important; overflow-wrap: anywhere; line-height: 1.15; }
+      #skc-inner .skc-class th:nth-child(1) { width: 5%; }
+      #skc-inner .skc-class th:nth-child(2) { width: 19%; }
+      #skc-inner .skc-class th:nth-last-child(-n+3) { width: 7%; }
+      #skc-inner .skc-class th:nth-child(n+3):not(:nth-last-child(-n+3)) { writing-mode: vertical-rl; transform: rotate(180deg); height: 78px; font-size: 7.5px !important; overflow-wrap: normal; text-align: left !important; vertical-align: bottom; }
+      #skc-inner .skc-class td { white-space: normal !important; overflow-wrap: anywhere; }
+      #skc-inner .skc-class td svg { width: 52px; height: 20px; }
+      #skc-inner .skc-class th, #skc-inner .skc-class td { padding: 4px 4px !important; }
+      #skc-inner .skc-class thead { display: table-header-group; }
+      #skc-inner .skc-class tr { break-inside: avoid; page-break-inside: avoid; }
+      #skc-inner .skc-class [style*="overflow-x"] { overflow: visible !important; }
+      #skc-inner svg { max-width: 100%; }
+    }</style>
     <div class="section-header">
-      <div>
-        <div class="section-title">🔎 Skill Assessment — Detailed</div>
-        <div class="section-sub">Every student's rating on every skill, one row at a time · ${ACTIVE_YEAR}</div>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-outline btn-sm" onclick="skdExportCsv()">⬇ CSV</button>
-        <button class="btn btn-outline btn-sm" onclick="printReportSmart()">🖨️ Print</button>
+      <div><div class="section-title">🏫 Class-by-Class Student Assessment</div>
+        <div class="section-sub">Detailed skills analysis for each class, with graphics, analytics and every student · ${ACTIVE_YEAR}</div></div>
+      <div class="spr-no-print" style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="exportPageToPDF('skc-inner', 'Class-by-Class Assessment - ' + ACTIVE_YEAR.replace('_','-') + '.pdf', 'Class-by-Class Student Assessment')">📄 PDF</button>
+        <button class="btn btn-outline btn-sm" onclick="skcExportCsv()">⬇ CSV</button>
+        <button class="btn btn-outline btn-sm" onclick="printReportSmart('skc-inner', { orientation: 'portrait' })">🖨️ Print</button>
       </div>
     </div>
-
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
-      ${sel('month', S.month, [['all', 'All months'], ...MONTHS.map(m => [m, m])])}
-      ${sel('cls', S.cls, [['all', 'All classes'], ...CLASSES.map(c => [c, c])])}
+    <div class="spr-no-print" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+      ${sel('cls', S.cls, [['all', 'All classes (one section each)'], ...D.classes.map(c => [c, c])])}
+      ${sel('month', S.month, [['latest', 'Latest month per class'], ...D.monthsWith.map(m => [m, m])])}
       ${sel('status', S.status, [['active', 'Approved + Pending'], ['approved', 'Approved only'], ['pending', 'Pending only']])}
-      <input type="text" value="${esc(S.q)}" oninput="skdSet('q', this.value)" placeholder="🔍 Search student name or ID…" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);font-size:12.5px;min-width:200px">
-      <span style="font-size:11px;color:var(--muted)">Returned submissions are excluded while being revised. Click a column heading to sort.</span>
+      <span style="font-size:11px;color:var(--muted)">Ratings are on a 1–4 scale. Returned submissions are excluded while being revised.</span>
     </div>
-
-    ${rows.length === 0 ? `<div class="card"><div class="empty-state"><div class="icon">📭</div>No skill ratings match this selection.</div></div>` : `
-    <div class="kpi-grid kpi-grid-4" style="margin-bottom:16px">
-      <div class="kpi-card navy"><div class="kpi-label">Rows</div><div class="kpi-value">${rows.length}</div><div class="kpi-sub">${uniqueStudents} student${uniqueStudents!==1?'s':''} · ${scopedClasses.length} class${scopedClasses.length!==1?'es':''}</div></div>
-      <div class="kpi-card ${overall !== null && overall >= 3 ? 'green' : overall !== null && overall < 2.5 ? 'red' : 'gold'}"><div class="kpi-label">Overall Average</div><div class="kpi-value" style="color:${oc.fg}">${overall === null ? '—' : overall.toFixed(2)}</div><div class="kpi-sub">of 4.0</div></div>
-      <div class="kpi-card ${attentionCount ? 'red' : 'green'}"><div class="kpi-label">Need Attention</div><div class="kpi-value">${attentionCount}</div><div class="kpi-sub">avg below 2.5 or a skill rated 1</div></div>
-      <div class="kpi-card gold"><div class="kpi-label">Skills Tracked</div><div class="kpi-value">${SKX.length}</div><div class="kpi-sub">${S.cls === 'all' ? 'across selected classes' : esc(S.cls)}</div></div>
-    </div>
-
-    <div class="card">
-      <div class="card-header"><span class="card-title">📋 Detailed Ratings</span><span style="font-size:11px;color:var(--muted)">${rows.length} row${rows.length!==1?'s':''}</span></div>
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr>
-            ${sortTh('name', 'Student', 'padding-left:12px')}
-            ${sortTh('cls', 'Class')}
-            ${sortTh('month', 'Month')}
-            ${skillHead}
-            ${sortTh('avg', 'Average')}
-            <th>Status</th>
-          </tr></thead>
-          <tbody>${bodyRows}</tbody>
-        </table>
-      </div>
-    </div>`}`;
+    ${models.length ? overview + blocks : `<div class="card"><div class="empty-state"><div class="icon">📭</div>No skills assessments match this selection.<br><span style="font-size:12px">Teachers submit them from Skills Assessment.</span></div></div>`}`;
+  if (window.Chart) { const ov = window._skcCharts.ov; if (ov) { try { ov.destroy(); } catch (e) {} window._skcCharts.ov = null; } pending.forEach(f => { try { f(); } catch (e) { console.warn(e); } }); }
 }
+
 
 // ══════════════ PROMOTION MANAGEMENT ══════════════
 const PROMO_STATUS_LABELS = { draft:'Not Submitted', pending:'Pending Approval', approved:'Approved', rejected:'Rejected — Revise' };
@@ -35889,8 +36016,14 @@ function renderStaffAttendanceReport() {
   const el = document.getElementById(innerId);
   if (!el) return;
 
-  let activeTab = 'overview';   // overview | bydept | bystaff
+  let activeTab = 'calendar';   // calendar | overview | bydept | bystaff
   let filterDept = '__ALL__';
+  // Calendar tab state: date window + department (teachers by default)
+  const _calTerms = ((db.academicCalendar && db.academicCalendar.terms) || {});
+  const _calStarts = TERMS.map(t => _calTerms[t] && _calTerms[t].start).filter(Boolean).sort();
+  const _todayStr = today();
+  let calFrom = _calStarts[0] || _todayStr, calTo = _todayStr;
+  let calDept = null;
   let filterRange = '30';       // days back or 'all'
   const chartInstances = {};
 
@@ -36066,6 +36199,97 @@ function renderStaffAttendanceReport() {
       }
     });
   }
+
+  // ── CALENDAR TAB: attendance measured against the school days each person SHOULD have attended ──
+  // Expected days = Mon–Fri inside the Academic Calendar terms, minus holidays/breaks/closures, between the
+  // chosen dates (and not before the person joined). Present/Late come from clock-in records; every other
+  // expected day is a "no clock-in". Rate = (Present + Late) ÷ Expected.
+  function calExpectedDays(emp, from, to) {
+    const joined = emp.hrDateJoined || emp.hire || emp.hireDate || emp.dateJoined || '';
+    const days = [], seen = new Set();
+    TERMS.forEach(t => {
+      const td = _calTerms[t]; if (!td || !td.start || !td.end) return;
+      let a = td.start > from ? td.start : from; if (joined && joined > a) a = joined;
+      const b = td.end < to ? td.end : to;
+      if (a > b) return;
+      const cur = new Date(a + 'T00:00:00'), end = new Date(b + 'T00:00:00');
+      for (let g = 0; cur <= end && g < 400; cur.setDate(cur.getDate() + 1), g++) {
+        const ds = cur.toISOString().slice(0, 10), dow = cur.getDay();
+        if (dow === 0 || dow === 6 || seen.has(ds)) continue;
+        let off = false; try { off = !!getNonSchoolDayEvent(ds); } catch (e) {}
+        if (!off) { seen.add(ds); days.push(ds); }
+      }
+    });
+    if (!days.length && !_calStarts.length) {   // no calendar set up → fall back to days attendance was taken
+      allDates().forEach(d => { if (d >= from && d <= to && (!joined || d >= joined)) days.push(d); });
+    }
+    return days;
+  }
+  function calSummary(emp) {
+    const days = calExpectedDays(emp, calFrom, calTo);
+    let P = 0, L = 0;
+    days.forEach(d => {
+      const r = getRec(d, emp.id); if (!r) return;
+      if (r.status === 'Late') L++;
+      else if (r.status === 'Present' || ((r.in || r.clockIn) && !r.status)) P++;
+    });
+    const exp = days.length, att = P + L, none = exp - att;
+    return { exp, P, L, none, att, rate: exp > 0 ? Math.round(att / exp * 1000) / 10 : null };
+  }
+  function calStaff() {
+    const dept = calDept === null ? (deptList().includes('Teaching Staff') ? 'Teaching Staff' : '__ALL__') : calDept;
+    return activeStaff().filter(e => dept === '__ALL__' || deptOf(e) === dept);
+  }
+  function calRows() { return calStaff().map(e => ({ e, ...calSummary(e) })); }
+  function calBadge(rate) {
+    if (rate === null) return '<span class="ar-badge" style="background:var(--cream2);color:var(--muted)">No days</span>';
+    const cls = rate >= 80 ? 'ar-badge-green' : rate >= 60 ? 'ar-badge-amber' : 'ar-badge-red';
+    return `<span class="ar-badge ${cls}">${rate}%</span>`;
+  }
+  function drawCalendar() {
+    const rows = calRows();
+    const tot = rows.reduce((a, r) => ({ exp: a.exp + r.exp, P: a.P + r.P, L: a.L + r.L, none: a.none + r.none }), { exp: 0, P: 0, L: 0, none: 0 });
+    const totRate = tot.exp > 0 ? Math.round((tot.P + tot.L) / tot.exp * 1000) / 10 : null;
+    const schoolDays = rows.length ? Math.max(...rows.map(r => r.exp)) : 0;
+    const body = rows.map((r, i) => {
+      const bar = r.rate !== null ? `<div class="ar-rate-bar"><div class="ar-rate-fill" style="width:${Math.min(100, r.rate)}%;background:${rateColor(r.rate)}"></div></div>` : '';
+      return `<tr>
+        <td style="color:var(--muted)">${i + 1}</td>
+        <td><div style="font-weight:500;color:var(--navy)">${esc(r.e.name)}</div><div style="font-size:10px;color:var(--muted)">${esc(r.e.role || '')}</div></td>
+        <td>${esc(deptOf(r.e))}</td>
+        <td style="font-weight:600">${r.exp}</td>
+        <td style="color:var(--green);font-weight:600">${r.P}</td>
+        <td style="color:var(--amber);font-weight:600">${r.L}</td>
+        <td style="color:${r.none ? 'var(--red)' : 'var(--muted)'};font-weight:600">${r.none}</td>
+        <td style="min-width:130px">${calBadge(r.rate)}${bar}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">No staff found${_calStarts.length ? '' : ' — set up the Academic Calendar terms first'}</td></tr>`;
+    const foot = rows.length ? `<tr style="background:var(--cream2);font-weight:700"><td></td><td>Total (${rows.length} staff)</td><td></td><td>${tot.exp}</td><td style="color:var(--green)">${tot.P}</td><td style="color:var(--amber)">${tot.L}</td><td style="color:var(--red)">${tot.none}</td><td>${totRate === null ? '—' : totRate + '%'}</td></tr>` : '';
+    return `
+      <div class="ar-kpi-grid">
+        <div class="kpi-card gold"><div class="kpi-label">School Days Expected</div><div class="kpi-value">${schoolDays}</div><div class="kpi-sub">${esc(calFrom)} → ${esc(calTo)} (per Academic Calendar)</div></div>
+        <div class="kpi-card green"><div class="kpi-label">Present</div><div class="kpi-value">${tot.P.toLocaleString()}</div><div class="kpi-sub">on time</div></div>
+        <div class="kpi-card" style="border-top:3px solid var(--amber)"><div class="kpi-label">Late</div><div class="kpi-value" style="color:var(--amber)">${tot.L.toLocaleString()}</div><div class="kpi-sub">counted as attended</div></div>
+        <div class="kpi-card" style="border-top:3px solid var(--red)"><div class="kpi-label">No Clock-in</div><div class="kpi-value" style="color:var(--red)">${tot.none.toLocaleString()}</div><div class="kpi-sub">expected days missed</div></div>
+        <div class="kpi-card gold"><div class="kpi-label">Attendance Rate</div><div class="kpi-value" style="color:${rateColor(totRate)}">${totRate === null ? '—' : totRate + '%'}</div><div class="kpi-sub">(Present + Late) ÷ Expected</div></div>
+      </div>
+      <div class="ar-chart-card" style="margin-bottom:18px">
+        <div class="ar-chart-title">📊 Attendance Rate per Staff</div>
+        <div class="ar-chart-canvas-wrap" style="height:${Math.max(180, rows.length * 30)}px"><canvas id="satr-cal-bar"></canvas></div>
+      </div>
+      <div class="ar-student-table"><table>
+        <thead><tr><th>#</th><th>Staff</th><th>Dept</th><th title="School days per the Academic Calendar from the start date (or the date joined) to the end date">Expected Days</th><th>Present</th><th>Late</th><th>No Clock-in</th><th style="min-width:130px">Rate</th></tr></thead>
+        <tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">Expected days exclude weekends, holidays, breaks and closures set in the Academic Calendar, and start from the staff member's join date if later. Leave is not deducted.</div>`;
+  }
+  window.satrCalCsv = () => {
+    const rows = calRows(); if (!rows.length) { toast('Nothing to export'); return; }
+    const q = v => '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"';
+    const lines = [['Staff', 'Role', 'Department', 'From', 'To', 'Expected Days', 'Present', 'Late', 'No Clock-in', 'Attendance Rate %'].map(q).join(',')];
+    rows.forEach(r => lines.push([r.e.name, r.e.role || '', deptOf(r.e), calFrom, calTo, r.exp, r.P, r.L, r.none, r.rate === null ? '' : r.rate].map(q).join(',')));
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' }));
+    a.download = 'staff-attendance-vs-calendar.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
 
   // ── OVERVIEW TAB ──────────────────────────────────────────
   function drawOverview() {
@@ -36256,8 +36480,11 @@ function renderStaffAttendanceReport() {
       ['60','Last 60 Days'],['all','All Time']
     ].map(([v,l])=>`<option value="${v}" ${v===filterRange?'selected':''}>${l}</option>`).join('');
 
+    const _cd = calDept === null ? (depts.includes('Teaching Staff') ? 'Teaching Staff' : '__ALL__') : calDept;
+    const calDeptOpts = `<option value="__ALL__" ${_cd==='__ALL__'?'selected':''}>All Staff</option>` + depts.map(d=>`<option value="${esc(d)}" ${d===_cd?'selected':''}>${esc(d)}</option>`).join('');
     let tabContent = '';
-    if (activeTab==='overview') tabContent = drawOverview();
+    if (activeTab==='calendar') tabContent = drawCalendar();
+    else if (activeTab==='overview') tabContent = drawOverview();
     else if (activeTab==='bydept') tabContent = drawByDept();
     else if (activeTab==='bystaff') tabContent = drawByStaff();
 
@@ -36270,14 +36497,22 @@ function renderStaffAttendanceReport() {
       </div>
 
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
-        <div class="ar-tab-bar" style="margin-bottom:0">
+        <div class="ar-tab-bar spr-no-print" style="margin-bottom:0">
+          <div class="ar-tab ${activeTab==='calendar'?'active':''}" onclick="satrTab('calendar')">📅 Per Academic Calendar</div>
           <div class="ar-tab ${activeTab==='overview'?'active':''}" onclick="satrTab('overview')">🌐 Overview</div>
           <div class="ar-tab ${activeTab==='bydept'?'active':''}" onclick="satrTab('bydept')">🏢 By Department</div>
           <div class="ar-tab ${activeTab==='bystaff'?'active':''}" onclick="satrTab('bystaff')">👤 By Staff</div>
         </div>
-        <div class="ar-filter-row" style="margin-bottom:0;margin-left:auto">
-          ${activeTab!=='overview' ? `<select onchange="satrFilterDept(this.value)">${deptOpts}</select>` : ''}
-          <select onchange="satrFilterRange(this.value)">${rangeOpts}</select>
+        <div class="ar-filter-row spr-no-print" style="margin-bottom:0;margin-left:auto;flex-wrap:wrap">
+          ${activeTab==='calendar' ? `
+            <label style="font-size:12px;color:var(--muted)">From <input type="date" value="${esc(calFrom)}" max="${esc(calTo)}" onchange="satrCalFrom(this.value)" style="padding:6px 8px;border-radius:8px;border:1px solid var(--border)"></label>
+            <label style="font-size:12px;color:var(--muted)">To <input type="date" value="${esc(calTo)}" min="${esc(calFrom)}" max="${esc(_todayStr)}" onchange="satrCalTo(this.value)" style="padding:6px 8px;border-radius:8px;border:1px solid var(--border)"></label>
+            <select onchange="satrCalDept(this.value)">${calDeptOpts}</select>
+            <button class="btn btn-outline btn-sm" onclick="satrCalReset()">Whole year to date</button>
+            <button class="btn btn-outline btn-sm" onclick="satrCalCsv()">⬇ CSV</button>
+            <button class="btn btn-outline btn-sm" onclick="printReportSmart('satr-inner')">🖨️ Print</button>`
+          : `${activeTab!=='overview' ? `<select onchange="satrFilterDept(this.value)">${deptOpts}</select>` : ''}
+          <select onchange="satrFilterRange(this.value)">${rangeOpts}</select>`}
         </div>
       </div>
 
@@ -36285,7 +36520,10 @@ function renderStaffAttendanceReport() {
     `;
 
     requestAnimationFrame(() => {
-      if (activeTab==='overview') {
+      if (activeTab==='calendar') {
+        const rows = calRows();
+        drawHBar('satr-cal-bar', rows.map(r => r.e.name), rows.map(r => r.rate === null ? 0 : Math.min(100, r.rate)));
+      } else if (activeTab==='overview') {
         drawLine('satr-trend-chart', overallTrend('__ALL__'));
         let gP=0, gL=0, gA=0;
         depts.forEach(d => { const ds = deptSummary(d); gP+=ds.P; gL+=ds.L; gA+=ds.A; });
@@ -36337,6 +36575,10 @@ function renderStaffAttendanceReport() {
     window.satrTab         = t => { activeTab=t; if(t!=='overview'&&filterDept==='__ALL__') filterDept=depts[0]||'__ALL__'; draw(); };
     window.satrFilterDept  = v => { filterDept=v; draw(); };
     window.satrFilterRange = v => { filterRange=v; draw(); };
+    window.satrCalFrom = v => { if (v) { calFrom = v; if (calFrom > calTo) calTo = calFrom; draw(); } };
+    window.satrCalTo   = v => { if (v) { calTo = v > _todayStr ? _todayStr : v; if (calTo < calFrom) calFrom = calTo; draw(); } };
+    window.satrCalDept = v => { calDept = v; draw(); };
+    window.satrCalReset = () => { calFrom = _calStarts[0] || _todayStr; calTo = _todayStr; draw(); };
   }
 
   draw();
@@ -49504,6 +49746,7 @@ function sperfBestHtml(sel) {
   const teachingOnly = sel.teachingOnly !== false;
   const wPeer = sel.wPeer == null ? 30 : +sel.wPeer;
   const R = sperfBestRows(termFilter, deptFilter, teachingOnly, wPeer);
+  const _open = id => `window._sperfSel.focusId='${esc(String(id))}';window._sperfRedraw&&window._sperfRedraw();setTimeout(function(){var c=document.getElementById('sperf-focus-card');if(c)c.scrollIntoView({behavior:'smooth',block:'start'})},60)`;
   const medal = r => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : '';
   const best = R.ranked.filter(r => r.rank === 1);
   const wOpts = [[20, '80% appraisal + 20% votes'], [30, '70% appraisal + 30% votes'], [40, '60% appraisal + 40% votes'], [50, '50% appraisal + 50% votes']]
@@ -49516,10 +49759,10 @@ function sperfBestHtml(sel) {
       <div style="font-size:13px;opacity:.9">${best.map(b => `Score <b>${b.score}%</b> · ${esc(b.dept)} · appraisal ${b.appAvg}%${b.peerAvg != null ? ` · ${b.votes} vote${b.votes === 1 ? '' : 's'}` : ''}`).join('<br>')}</div>
     </div>` : `<div class="card" style="padding:18px;margin-bottom:14px;text-align:center;color:var(--muted)">No teacher can be ranked yet for this filter. A teacher needs at least one Performance Appraisal.</div>`;
   const podium = R.ranked.filter(r => r.rank <= 3).slice(0, 6).map(r => `
-    <div class="sr-stat-card" style="min-width:150px"><div style="font-size:26px">${medal(r.rank)}</div>
+    <div class="sr-stat-card" style="min-width:150px;cursor:pointer" onclick="${_open(r.emp.id)}"><div style="font-size:26px">${medal(r.rank)}</div>
       <div style="font-weight:700;color:var(--navy);margin:2px 0">${esc(r.emp.name || 'Unnamed')}</div>
       <div class="sr-stat-value" style="font-size:22px">${r.score}%</div><div class="sr-stat-label">${esc(r.dept)}</div></div>`).join('');
-  const body = R.ranked.map(r => `<tr>
+  const body = R.ranked.map(r => `<tr style="cursor:pointer" title="Open full performance detail" onclick="${_open(r.emp.id)}">
     <td style="font-weight:700;color:var(--navy)">${medal(r.rank)} ${r.rank}</td>
     <td><b>${esc(r.emp.name || 'Unnamed')}</b><div style="font-size:11px;color:var(--muted)">${esc(r.role)}</div></td>
     <td>${esc(r.dept)}</td>
@@ -50136,7 +50379,7 @@ function renderStaffPerformanceReport() {
   const tabBtn = (id, label) =>
     `<button type="button" class="btn btn-sm ${sel.tab === id ? 'btn-primary' : 'btn-outline'}" onclick="window._sperfSel.tab='${id}';window._sperfRedraw&&window._sperfRedraw()">${label}</button>`;
 
-  const rankRows = rows.map((r, i) => `<tr style="cursor:pointer" onclick="window._sperfSel.focusId='${esc(String(r.emp.id))}';window._sperfSel.tab='rankings';window._sperfRedraw&&window._sperfRedraw()">
+  const rankRows = rows.map((r, i) => `<tr style="cursor:pointer;${String(sel.focusId) === String(r.emp.id) ? 'background:var(--cream,#f6f0e0)' : ''}" title="Click to open full performance detail" onclick="window._sperfSel.focusId='${esc(String(r.emp.id))}';window._sperfSel.tab='rankings';window._sperfRedraw&&window._sperfRedraw();setTimeout(function(){var c=document.getElementById('sperf-focus-card');if(c)c.scrollIntoView({behavior:'smooth',block:'start'})},60)">
     <td style="font-weight:700;color:var(--navy)">${i + 1}</td>
     <td><b>${esc(r.emp.name)}</b><div style="font-size:11px;color:var(--muted)">${esc(r.role)}</div></td>
     <td>${esc(r.dept)}</td>
@@ -50157,9 +50400,7 @@ function renderStaffPerformanceReport() {
   </tr>`).join('');
 
   // Focus detail
-  let focusHtml = '';
-  const focus = sel.focusId ? rows.find(r => String(r.emp.id) === String(sel.focusId)) : null;
-  if (focus) {
+  const focusCard = (focus, withClose) => {
     const hist = focus.apps.slice(0, 8).map(a => {
       const pct = aprOverallPercent(a.criteria || {});
       return `<tr>
@@ -50176,13 +50417,14 @@ function renderStaffPerformanceReport() {
         <span>${esc(k)}</span><b>${focus.criteriaAvg[k]}/5</b>
       </div>`
     ).join('') || '<div class="empty-state" style="padding:12px">No criterion scores yet</div>';
-    focusHtml = `
-      <div class="card" style="margin-bottom:14px;border:1px solid var(--border)">
+    return `
+      <div class="card" ${withClose ? 'id="sperf-focus-card"' : ''} style="margin-bottom:14px;border:1px solid var(--border);page-break-inside:avoid;break-inside:avoid">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <div>
             <strong style="font-size:16px">${esc(focus.emp.name)}</strong>
             <div style="font-size:12px;color:var(--muted)">${esc(focus.role)} · ${esc(focus.dept)}</div>
           </div>
+          ${withClose ? '<button class="btn btn-outline btn-sm spr-no-print" onclick="window._sperfSel.focusId=null;window._sperfRedraw&&window._sperfRedraw()">✕ Close</button>' : ''}
           <div style="text-align:right">
             <div style="font-size:28px;font-weight:800;color:${focus.band.color}">${focus.avgPct != null ? focus.avgPct + '%' : '—'}</div>
             <div style="font-size:12px;color:${focus.band.color}">${esc(focus.band.label)}</div>
@@ -50208,7 +50450,17 @@ function renderStaffPerformanceReport() {
           </div>
         </div>
       </div>`;
-  }
+  };
+  const focus = sel.focusId ? rows.find(r => String(r.emp.id) === String(sel.focusId)) : null;
+  const focusHtml = focus ? focusCard(focus, true) : '';
+  const cardsTeachingOnly = sel.cardsTeachingOnly !== false;
+  const cardsRows = rows.filter(r => !cardsTeachingOnly || r.dept === 'Teaching Staff');
+  const cardsHtml = `
+    <div class="card spr-no-print" style="padding:12px 14px;margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <label style="font-size:12.5px;display:flex;gap:6px;align-items:center"><input type="checkbox" ${cardsTeachingOnly ? 'checked' : ''} onchange="window._sperfSel.cardsTeachingOnly=this.checked;window._sperfRedraw&&window._sperfRedraw()"> Teaching staff only</label>
+      <span style="font-size:12px;color:var(--muted)">${cardsRows.length} card${cardsRows.length === 1 ? '' : 's'} — respects the Term and Department filters above</span>
+    </div>
+    ${cardsRows.map(r => focusCard(r, false)).join('') || '<div class="card" style="padding:24px;text-align:center;color:var(--muted)">No staff match this filter</div>'}`;
 
   const insights = [];
   if (avgSchool != null) insights.push(`School average appraisal score is <b>${avgSchool}%</b> across ${rated.length} rated staff.`);
@@ -50221,12 +50473,12 @@ function renderStaffPerformanceReport() {
   destroyCharts();
 
   el.innerHTML = `
-    <div class="section-header spr-no-print" style="margin-bottom:14px">
+    <div class="section-header" style="margin-bottom:14px">
       <div>
         <div class="section-title">⭐ Staff Performance Report</div>
         <div class="section-sub">Appraisals · attendance · training · overdue reviews — ${esc(String(ACTIVE_YEAR).replace('_', '/'))}</div>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div class="spr-no-print" style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-outline btn-sm" onclick="navigate('appraisals')">Open Appraisals</button>
         <button class="btn btn-outline btn-sm" onclick="navigate('teacherexternal')">External Assessments</button>
         <button class="btn btn-outline btn-sm" onclick="sperfExportCsv(window._sperfLastRows||[], window._sperfSel.term||'all')">⬇ CSV</button>
@@ -50248,6 +50500,7 @@ function renderStaffPerformanceReport() {
           ${tabBtn('overview', 'Overview')}
           ${tabBtn('best', '🏆 Best Teacher')}
           ${tabBtn('rankings', 'Rankings')}
+          ${tabBtn('cards', '👤 Staff Cards')}
           ${tabBtn('criteria', 'Criteria')}
           ${tabBtn('overdue', 'Overdue (' + overdue.length + ')')}
         </div>
@@ -50291,7 +50544,8 @@ function renderStaffPerformanceReport() {
       </div>
     ` : ''}
 
-    ${sel.tab === 'best' ? sperfBestHtml(sel) : ''}
+    ${sel.tab === 'best' ? focusHtml + sperfBestHtml(sel) : ''}
+    ${sel.tab === 'cards' ? cardsHtml : ''}
 
     ${sel.tab === 'rankings' ? `
       ${focusHtml}
