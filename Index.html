@@ -3680,6 +3680,7 @@
   .print-header {
     display: none;
   }
+  #iso-print-root { display: none; }
   @media print {
     @page { size: A4 portrait; margin: 12mm; }
     .sidebar, .topbar, #toast, .modal-overlay, #login-overlay, #lock-overlay, .bottom-nav, .hamburger { display: none !important; }
@@ -3737,6 +3738,15 @@
     .stat-tab-bar { display: none !important; }
 
     /* ── Student Performance Report — A4 print ── */
+    body.iso-printing #app-root { display: none !important; }
+    body.iso-printing #iso-print-root { display: block !important; width: 100% !important; }
+    /* Flatten the app shell for printing. A flex/fixed-height shell makes some browsers stop paginating
+       after a few pages (long reports lost everything past ~10 pages). Plain block flow prints in full. */
+    html, body, #app-body { display: block !important; height: auto !important; min-height: 0 !important; max-height: none !important; }
+    #app-root { display: block !important; height: auto !important; min-height: 0 !important; max-height: none !important; width: 100% !important; flex: none !important; }
+    .main { display: block !important; height: auto !important; min-height: 0 !important; margin-left: 0 !important; }
+    .content { display: block !important; height: auto !important; min-height: 0 !important; max-width: none !important; flex: none !important; }
+    .page.active { display: block !important; height: auto !important; }
     /* Printed pages must never show scrollbars or clip content inside scroll boxes */
     * { scrollbar-width: none !important; }
     *::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
@@ -9513,6 +9523,8 @@ const DB_SEED = {
   // ── STAFF LEAVE — [{id, empId, type, startDate, endDate, days, reason, status:'Pending'|'Approved'|'Rejected', requestedBy, requestedAt, decidedBy, decidedAt, decisionNote}] ──
   staffLeave: [],
   nextLeaveId: 1,
+  // ── STUDENT ACTION PORTAL ──
+  studentCases: {}, studentActions: [], nextActionId: 1, actionThresholds: { att: 75, avg: 50, fail: 3, skill: 2.5, fees: true },
   // ── FEEDING EXPENDITURE BUDGET — standalone request-then-approve
   // workflow. Once approved, it automatically creates a real posted Expense
   // (cat: 'Feeding Expenses') and journal entry — the approval itself is the
@@ -12047,7 +12059,7 @@ function ensureDbShape() {
     'departments', 'houses', 'appraisals', 'teacherExternalAssessments', 'teacherVotes', 'trainings', 'trainingLinkAuditLog',
     'skillSubmissions', 'promotionLists', 'pendingSmsQueue', 'subjects',
     'users', 'roles', 'staffHrRecords', 'staffLeave', 'externalAssessmentParams',
-    'feedingBudgetRequests', 'anomalyCases', 'staffClockAttemptLog', 'gradeCategories'
+    'feedingBudgetRequests', 'anomalyCases', 'staffClockAttemptLog', 'gradeCategories', 'studentActions'
   ];
   ARR_KEYS.forEach(k => {
     try { db[k] = ensureArray(db[k]); } catch (e) { db[k] = []; }
@@ -12196,7 +12208,7 @@ function mergeServerDb(data) {
   ['admissions', 'revenue', 'expenses', 'pettyCash', 'txHistory', 'employees',
    'payrollRuns', 'assets', 'subjects', 'staffHrRecords', 'skillSubmissions',
    'promotionLists', 'staffLeave', 'trainings', 'trainingLinkAuditLog',
-   'departments', 'houses', 'appraisals'].forEach(k => {
+   'departments', 'houses', 'appraisals', 'studentActions'].forEach(k => {
     if (data[k] !== undefined) db[k] = ensureArray(data[k]);
   });
 }
@@ -12902,6 +12914,8 @@ function initDb(callback) {
           compliance: renderCompliance,
           schoolstructure: renderSchoolStructure,
           staffdatabase: renderStaffDatabase,
+          staffrecords: function(){ renderStaffRecords(); },
+          actionportal: function(){ renderActionPortal(); },
           parentdatabase: renderParentDatabase,
           weeklyreport: renderWeeklyReport,
           staffleave: renderStaffLeave,
@@ -14278,7 +14292,7 @@ const pageTitles = {
   expenses:'Expense Tracker', pettycash:'Petty Cash', feedingbudget:'Feeding Expenditure Budget', bankaccount:'Bank Account', groupaccounts:'Group Accounts', income:'Statement of Comprehensive Income', weeklyreport:'Weekly Report',
   chartofaccounts:'Chart of Accounts', generalledger:'General Ledger', trialbalance:'Trial Balance', budgeting:'Budgeting', schoolshop:'School Shop', compliance:'Compliance',
   expenseledgers:'Expense Ledgers',
-  schoolstructure:'School Structure', staffdatabase:'Teachers & Staff Database', parentdatabase:'Parent Database', appraisals:'Performance Appraisal', staffperformance:'Staff Performance Report', teacherexternal:'Teachers External Assessments', training:'Training & Development',
+  schoolstructure:'School Structure', staffdatabase:'Teachers & Staff Database', staffrecords:'Staff Records', actionportal:'Student Action Portal', parentdatabase:'Parent Database', appraisals:'Performance Appraisal', staffperformance:'Staff Performance Report', teacherexternal:'Teachers External Assessments', training:'Training & Development',
   feeschedule:'Fee Schedule', feedingschedule:'Feeding Revenue', stats:'Statistical Report', myappraisal:'My Appraisal', votebestteacher:'Vote: Best Teacher', myworkspace:'My Workspace', staffdirectory:'Staff Directory', accesscontrol:'Access Control',
   export:'Export to Excel', backup:'Backup & Restore',
   balancesheet:'Balance Sheet', assetmanagement:'Asset Management', cashflow:'Statement of Cash Flows', reportcard:'Report Cards', classanalytics:'Class Analytics', studentperformance:'Student Performance Report', skillsreport:'Student Assessment Report', skillsclass:'Class-by-Class Assessment',
@@ -14336,6 +14350,7 @@ const MODULE_DEFS = {
       { icon:'🗓️', label:'Academic Calendar',      page:'academiccalendar' },
       { icon:'🎓', label:'Class Analytics',      page:'classanalytics' },
       { icon:'📈', label:'Student Performance',  page:'studentperformance' },
+      { icon:'🚨', label:'Student Action Portal', page:'actionportal' },
       { icon:'📅', label:'Attendance',           page:'attendance' },
       { icon:'📊', label:'Attendance Report',    page:'attendancereport' },
       { icon:'📝', label:'Report Cards',         page:'reportcard' },
@@ -14390,6 +14405,7 @@ const MODULE_DEFS = {
     items: [
       { icon:'🏛️', label:'School Structure',              page:'schoolstructure' },
       { icon:'🗂️', label:'Teachers & Staff Database',      page:'staffdatabase' },
+      { icon:'🗃️', label:'Staff Records',                  page:'staffrecords', hideFromTeacher:true },
       { icon:'👪', label:'Parent Database',                page:'parentdatabase' },
       { icon:'⭐', label:'Performance Appraisal',          page:'appraisals', hideFromTeacher:true },
       { icon:'📊', label:'Staff Performance Report',       page:'staffperformance', hideFromTeacher:true },
@@ -14540,6 +14556,8 @@ const _dynamicPages = {
   compliance:       'comp-inner',
   schoolstructure:  'ss-inner',
   staffdatabase:    'sd-inner',
+  staffrecords:     'sr2-inner',
+  actionportal:     'ap2-inner',
   parentdatabase:   'pdb-inner',
   weeklyreport:     'wr-inner',
   feedingbudget:    'fbe-inner',
@@ -14702,6 +14720,8 @@ function navigate(page, _isBack) {
   if (page === 'compliance') renderCompliance();
   if (page === 'schoolstructure') renderSchoolStructure();
   if (page === 'staffdatabase') renderStaffDatabase();
+  if (page === 'actionportal') safeRender('actionportal', function(){ renderActionPortal(); });
+  if (page === 'staffrecords') safeRender('staffrecords', function(){ renderStaffRecords(); });
   if (page === 'parentdatabase') renderParentDatabase();
   if (page === 'weeklyreport') renderWeeklyReport();
   if (page === 'appraisals') renderAppraisals();
@@ -28723,7 +28743,7 @@ const TEACHER_DEFAULT_PAGES = [
   'teacherdashboard',
   'grades','skillsassessment','promotion','academiccalendar','reportcard','classanalytics','studentperformance',
   'attendance','attendancereport','staffattendance','staffleave','dutyroster','timetable','subjects','myappraisal','myworkspace','votebestteacher','staffdirectory',
-  'schoolstructure','staffdatabase','training','parentdatabase'
+  'schoolstructure','staffdatabase','training','parentdatabase','actionportal'
 ];
 // Pages kept off the configurable matrix (always use defaultPagePermission only).
 // Empty: Performance Appraisal is now configurable under Access Control.
@@ -29622,6 +29642,7 @@ async function renderUserList() {
     return;
   }
   const PROTECTED = ['admin'];   // username(s) that cannot be deleted
+  window._muUsers = {}; users.forEach(u => { window._muUsers[u.username] = u; });
 
   list.innerHTML = users.map(u => {
     const isProtected = PROTECTED.includes(u.username.toLowerCase());
@@ -29646,6 +29667,8 @@ async function renderUserList() {
       </div>
       <span style="font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px;background:${roleBg};color:${roleColor};white-space:nowrap">${roleLabel}</span>
       ${u.lockedUntil ? `<span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--red-light);color:var(--red);white-space:nowrap" title="Too many failed login attempts">🔒 Locked ${Math.ceil((u.lockedUntil - Date.now())/60000)}m</span>` : ''}
+      <button onclick="openUserEdit('${esc(u.username)}')" title="Reset password / rename"
+        style="background:var(--cream);border:1px solid var(--border);color:var(--navy);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;flex-shrink:0">🔑 Reset / Rename</button>
       ${isProtected
         ? `<span style="font-size:11px;color:var(--muted);padding:0 6px">Protected</span>`
         : `<button onclick="deleteUser('${u.username}')" title="Delete user"
@@ -29655,6 +29678,79 @@ async function renderUserList() {
       }
     </div>`;
   }).join('');
+}
+
+// ── Admin: reset password / rename username ──
+// Passwords are hashed on the server and can never be read back, so the Admin
+// sets a new one (or generates a temporary one that is shown once). Implemented
+// with the existing createUser/deleteUser Cloud Functions (delete + recreate
+// with the same role/class), so no server change is needed.
+window._muUsers = {};
+function muGenPassword() {
+  const A = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  const a = new Uint32Array(10); (window.crypto || {}).getRandomValues ? crypto.getRandomValues(a) : a.forEach((_, i) => a[i] = Math.floor(Math.random() * 4e9));
+  return Array.from(a, n => A[n % A.length]).join('');
+}
+function openUserEdit(username) {
+  if (!requireRole('Admin')) return;
+  const u = window._muUsers[username]; if (!u) return;
+  if (username.toLowerCase() === 'admin' || (currentUser && currentUser.username === username)) {
+    // Own / admin account: use the normal change-password flow (needs current password)
+    openChpwdModal();
+    setTimeout(() => { const s = document.getElementById('chpwd-user'); if (s) s.value = username; }, 400);
+    return;
+  }
+  let m = document.getElementById('mu-edit-modal'); if (m) m.remove();
+  m = document.createElement('div'); m.className = 'modal-overlay open'; m.id = 'mu-edit-modal';
+  m.innerHTML = `<div class="modal" style="width:440px;max-width:94vw">
+    <div class="modal-header"><span class="modal-title">🔑 Edit user — ${esc(username)}</span><button class="modal-close" onclick="document.getElementById('mu-edit-modal').remove()">✕</button></div>
+    <div style="padding:16px 20px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Role: <b>${esc(u.role)}${u.class ? ' · ' + esc(u.class) : ''}</b> (kept). Existing passwords are stored securely and cannot be viewed — set a new one below.</div>
+      <div class="form-group"><label>Username</label><input type="text" id="mue-name" value="${esc(username)}" autocomplete="off"></div>
+      <div class="form-group"><label>New password (min 8 characters)</label>
+        <div style="display:flex;gap:6px"><input type="text" id="mue-pwd" style="flex:1" autocomplete="off" placeholder="Type or generate">
+        <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('mue-pwd').value=muGenPassword()">🎲 Generate</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('mue-pwd').value);toast('Copied')">📋</button></div></div>
+      <div id="mue-fb" style="font-size:12px;min-height:18px;margin-top:6px"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="document.getElementById('mu-edit-modal').remove()">Cancel</button>
+      <button class="btn btn-primary" id="mue-save" onclick="saveUserEdit('${esc(username)}')">Save</button></div></div>`;
+  document.body.appendChild(m);
+}
+async function saveUserEdit(oldName) {
+  if (!requireRole('Admin')) return;
+  const u = window._muUsers[oldName]; if (!u) return;
+  const nn = document.getElementById('mue-name').value.trim();
+  const pw = document.getElementById('mue-pwd').value;
+  const fb = document.getElementById('mue-fb');
+  const err = t => { fb.style.color = 'var(--red)'; fb.textContent = '⚠ ' + t; };
+  if (!nn || !/^[a-zA-Z0-9_.\-]+$/.test(nn)) return err('Username may only contain letters, numbers, _ . -');
+  if (nn.toLowerCase() === 'admin') return err('That username is reserved.');
+  if (!pw || pw.length < 8) return err('A new password of at least 8 characters is required.');
+  const clash = Object.keys(window._muUsers).some(k => k !== oldName && k.toLowerCase() === nn.toLowerCase());
+  if (clash) return err('That username already exists.');
+  if (!confirm(`Save changes for "${oldName}"?\n\nUsername: ${nn}\nThe user will be signed out and must use the new password.`)) return;
+  const btn = document.getElementById('mue-save'); btn.disabled = true; fb.style.color = 'var(--muted)'; fb.textContent = 'Saving…';
+  const payload = { username: nn, role: u.role, class: u.role === 'Class Teacher' ? (u.class || null) : null, password: pw };
+  try {
+    await cfDeleteUser({ username: oldName });
+  } catch (e) { btn.disabled = false; return err(e.message || 'Could not update user.'); }
+  try {
+    await cfCreateUser(payload);
+  } catch (e) {
+    // Restore the old account name with the new password so the user is never lost
+    try { await cfCreateUser(Object.assign({}, payload, { username: oldName })); err('Could not use the new username (' + (e.message || 'error') + '). Password was reset on "' + oldName + '" instead.'); renderUserList(); return; }
+    catch (e2) { err('Update failed and the account must be re-created manually: ' + (e2.message || e2)); return; }
+  }
+  // Keep staff records linked to the login
+  try {
+    if (nn !== oldName) (db.employees || []).forEach(emp => { if (emp && String(emp.username || '').toLowerCase() === oldName.toLowerCase()) emp.username = nn; });
+    saveDb();
+  } catch (_) {}
+  fb.style.color = 'var(--green)';
+  fb.innerHTML = `✅ Saved. Username: <b>${esc(nn)}</b> · Password: <b style="user-select:all">${esc(pw)}</b> — give this to the user now; it will not be shown again.`;
+  btn.style.display = 'none';
+  renderUserList();
 }
 
 async function addNewUser() {
@@ -30572,6 +30668,31 @@ function weeklyReportNeedsLandscape(rootEl) { return reportNeedsLandscape(rootEl
  * Print any report container with automatic @page orientation + body class
  * for CSS media queries. Pass an element id string or a DOM element.
  */
+// Long reports (e.g. 60+ staff cards) are printed from a clean copy placed directly under <body>,
+// with the whole app shell hidden. Printing inside the app's flex/fixed-height shell can make the
+// browser stop paginating after a few pages; plain block flow always prints every page.
+function removeIsolatedPrintRoot() {
+  document.querySelectorAll('#iso-print-root').forEach(n => n.remove());
+  document.body.classList.remove('iso-printing');
+}
+function isolatePrintRoot(source) {
+  removeIsolatedPrintRoot();
+  const root = document.createElement('div');
+  root.id = 'iso-print-root';
+  const ph = document.querySelector('.content > .print-header');
+  if (ph) root.appendChild(ph.cloneNode(true));
+  const wrap = document.createElement('div');
+  wrap.id = source.id || ''; wrap.className = source.className || '';
+  wrap.innerHTML = source.innerHTML;
+  root.appendChild(wrap);
+  try {
+    const live = source.querySelectorAll('canvas'), cl = wrap.querySelectorAll('canvas');
+    live.forEach((cv, i) => { try { const img = new Image(); img.src = cv.toDataURL('image/png'); img.style.cssText = 'max-width:100%;height:auto'; cl[i].parentNode.replaceChild(img, cl[i]); } catch (e) {} });
+  } catch (e) {}
+  document.body.appendChild(root);
+  document.body.classList.add('iso-printing');
+}
+
 function printReportSmart(containerIdOrEl, options) {
   const opts = options || {};
   let source = null;
@@ -30610,16 +30731,18 @@ function printReportSmart(containerIdOrEl, options) {
   const cleanup = () => {
     document.body.classList.remove('print-landscape', 'print-portrait');
     clearReportPrintHideClasses();
+    removeIsolatedPrintRoot();
     window.removeEventListener('afterprint', cleanup);
   };
   window.addEventListener('afterprint', cleanup);
+  if (opts.isolate) { try { isolatePrintRoot(source); } catch (e) { console.warn(e); } }
 
   if (typeof toast === 'function') {
     toast(landscape
       ? '🖨️ Print: landscape'
       : '🖨️ Print: portrait');
   }
-  setTimeout(() => window.print(), 50);
+  setTimeout(() => window.print(), opts.isolate ? 300 : 50);
 }
 
 /**
@@ -36018,12 +36141,12 @@ function renderStaffAttendanceReport() {
 
   let activeTab = 'calendar';   // calendar | overview | bydept | bystaff
   let filterDept = '__ALL__';
-  // Calendar tab state: date window + department (teachers by default)
+  // Calendar tab state: date window + department (all staff by default)
   const _calTerms = ((db.academicCalendar && db.academicCalendar.terms) || {});
   const _calStarts = TERMS.map(t => _calTerms[t] && _calTerms[t].start).filter(Boolean).sort();
   const _todayStr = today();
   let calFrom = _calStarts[0] || _todayStr, calTo = _todayStr;
-  let calDept = null;
+  let calDept = '__ALL__';   // all staff: teaching and non-teaching
   let filterRange = '30';       // days back or 'all'
   const chartInstances = {};
 
@@ -36054,16 +36177,25 @@ function renderStaffAttendanceReport() {
   }
 
   // Per-employee summary {P, L, A, total, rate, avgArrival} over filtered dates
+  function rangeWindow() {
+    const to = _todayStr;
+    if (filterRange === 'all') return { from: attFirstTermStart() || '0000-01-01', to };
+    const c = new Date(); c.setDate(c.getDate() - parseInt(filterRange));
+    return { from: c.toISOString().slice(0, 10), to };
+  }
+  // Same rule for every staff member: expected school days per the Academic Calendar;
+  // Present + Late = attended; everything else = no clock-in (counted in A).
   function empSummary(empId) {
-    const dates = allDates().filter(inRange);
+    const emp = activeStaff().find(e => String(e.id) === String(empId)) || { id: empId };
+    const w = rangeWindow();
+    const dates = attExpectedDays(emp, w.from, w.to);
     let P=0, L=0, A=0; const arrivalMins = [];
     dates.forEach(d => {
       const r = getRec(d, empId);
-      if (!r || !r.status) return;
-      if (r.status === 'Present') P++;
-      else if (r.status === 'Late') L++;
-      else if (r.status === 'Absent') A++;
-      if (r.in) {
+      if (r && (r.status === 'Late')) L++;
+      else if (r && (r.status === 'Present' || (r.in && !r.status))) P++;
+      else A++;
+      if (r && r.in) {
         const parts = r.in.split(':');
         const h = parseInt(parts[0],10), m = parseInt(parts[1],10);
         if (!isNaN(h) && !isNaN(m)) arrivalMins.push(h*60+m);
@@ -36071,7 +36203,7 @@ function renderStaffAttendanceReport() {
     });
     const total = P+L+A;
     const avgArrival = arrivalMins.length ? Math.round(arrivalMins.reduce((s,v)=>s+v,0)/arrivalMins.length) : null;
-    return { P, L, A, total, days: total, rate: total>0 ? Math.round((P/total)*100) : null, avgArrival };
+    return { P, L, A, total, days: total, rate: total>0 ? Math.round(((P+L)/total)*100) : null, avgArrival };
   }
 
   function minsToTime(mins) {
@@ -36086,7 +36218,7 @@ function renderStaffAttendanceReport() {
     let P=0, L=0, A=0;
     staff.forEach(e => { const s = empSummary(e.id); P+=s.P; L+=s.L; A+=s.A; });
     const total = P+L+A;
-    return { dept, staff: staff.length, dates: allDates().filter(inRange).length, P, L, A, total, rate: total>0 ? Math.round((P/total)*100) : null };
+    return { dept, staff: staff.length, dates: allDates().filter(inRange).length, P, L, A, total, rate: total>0 ? Math.round(((P+L)/total)*100) : null };
   }
 
   // Daily overall Present-rate trend (last 20 days in range)
@@ -36096,8 +36228,10 @@ function renderStaffAttendanceReport() {
     return dates.map(d => {
       let p=0, total=0;
       staff.forEach(e => {
+        const j = e.hrDateJoined || e.hire || e.hireDate || e.dateJoined || '';
+        if (j && j > d) return;
         const r = getRec(d, e.id);
-        if (r && r.status) { total++; if (r.status==='Present') p++; }
+        total++; if (r && (r.status==='Present' || r.status==='Late')) p++;
       });
       return { date: d, rate: total>0 ? Math.round((p/total)*100) : 0, p, total };
     });
@@ -36156,7 +36290,7 @@ function renderStaffAttendanceReport() {
       data: {
         labels,
         datasets: [{
-          label: 'Present Rate',
+          label: 'Attendance Rate',
           data: trendData.map(t=>t.rate),
           borderColor: '#2d7b51', backgroundColor: 'rgba(46,125,82,0.08)',
           fill: true, tension: 0.35, pointRadius: 4, pointBackgroundColor:'#2d7b51'
@@ -36182,7 +36316,7 @@ function renderStaffAttendanceReport() {
       data: {
         labels,
         datasets: [{
-          label:'Present Rate (%)',
+          label:'Attendance Rate (%)',
           data,
           backgroundColor: data.map(v => v>=80?'rgba(46,125,82,0.75)':v>=60?'rgba(184,122,16,0.75)':'rgba(184,64,64,0.75)'),
           borderRadius: 5
@@ -36204,40 +36338,10 @@ function renderStaffAttendanceReport() {
   // Expected days = Mon–Fri inside the Academic Calendar terms, minus holidays/breaks/closures, between the
   // chosen dates (and not before the person joined). Present/Late come from clock-in records; every other
   // expected day is a "no clock-in". Rate = (Present + Late) ÷ Expected.
-  function calExpectedDays(emp, from, to) {
-    const joined = emp.hrDateJoined || emp.hire || emp.hireDate || emp.dateJoined || '';
-    const days = [], seen = new Set();
-    TERMS.forEach(t => {
-      const td = _calTerms[t]; if (!td || !td.start || !td.end) return;
-      let a = td.start > from ? td.start : from; if (joined && joined > a) a = joined;
-      const b = td.end < to ? td.end : to;
-      if (a > b) return;
-      const cur = new Date(a + 'T00:00:00'), end = new Date(b + 'T00:00:00');
-      for (let g = 0; cur <= end && g < 400; cur.setDate(cur.getDate() + 1), g++) {
-        const ds = cur.toISOString().slice(0, 10), dow = cur.getDay();
-        if (dow === 0 || dow === 6 || seen.has(ds)) continue;
-        let off = false; try { off = !!getNonSchoolDayEvent(ds); } catch (e) {}
-        if (!off) { seen.add(ds); days.push(ds); }
-      }
-    });
-    if (!days.length && !_calStarts.length) {   // no calendar set up → fall back to days attendance was taken
-      allDates().forEach(d => { if (d >= from && d <= to && (!joined || d >= joined)) days.push(d); });
-    }
-    return days;
-  }
-  function calSummary(emp) {
-    const days = calExpectedDays(emp, calFrom, calTo);
-    let P = 0, L = 0;
-    days.forEach(d => {
-      const r = getRec(d, emp.id); if (!r) return;
-      if (r.status === 'Late') L++;
-      else if (r.status === 'Present' || ((r.in || r.clockIn) && !r.status)) P++;
-    });
-    const exp = days.length, att = P + L, none = exp - att;
-    return { exp, P, L, none, att, rate: exp > 0 ? Math.round(att / exp * 1000) / 10 : null };
-  }
+  function calExpectedDays(emp, from, to) { return attExpectedDays(emp, from, to); }
+  function calSummary(emp) { return attSummary(emp, calFrom, calTo); }
   function calStaff() {
-    const dept = calDept === null ? (deptList().includes('Teaching Staff') ? 'Teaching Staff' : '__ALL__') : calDept;
+    const dept = calDept;
     return activeStaff().filter(e => dept === '__ALL__' || deptOf(e) === dept);
   }
   function calRows() { return calStaff().map(e => ({ e, ...calSummary(e) })); }
@@ -36297,14 +36401,14 @@ function renderStaffAttendanceReport() {
     let gP=0, gL=0, gA=0;
     depts.forEach(d => { const ds = deptSummary(d); gP+=ds.P; gL+=ds.L; gA+=ds.A; });
     const gTotal = gP+gL+gA;
-    const gRate  = gTotal>0 ? Math.round((gP/gTotal)*100) : 0;
+    const gRate  = gTotal>0 ? Math.round(((gP+gL)/gTotal)*100) : 0;
     const trend  = overallTrend('__ALL__');
     const cmpData = depts.map(d => { const ds = deptSummary(d); return ds.rate ?? 0; });
 
     return `
       <div class="ar-kpi-grid">
         <div class="kpi-card gold">
-          <div class="kpi-label">Overall Rate</div>
+          <div class="kpi-label">Overall Attendance Rate</div>
           <div class="kpi-value" style="color:${rateColor(gRate)}">${gRate}%</div>
           <div class="kpi-sub">All staff combined</div>
         </div>
@@ -36319,7 +36423,7 @@ function renderStaffAttendanceReport() {
           <div class="kpi-sub">Staff-day slots</div>
         </div>
         <div class="kpi-card" style="border-top:3px solid var(--red)">
-          <div class="kpi-label">Total Absent</div>
+          <div class="kpi-label">Total No Clock-in</div>
           <div class="kpi-value" style="color:var(--red)">${gA.toLocaleString()}</div>
           <div class="kpi-sub">Staff-day slots</div>
         </div>
@@ -36327,7 +36431,7 @@ function renderStaffAttendanceReport() {
 
       <div class="ar-chart-row">
         <div class="ar-chart-card">
-          <div class="ar-chart-title">📈 Present-Rate Trend (last ${Math.min(trend.length,20)} days)</div>
+          <div class="ar-chart-title">📈 Attendance Trend (last ${Math.min(trend.length,20)} days)</div>
           <div class="ar-chart-canvas-wrap"><canvas id="satr-trend-chart"></canvas></div>
         </div>
         <div class="ar-chart-card">
@@ -36337,14 +36441,14 @@ function renderStaffAttendanceReport() {
             <div style="display:flex;flex-direction:column;gap:10px">
               <div class="ar-donut-item"><div class="ar-donut-dot" style="background:var(--green)"></div><span><b>${gP}</b> Present (${gTotal>0?Math.round((gP/gTotal)*100):0}%)</span></div>
               <div class="ar-donut-item"><div class="ar-donut-dot" style="background:var(--amber)"></div><span><b>${gL}</b> Late (${gTotal>0?Math.round((gL/gTotal)*100):0}%)</span></div>
-              <div class="ar-donut-item"><div class="ar-donut-dot" style="background:var(--red)"></div><span><b>${gA}</b> Absent (${gTotal>0?Math.round((gA/gTotal)*100):0}%)</span></div>
+              <div class="ar-donut-item"><div class="ar-donut-dot" style="background:var(--red)"></div><span><b>${gA}</b> No clock-in (${gTotal>0?Math.round((gA/gTotal)*100):0}%)</span></div>
             </div>
           </div>
         </div>
       </div>
 
       <div class="ar-chart-card" style="margin-bottom:18px">
-        <div class="ar-chart-title">🏢 Department Present Rates</div>
+        <div class="ar-chart-title">🏢 Department Attendance Rates</div>
         <div class="ar-chart-canvas-wrap" style="height:${Math.max(180, depts.length*36)}px">
           <canvas id="satr-dept-hbar"></canvas>
         </div>
@@ -36409,7 +36513,7 @@ function renderStaffAttendanceReport() {
       </div>
 
       <div class="ar-chart-card" style="margin-top:16px">
-        <div class="ar-chart-title">📊 Staff-by-Staff Present Rate — ${esc(dept)}</div>
+        <div class="ar-chart-title">📊 Staff-by-Staff Attendance Rate — ${esc(dept)}</div>
         <div class="ar-chart-canvas-wrap" style="height:${Math.max(200, staff.length*32)}px">
           <canvas id="satr-staff-bar"></canvas>
         </div>
@@ -36480,7 +36584,7 @@ function renderStaffAttendanceReport() {
       ['60','Last 60 Days'],['all','All Time']
     ].map(([v,l])=>`<option value="${v}" ${v===filterRange?'selected':''}>${l}</option>`).join('');
 
-    const _cd = calDept === null ? (depts.includes('Teaching Staff') ? 'Teaching Staff' : '__ALL__') : calDept;
+    const _cd = calDept;
     const calDeptOpts = `<option value="__ALL__" ${_cd==='__ALL__'?'selected':''}>All Staff</option>` + depts.map(d=>`<option value="${esc(d)}" ${d===_cd?'selected':''}>${esc(d)}</option>`).join('');
     let tabContent = '';
     if (activeTab==='calendar') tabContent = drawCalendar();
@@ -45186,6 +45290,237 @@ document.addEventListener('keydown', function(e) {
 });
 
 
+// ══════════════ STUDENT ACTION PORTAL ══════════════
+// Lists students needing attention (auto-flagged from attendance, grades and fees, or flagged
+// manually) and records the action taken by the Teacher and by the Headteacher.
+// Data: db.studentCases[studentId] = {status, referred, manual:[{id,reason,note,by,at}], updatedAt}
+//       db.studentActions[] = {id, studentId, role:'Teacher'|'Headteacher', type, note, followUp, by, at}
+const AP_TEACHER_TYPES = ['Counselled the student', 'Called / informed parent', 'Parent meeting held', 'Remedial / extra lessons', 'Seating / peer support arranged', 'Monitoring (no further step yet)', 'Referred to Headteacher', 'Other'];
+const AP_HEAD_TYPES = ['Reviewed the case', 'Met student', 'Met parent / guardian', 'Disciplinary / counselling step', 'Fee payment arrangement', 'Approved intervention plan', 'Referred to external support', 'Other'];
+const AP_MANUAL_REASONS = ['Behaviour / discipline', 'Health / welfare', 'Poor punctuality', 'Learning difficulty', 'Family / home concern', 'Bullying', 'Other'];
+const AP_STATUSES = ['Open', 'In Progress', 'Resolved'];
+window._apSel = window._apSel || { term: null, cls: '__ALL__', status: 'active', reason: 'all', q: '' };
+
+function apRoleKind() {
+  const r = currentUser && currentUser.role;
+  if (r === 'Admin') return 'both';
+  if (r === 'Headteacher') return 'head';
+  if (r === 'Teacher' || r === 'Class Teacher') return 'teacher';
+  return 'view';
+}
+function apThresholds() {
+  const t = db.actionThresholds || {};
+  return { att: Number.isFinite(+t.att) ? +t.att : 75, avg: Number.isFinite(+t.avg) ? +t.avg : 50, fail: Number.isFinite(+t.fail) ? +t.fail : 3, skill: Number.isFinite(+t.skill) ? +t.skill : 2.5, fees: t.fees !== false };
+}
+function apCanSeeFees() { try { return canAccessPage('payment'); } catch (_) { return false; } }
+function apDefaultTerm() {
+  const T = (typeof TERMS !== 'undefined' && TERMS.length) ? TERMS : ['Term 1'];
+  for (let i = T.length - 1; i >= 0; i--) { if (Object.keys(db.grades || {}).some(k => k.indexOf('|' + T[i]) > -1 || k.indexOf(T[i]) > -1)) return T[i]; }
+  return T[0];
+}
+function apStudentFacts(s, term) {
+  const th = apThresholds();
+  const att = sprStudentAttendance(s);
+  const subs = subjectsForClass(s.cls).map(sub => { const g = getGrade(s.id, sub.id, term); return { name: sub.name, score: g && g.score != null ? Number(g.score) : null }; }).filter(x => x.score != null);
+  const avg = subs.length ? subs.reduce((a, x) => a + x.score, 0) / subs.length : null;
+  const failing = subs.filter(x => x.score < 40);
+  let skill = null; try { skill = sprStudentSkills(s); } catch (_) {}
+  let bal = null;
+  if (apCanSeeFees()) { try { bal = calcStudentStatusForTerm(s.id, term).bal; } catch (_) {} }
+  const reasons = [];
+  if (att.total >= 5 && att.rate != null && att.rate < th.att) reasons.push({ k: 'att', t: 'Low attendance ' + att.rate + '%' });
+  if (avg != null && avg < th.avg) reasons.push({ k: 'avg', t: 'Average ' + Math.round(avg) + '%' });
+  if (failing.length >= th.fail) reasons.push({ k: 'fail', t: 'Failing ' + failing.length + ' subjects' });
+  if (skill != null && skill < th.skill) reasons.push({ k: 'skill', t: 'Skills ' + (Math.round(skill * 10) / 10) + '/4' });
+  if (th.fees && bal != null && bal > 0.02) reasons.push({ k: 'fees', t: 'Fees owing GH₵ ' + Math.round(bal).toLocaleString() });
+  const c = (db.studentCases || {})[s.id];
+  ((c && c.manual) || []).forEach(m => reasons.push({ k: 'manual', t: '🚩 ' + m.reason }));
+  return { att, avg, failing, skill, bal, reasons };
+}
+function apBuildRows() {
+  const S = window._apSel; if (!S.term) S.term = apDefaultTerm();
+  const lock = typeof lockedClassFor === 'function' ? lockedClassFor() : null;
+  if (lock) S.cls = lock;
+  const q = (S.q || '').toLowerCase().trim();
+  const rows = [];
+  (db.admissions || []).forEach(s => {
+    if (!s || !['Admitted', 'Continuing', 'Scholarship'].includes(s.status)) return;
+    if (S.cls !== '__ALL__' && s.cls !== S.cls) return;
+    if (q && !(String(s.name || '').toLowerCase().includes(q) || String(s.id).toLowerCase().includes(q))) return;
+    const f = apStudentFacts(s, S.term);
+    const c = (db.studentCases || {})[s.id] || null;
+    const acts = (db.studentActions || []).filter(a => a && String(a.studentId) === String(s.id)).sort((a, b) => (b.at || 0) - (a.at || 0));
+    const hasActions = acts.length > 0;
+    if (!f.reasons.length && !hasActions && !(c && c.status)) return;
+    const status = c && c.status ? c.status : (hasActions ? 'In Progress' : 'Open');
+    rows.push({ s, f, c, acts, status, teacherActs: acts.filter(a => a.role === 'Teacher').length, headActs: acts.filter(a => a.role === 'Headteacher').length, referred: !!(c && c.referred && status !== 'Resolved'), last: acts[0] || null });
+  });
+  return rows;
+}
+function apFilterRows(rows) {
+  const S = window._apSel;
+  return rows.filter(r => {
+    if (S.status === 'active' && r.status === 'Resolved') return false;
+    if (S.status === 'noaction' && (r.acts.length || r.status === 'Resolved')) return false;
+    if (S.status === 'referred' && !r.referred) return false;
+    if (['Open', 'In Progress', 'Resolved'].includes(S.status) && r.status !== S.status) return false;
+    if (S.reason !== 'all' && !r.f.reasons.some(x => x.k === S.reason)) return false;
+    return true;
+  }).sort((a, b) => (b.referred - a.referred) || (a.acts.length - b.acts.length) || b.f.reasons.length - a.f.reasons.length || String(a.s.name).localeCompare(String(b.s.name)));
+}
+function apBadge(txt, bg, col) { return `<span style="display:inline-block;font-size:10.5px;padding:2px 8px;border-radius:12px;background:${bg};color:${col};margin:1px 3px 1px 0;white-space:nowrap">${txt}</span>`; }
+function apStatusBadge(st, referred) {
+  const m = { 'Open': ['#fde8e8', '#b42318'], 'In Progress': ['#fff4d6', '#8a5a00'], 'Resolved': ['#e3f6ea', '#1b6b3a'] }[st] || ['#eee', '#555'];
+  return apBadge(esc(st), m[0], m[1]) + (referred ? apBadge('⬆ Awaiting Headteacher', '#e8eefc', '#1a3a9b') : '');
+}
+function apSet(k, v) { window._apSel[k] = v; renderActionPortal(); }
+function apSearch(v) { window._apSel.q = v; renderActionPortal(); const i = document.getElementById('ap2-q'); if (i) { i.focus(); i.setSelectionRange(v.length, v.length); } }
+
+function renderActionPortal() {
+  ensurePage('actionportal', 'ap2-inner');
+  const el = document.getElementById('ap2-inner'); if (!el) return;
+  const S = window._apSel; if (!S.term) S.term = apDefaultTerm();
+  const lock = typeof lockedClassFor === 'function' ? lockedClassFor() : null;
+  const all = apBuildRows(), rows = apFilterRows(all);
+  const kind = apRoleKind(), th = apThresholds();
+  const kpi = (l, v, c) => `<div style="flex:1;min-width:120px;background:var(--card,#fff);border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div style="font-size:11px;color:var(--muted)">${l}</div><div style="font-size:22px;font-weight:700;color:${c || 'var(--navy)'}">${v}</div></div>`;
+  const act = all.filter(r => r.status !== 'Resolved');
+  const css = `<style>.ap2-t{width:100%;border-collapse:collapse;font-size:12.5px}.ap2-t th,.ap2-t td{text-align:left;padding:8px;border-bottom:1px solid var(--border);vertical-align:top}.ap2-t th{color:var(--muted);font-weight:600;white-space:nowrap}.ap2-t tr.ap2-r:hover{background:rgba(26,86,176,.05);cursor:pointer}
+  .ap2-tl{border-left:3px solid var(--border);margin:6px 0 6px 6px;padding-left:12px}.ap2-ev{margin-bottom:10px;font-size:12.5px}.ap2-ev b{color:var(--navy)}
+  @media print{.ap2-no-print{display:none!important}}</style>`;
+  const classes = (typeof CLASSES !== 'undefined' ? CLASSES : []);
+  el.innerHTML = css + `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+    <div><h2 style="margin:0">🚨 Student Action Portal</h2><div style="color:var(--muted);font-size:12px">Students who need attention, with the action taken by the Teacher and by the Headteacher.</div></div>
+    <div class="ap2-no-print" style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="apFlagModal()">🚩 Flag a student</button><button class="btn btn-outline btn-sm" onclick="apCsv()">⬇ CSV</button><button class="btn btn-outline btn-sm" onclick="printReportSmart('ap2-inner',{orientation:'landscape',isolate:true})">🖨️ Print</button></div></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">${kpi('Students needing attention', act.length, '#b42318')}${kpi('No action taken yet', act.filter(r => !r.acts.length).length, '#8a5a00')}${kpi('Awaiting Headteacher', all.filter(r => r.referred).length, '#1a3a9b')}${kpi('In progress', all.filter(r => r.status === 'In Progress').length)}${kpi('Resolved', all.filter(r => r.status === 'Resolved').length, '#1b6b3a')}</div>
+    <div class="ap2-no-print" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
+      <select class="form-control" style="max-width:130px" onchange="apSet('term',this.value)">${(typeof TERMS !== 'undefined' ? TERMS : ['Term 1']).map(t => `<option ${S.term === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+      <select class="form-control" style="max-width:150px" ${lock ? 'disabled' : ''} onchange="apSet('cls',this.value)"><option value="__ALL__">All classes</option>${classes.map(c => `<option ${S.cls === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+      <select class="form-control" style="max-width:190px" onchange="apSet('status',this.value)">${[['active', 'Needs attention (not resolved)'], ['noaction', 'No action taken yet'], ['referred', 'Awaiting Headteacher'], ['Open', 'Open'], ['In Progress', 'In Progress'], ['Resolved', 'Resolved'], ['all', 'All']].map(o => `<option value="${o[0]}" ${S.status === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>
+      <select class="form-control" style="max-width:170px" onchange="apSet('reason',this.value)">${[['all', 'All reasons'], ['att', 'Low attendance'], ['avg', 'Low average'], ['fail', 'Failing subjects'], ['skill', 'Low skill assessment'], ['fees', 'Fees owing'], ['manual', 'Flagged manually']].filter(o => o[0] !== 'fees' || apCanSeeFees()).map(o => `<option value="${o[0]}" ${S.reason === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>
+      <input id="ap2-q" class="form-control" style="max-width:200px" placeholder="Search student…" value="${esc(S.q)}" oninput="apSearch(this.value)">
+      ${(kind === 'head' || kind === 'both') ? `<button class="btn btn-outline btn-sm" onclick="apThresholdModal()">⚙ Rules</button>` : ''}</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Auto-flag rules: attendance below ${th.att}% · term average below ${th.avg}% · failing ${th.fail}+ subjects (below 40) · skill assessment below ${th.skill}/4${th.fees && apCanSeeFees() ? ' · outstanding fees' : ''}.</div>
+    <div style="overflow-x:auto"><table class="ap2-t"><thead><tr><th>Student</th><th>Class</th><th>Why flagged</th><th>Teacher actions</th><th>Headteacher actions</th><th>Last action</th><th>Status</th></tr></thead><tbody>
+    ${rows.map(r => `<tr class="ap2-r" onclick="apOpenCase('${esc(String(r.s.id))}')"><td><b>${esc(r.s.name)}</b><div style="font-size:10.5px;color:var(--muted)">${esc(String(r.s.id))}</div></td><td>${esc(r.s.cls)}</td><td>${r.f.reasons.map(x => apBadge(esc(x.t), '#f1f3f7', '#33415c')).join('') || '<span style="color:var(--muted)">—</span>'}</td><td style="text-align:center">${r.teacherActs}</td><td style="text-align:center">${r.headActs}</td><td style="font-size:11.5px">${r.last ? esc(r.last.role) + '<div style="color:var(--muted)">' + esc(scDate(new Date(r.last.at).toISOString().slice(0, 10))) + '</div>' : '<span style="color:#b42318">None</span>'}</td><td>${apStatusBadge(r.status, r.referred)}</td></tr>`).join('') || `<tr><td colspan="7" style="color:var(--muted);padding:20px;text-align:center">No students match. ${all.length ? '' : 'Nobody is flagged for ' + esc(S.term) + ' right now.'}</td></tr>`}
+    </tbody></table></div>`;
+}
+
+function apOpenCase(id) {
+  const s = (db.admissions || []).find(x => x && String(x.id) === String(id)); if (!s) return;
+  const S = window._apSel;
+  const f = apStudentFacts(s, S.term), c = (db.studentCases || {})[s.id] || {};
+  const acts = (db.studentActions || []).filter(a => a && String(a.studentId) === String(s.id)).sort((a, b) => (a.at || 0) - (b.at || 0));
+  const kind = apRoleKind(), lock = typeof lockedClassFor === 'function' ? lockedClassFor() : null;
+  const canT = (kind === 'teacher' && (!lock || lock === s.cls)) || kind === 'both';
+  const canH = kind === 'head' || kind === 'both';
+  const status = c.status || (acts.length ? 'In Progress' : 'Open');
+  const form = (role, types, can) => !can ? '' : `<div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-top:10px;background:${role === 'Teacher' ? 'rgba(107,33,168,.05)' : 'rgba(26,86,176,.06)'}">
+    <div style="font-weight:700;margin-bottom:6px">${role === 'Teacher' ? '🧑‍🏫 Teacher action' : '🏛️ Headteacher action'}</div>
+    <div class="form-group"><label>Action taken</label><select id="apf-${role}-type">${types.map(t => `<option>${esc(t)}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Details / outcome</label><textarea id="apf-${role}-note" rows="3" placeholder="What was done, what was said, what was agreed…"></textarea></div>
+    <div class="form-group"><label>Follow-up date (optional)</label><input type="date" id="apf-${role}-fu"></div>
+    <button class="btn btn-primary btn-sm" onclick="apAddAction('${esc(String(s.id))}','${role}')">💾 Save ${role} action</button></div>`;
+  let m = document.getElementById('ap2-modal'); if (m) m.remove();
+  m = document.createElement('div'); m.className = 'modal-overlay open'; m.id = 'ap2-modal';
+  m.innerHTML = `<div class="modal" style="width:680px;max-width:96vw;max-height:92vh;overflow-y:auto">
+    <div class="modal-header"><span class="modal-title">🚨 ${esc(s.name)} — ${esc(s.cls)}</span><button class="modal-close" onclick="document.getElementById('ap2-modal').remove()">✕</button></div>
+    <div style="padding:14px 20px">
+      <div style="margin-bottom:8px">${apStatusBadge(status, c.referred && status !== 'Resolved')}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:10px;font-size:12px">
+        <div><div style="color:var(--muted)">Attendance</div><b>${f.att.rate == null ? '—' : f.att.rate + '%'}</b> (${f.att.absent} absent, ${f.att.late} late)</div>
+        <div><div style="color:var(--muted)">${esc(S.term)} average</div><b>${f.avg == null ? '—' : Math.round(f.avg) + '%'}</b></div>
+        <div><div style="color:var(--muted)">Failing subjects</div><b>${f.failing.length}</b>${f.failing.length ? ' <span style="color:var(--muted)">(' + esc(f.failing.map(x => x.name).join(', ')) + ')</span>' : ''}</div>
+        <div><div style="color:var(--muted)">Skill assessment</div><b>${f.skill == null ? '—' : (Math.round(f.skill * 10) / 10) + ' / 4'}</b></div>
+        ${f.bal != null ? `<div><div style="color:var(--muted)">Fee balance</div><b>GH₵ ${Math.round(f.bal).toLocaleString()}</b></div>` : ''}</div>
+      <div style="margin-bottom:8px">${f.reasons.map(x => apBadge(esc(x.t), '#f1f3f7', '#33415c')).join('') || '<span style="color:var(--muted)">No automatic flags currently.</span>'}</div>
+      ${(c.manual || []).map(x => `<div style="font-size:12px;color:var(--muted)">🚩 ${esc(x.reason)}${x.note ? ' — ' + esc(x.note) : ''} <i>(${esc(x.by)}, ${esc(scDate(new Date(x.at).toISOString().slice(0, 10)))})</i></div>`).join('')}
+      <div style="font-weight:700;margin:14px 0 4px">Action history</div>
+      <div class="ap2-tl">${acts.map(a => `<div class="ap2-ev"><div>${a.role === 'Teacher' ? '🧑‍🏫' : '🏛️'} <b>${esc(a.role)}</b> · ${esc(a.type)} <span style="color:var(--muted)">— ${esc(a.by)}, ${esc(scDate(new Date(a.at).toISOString().slice(0, 10)))}</span>
+        ${(currentUser.role === 'Admin' || a.by === currentUser.username) ? `<a href="#" style="color:#b42318;font-size:11px;margin-left:6px" onclick="event.preventDefault();apDeleteAction('${esc(String(a.id))}','${esc(String(s.id))}')">delete</a>` : ''}</div>
+        ${a.note ? `<div style="white-space:pre-wrap;margin-top:2px">${esc(a.note)}</div>` : ''}${a.followUp ? `<div style="color:#8a5a00;font-size:11.5px">📅 Follow-up: ${esc(scDate(a.followUp))}</div>` : ''}</div>`).join('') || '<div style="color:var(--muted);font-size:12px">No action recorded yet.</div>'}</div>
+      ${form('Teacher', AP_TEACHER_TYPES, canT)}${form('Headteacher', AP_HEAD_TYPES, canH)}
+      ${(canT || canH) ? `<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="font-size:12px;color:var(--muted)">Case status:</span>${AP_STATUSES.map(st => `<button class="btn btn-sm ${status === st ? 'btn-primary' : 'btn-outline'}" onclick="apSetStatus('${esc(String(s.id))}','${st}')">${st}</button>`).join('')}</div>` : ''}
+      ${!canT && !canH ? '<div style="font-size:12px;color:var(--muted);margin-top:10px">You have view-only access to this case.</div>' : ''}
+    </div></div>`;
+  document.body.appendChild(m);
+}
+function apEnsureCase(id) {
+  if (!db.studentCases || typeof db.studentCases !== 'object' || Array.isArray(db.studentCases)) db.studentCases = {};
+  if (!db.studentCases[id]) db.studentCases[id] = { status: 'Open', manual: [] };
+  return db.studentCases[id];
+}
+function apAddAction(id, role) {
+  const kind = apRoleKind();
+  if ((role === 'Teacher' && kind !== 'teacher' && kind !== 'both') || (role === 'Headteacher' && kind !== 'head' && kind !== 'both')) { toast('⛔ Not allowed'); return; }
+  const type = document.getElementById('apf-' + role + '-type').value;
+  const note = document.getElementById('apf-' + role + '-note').value.trim();
+  const fu = document.getElementById('apf-' + role + '-fu').value;
+  if (!note) { toast('⚠ Please describe the action taken'); return; }
+  if (!Array.isArray(db.studentActions)) db.studentActions = [];
+  db.nextActionId = db.nextActionId || 1;
+  db.studentActions.push({ id: 'ACT' + (db.nextActionId++), studentId: String(id), role, type, note, followUp: fu || '', by: currentUser.username || currentUser.role, at: Date.now() });
+  const c = apEnsureCase(id);
+  if (c.status === 'Open' || !c.status) c.status = 'In Progress';
+  if (role === 'Teacher' && type === 'Referred to Headteacher') c.referred = true;
+  if (role === 'Headteacher') c.referred = false;
+  c.updatedAt = Date.now();
+  saveDb(); toast('✅ Action saved'); apOpenCase(id); renderActionPortal();
+}
+function apDeleteAction(aid, sid) {
+  if (!confirm('Delete this action record?')) return;
+  db.studentActions = (db.studentActions || []).filter(a => a && String(a.id) !== String(aid));
+  saveDb(); apOpenCase(sid); renderActionPortal();
+}
+function apSetStatus(id, st) {
+  const c = apEnsureCase(id); c.status = st; c.updatedAt = Date.now(); if (st === 'Resolved') c.referred = false;
+  saveDb(); apOpenCase(id); renderActionPortal();
+}
+function apFlagModal() {
+  const lock = typeof lockedClassFor === 'function' ? lockedClassFor() : null;
+  const studs = (db.admissions || []).filter(s => s && ['Admitted', 'Continuing', 'Scholarship'].includes(s.status) && (!lock || s.cls === lock)).sort((a, b) => String(a.cls).localeCompare(String(b.cls)) || String(a.name).localeCompare(String(b.name)));
+  let m = document.getElementById('ap2-flag'); if (m) m.remove();
+  m = document.createElement('div'); m.className = 'modal-overlay open'; m.id = 'ap2-flag';
+  m.innerHTML = `<div class="modal" style="width:460px;max-width:94vw"><div class="modal-header"><span class="modal-title">🚩 Flag a student</span><button class="modal-close" onclick="document.getElementById('ap2-flag').remove()">✕</button></div>
+    <div style="padding:16px 20px"><div class="form-group"><label>Student</label><select id="apfl-s">${studs.map(s => `<option value="${esc(String(s.id))}">${esc(s.name)} — ${esc(s.cls)}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Reason</label><select id="apfl-r">${AP_MANUAL_REASONS.map(r => `<option>${r}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Note</label><textarea id="apfl-n" rows="3"></textarea></div></div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="document.getElementById('ap2-flag').remove()">Cancel</button><button class="btn btn-primary" onclick="apFlagSave()">Flag student</button></div></div>`;
+  document.body.appendChild(m);
+}
+function apFlagSave() {
+  if (apRoleKind() === 'view') { toast('⛔ Not allowed'); return; }
+  const id = document.getElementById('apfl-s').value; if (!id) return;
+  const c = apEnsureCase(id); if (!Array.isArray(c.manual)) c.manual = [];
+  c.manual.push({ id: 'M' + Date.now(), reason: document.getElementById('apfl-r').value, note: document.getElementById('apfl-n').value.trim(), by: currentUser.username || currentUser.role, at: Date.now() });
+  if (c.status === 'Resolved') c.status = 'Open';
+  c.updatedAt = Date.now(); saveDb();
+  document.getElementById('ap2-flag').remove(); toast('🚩 Student flagged'); renderActionPortal();
+}
+function apThresholdModal() {
+  const t = apThresholds();
+  let m = document.getElementById('ap2-th'); if (m) m.remove();
+  m = document.createElement('div'); m.className = 'modal-overlay open'; m.id = 'ap2-th';
+  m.innerHTML = `<div class="modal" style="width:400px;max-width:94vw"><div class="modal-header"><span class="modal-title">⚙ Auto-flag rules</span><button class="modal-close" onclick="document.getElementById('ap2-th').remove()">✕</button></div>
+    <div style="padding:16px 20px"><div class="form-group"><label>Flag if attendance is below (%)</label><input type="number" id="apth-att" value="${t.att}" min="0" max="100"></div>
+    <div class="form-group"><label>Flag if term average is below (%)</label><input type="number" id="apth-avg" value="${t.avg}" min="0" max="100"></div>
+    <div class="form-group"><label>Flag if failing this many subjects (below 40)</label><input type="number" id="apth-fail" value="${t.fail}" min="1"></div>
+    <div class="form-group"><label>Flag if skill assessment average is below (1–4 scale)</label><input type="number" id="apth-skill" value="${t.skill}" min="1" max="4" step="0.1"></div>
+    <label style="font-size:13px"><input type="checkbox" id="apth-fees" ${t.fees ? 'checked' : ''}> Flag students with outstanding fees</label></div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="document.getElementById('ap2-th').remove()">Cancel</button><button class="btn btn-primary" onclick="apThresholdSave()">Save</button></div></div>`;
+  document.body.appendChild(m);
+}
+function apThresholdSave() {
+  db.actionThresholds = { att: +document.getElementById('apth-att').value, avg: +document.getElementById('apth-avg').value, fail: Math.max(1, +document.getElementById('apth-fail').value || 3), skill: +document.getElementById('apth-skill').value || 2.5, fees: document.getElementById('apth-fees').checked };
+  saveDb(); document.getElementById('ap2-th').remove(); renderActionPortal();
+}
+function apCsv() {
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const rows = apFilterRows(apBuildRows());
+  const lines = [['Student ID', 'Name', 'Class', 'Term', 'Why flagged', 'Status', 'Awaiting Headteacher', 'Teacher actions', 'Headteacher actions', 'Last action by', 'Last action', 'Last action date', 'Last note']].concat(rows.map(r => [r.s.id, r.s.name, r.s.cls, window._apSel.term, r.f.reasons.map(x => x.t).join('; '), r.status, r.referred ? 'Yes' : 'No', r.teacherActs, r.headActs, r.last ? r.last.role : '', r.last ? r.last.type : '', r.last ? new Date(r.last.at).toISOString().slice(0, 10) : '', r.last ? r.last.note : '']));
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.map(l => l.map(q).join(',')).join('\r\n')], { type: 'text/csv' })); a.download = 'student-action-portal.csv'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
 function renderStudentPerformance() {
   ensurePage('studentperformance', 'spr-inner');
   const el = document.getElementById('spr-inner');
@@ -48455,6 +48790,203 @@ function scGather(empId){
   return D;
 }
 
+// ══════════════ STAFF RECORDS — comprehensive per-staff record ══════════════
+window._srSel = window._srSel || { id: null, tab: 'overview', q: '', dept: '', status: '' };
+
+function srSubjectName(id) {
+  const s = (db.subjects || []).find(x => x && String(x.id) === String(id));
+  return s ? (s.name || s.title || String(id)) : String(id || '');
+}
+function srMoney(v) { const n = scNum(v); return n == null ? '—' : 'GH₵ ' + n.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function srMask(v) { v = String(v || ''); return v.length > 4 ? '•'.repeat(v.length - 4) + v.slice(-4) : v; }
+
+function srGatherMore(D) {
+  const e = D.e, id = String(e.id);
+  // Attendance on the unified Academic-Calendar rule (join date → today, and per term)
+  D.cal = null; D.calTerms = [];
+  try {
+    const from = attFirstTermStart();
+    if (from) {
+      D.cal = attSummary(e, from, today());
+      const T = (db.academicCalendar && db.academicCalendar.terms) || {};
+      TERMS.forEach(t => {
+        const s = T[t] && T[t].start, en = T[t] && T[t].end;
+        if (!s || !en || s > today()) return;
+        const r = attSummary(e, s, en < today() ? en : today());
+        D.calTerms.push(Object.assign({ term: t }, r));
+      });
+    }
+  } catch (_) {}
+  // Recent clock log
+  D.clock = [];
+  Object.keys(db.staffAttendance || {}).sort().reverse().some(date => {
+    const r = db.staffAttendance[date] && db.staffAttendance[date][id];
+    if (r && typeof r === 'object' && (r.status || r.in)) D.clock.push({ date, status: r.status || 'Present', in: r.in || r.clockIn || '', out: r.out || r.clockOut || '' });
+    return D.clock.length >= 20;
+  });
+  // Timetable lessons
+  D.lessons = [];
+  const nm = String(e.name || '').trim().toLowerCase();
+  Object.keys(db.timetable || {}).forEach(k => {
+    const v = db.timetable[k]; if (!v) return;
+    const t = String(v.teacher == null ? '' : v.teacher).trim().toLowerCase();
+    if (!t || (t !== nm && t !== id.toLowerCase())) return;
+    const p = k.split('|');
+    D.lessons.push({ cls: (p[0] || '').replace(/_/g, ' '), day: p[1] || '', period: p[2] || '', subject: srSubjectName(v.subjectId) });
+  });
+  const dayOrd = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5 };
+  D.lessons.sort((a, b) => (dayOrd[a.day] || 9) - (dayOrd[b.day] || 9) || a.period.localeCompare(b.period));
+  // Classes / subjects taught, class teacher
+  D.classes = [...new Set(D.lessons.map(l => l.cls))].sort();
+  D.subjects = [...new Set(D.lessons.map(l => l.subject))].sort();
+  D.classTeacherOf = [];
+  try {
+    const CT = db.classTeachers || {};
+    Object.keys(CT).forEach(c => { const v = CT[c]; if (v && (String(v).toLowerCase() === nm || String(v) === id)) D.classTeacherOf.push(c); });
+  } catch (_) {}
+  // Votes received
+  D.votes = 0;
+  try {
+    const V = db.teacherVotes;
+    JSON.stringify(V || {}, (k, v) => { if ((k === 'votedFor' || k === 'teacherId' || k === 'employeeId' || k === 'candidateId') && String(v) === id) D.votes++; return v; });
+  } catch (_) {}
+  return D;
+}
+
+function srRow(label, value) {
+  return `<div class="sr2-row"><div class="sr2-k">${esc(label)}</div><div class="sr2-v">${value == null || value === '' ? '—' : value}</div></div>`;
+}
+function srCard(title, body) { return `<div class="sr2-card"><div class="sr2-h">${title}</div>${body}</div>`; }
+function srTable(head, rows, empty) {
+  if (!rows.length) return `<div style="color:var(--muted);font-size:12px;padding:8px 0">${esc(empty || 'No records.')}</div>`;
+  return `<div style="overflow-x:auto"><table class="sr2-t"><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c == null || c === '' ? '—' : c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+
+function srTabHtml(D, tab) {
+  const e = D.e;
+  if (tab === 'overview') {
+    const yrs = e.hrDateJoined || e.hire ? scYearsSince(e.hrDateJoined || e.hire) : null;
+    const age = e.hrDob ? scYearsSince(e.hrDob) : null;
+    return `<div class="sr2-grid">
+      ${srCard('🪪 Personal', srRow('Full name', esc(e.name)) + srRow('Gender', esc(e.hrGender)) + srRow('Date of birth', e.hrDob ? esc(scDate(e.hrDob)) + (age != null ? ' (' + Math.floor(age) + ' yrs)' : '') : '') + srRow('Qualification', esc(e.hrQualification)) + srRow('Address', esc(e.hrAddress)))}
+      ${srCard('📞 Contact & Emergency', srRow('Phone', esc(e.phone)) + srRow('Email', esc(e.email)) + srRow('Emergency contact', esc(e.hrEcName)) + srRow('Relationship', esc(e.hrEcRel)) + srRow('Emergency phone', esc(e.hrEcPhone)))}
+      ${srCard('💼 Employment', srRow('Staff ID', esc(e.staffId || e.id)) + srRow('Department', esc(e.dept)) + srRow('Role / position', esc(e.role)) + srRow('Status', esc(e.status || 'Active')) + srRow('Contract', esc(e.hrContract || 'Permanent')) + srRow('Date joined', (e.hrDateJoined || e.hire) ? esc(scDate(e.hrDateJoined || e.hire)) + (yrs != null ? ' (' + yrs.toFixed(1) + ' yrs of service)' : '') : '') + srRow('Login username', esc(e.username)) + srRow('Leave entitlement', D.leaveEnt + ' days/yr'))}
+      ${srCard('📝 Notes', `<div style="white-space:pre-wrap;font-size:12.5px">${esc([e.hrNotes, e.notes].filter(Boolean).join('\n\n')) || '—'}</div>`)}
+    </div>`;
+  }
+  if (tab === 'attendance') {
+    const c = D.cal;
+    let h = '<div class="sr2-grid">' + srCard('📅 Per Academic Calendar (join date → today)', c ? srRow('Expected days', c.exp) + srRow('Present', c.P) + srRow('Late', c.L) + srRow('No clock-in', c.none) + srRow('Attendance rate', c.rate == null ? '—' : '<b>' + c.rate + '%</b>') : '<div style="color:var(--muted)">Academic Calendar terms are not set, so expected days cannot be computed.</div>') +
+      srCard('📈 Monthly attendance (recorded days)', scSvgChart(D.attMonths.map(m => m.key), D.attMonths.map(m => m.rate), {})) + '</div>';
+    h += srCard('By term', srTable(['Term', 'Expected', 'Present', 'Late', 'No clock-in', 'Rate'], D.calTerms.map(t => [esc(t.term), t.exp, t.P, t.L, t.none, t.rate == null ? '—' : t.rate + '%']), 'No completed or current terms yet.'));
+    h += srCard('Recent clock records (last 20)', srTable(['Date', 'Status', 'In', 'Out'], D.clock.map(r => [esc(scDate(r.date)), esc(r.status), esc(r.in), esc(r.out)]), 'No clock records.'));
+    return h;
+  }
+  if (tab === 'leave') {
+    return `<div class="sr2-grid">${srCard('🏖️ Annual leave ' + D.leaveYear, srRow('Entitlement', D.leaveEnt + ' days') + srRow('Used (approved)', D.leaveUsed + ' days') + srRow('Balance', Math.max(0, D.leaveEnt - D.leaveUsed) + ' days') + srRow('All approved leave', D.leaveDaysAll + ' days'))}</div>` +
+      srCard('Leave history', srTable(['Type', 'From', 'To', 'Days', 'Status', 'Reason', 'Decided by'], D.leave.map(l => [esc(l.type), esc(scDate(l.startDate)), esc(scDate(l.endDate)), l.days, esc(l.status), esc(l.reason), esc(l.decidedBy)]), 'No leave records.'));
+  }
+  if (tab === 'performance') {
+    let h = '<div class="sr2-grid">' + srCard('⭐ Summary', srRow('Appraisals', D.apps.length) + srRow('Latest appraisal', D.appPcts.length ? '<b>' + Math.round(D.appPcts[D.appPcts.length - 1]) + '%</b> (' + scBand(D.appPcts[D.appPcts.length - 1]) + ')' : '') + srRow('Average appraisal', D.appPcts.length ? Math.round(scAvg(D.appPcts)) + '%' : '') + srRow('Best Teacher rank', D.rank ? '#' + D.rank.pos + ' of ' + D.rank.of + ' (score ' + (Math.round(D.rank.score * 10) / 10) + ')' : '') + srRow('Peer votes received', D.votes) + srRow('External assessments', D.ext.length)) +
+      srCard('📈 Appraisal trend', scSvgChart(D.apps.map(a => scDate(a.date)), D.appPcts, {})) + '</div>';
+    h += srCard('Criteria averages', srTable(['Criterion', 'Average /5', '%'], D.crit.map(c => [esc(c.label), (Math.round(c.avg * 10) / 10), c.pct + '%']), 'No appraisal criteria recorded.'));
+    h += srCard('Appraisal history', srTable(['Date', 'Term', 'Score', 'Rating', 'Appraiser'], D.apps.map((a, i) => [esc(scDate(a.date)), esc(a.term), Math.round(D.appPcts[i]) + '%', esc(scBand(D.appPcts[i])), esc(a.appraiser || a.appraisedBy || a.by)]), 'No appraisals.'));
+    h += srCard('External assessments', srTable(['Date', 'Assessor', 'Score'], D.ext.map((a, i) => [esc(scDate(a.date)), esc(a.assessor || a.assessedBy || a.by), D.extPcts[i] == null ? '—' : Math.round(D.extPcts[i]) + '%']), 'No external assessments.'));
+    return h;
+  }
+  if (tab === 'training') {
+    return srCard('🎓 Trainings assigned (' + D.trDone + ' of ' + D.trainings.length + ' completed)', srTable(['Training', 'Date', 'Status'], D.trainings.map(t => [esc(t.title || t.name), esc(scDate(t.date)), isStaffTrainingCompleted(t, e.id) ? '✅ Completed' : '⏳ Pending']), 'No trainings assigned.'));
+  }
+  if (tab === 'teaching') {
+    return `<div class="sr2-grid">${srCard('🍎 Teaching load', srRow('Weekly lessons', D.lessons.length) + srRow('Classes', esc(D.classes.join(', '))) + srRow('Subjects', esc(D.subjects.join(', '))) + srRow('Class teacher of', esc(D.classTeacherOf.join(', '))) + srRow('Duty roster slots', D.duty) + (D.act ? srRow('Grades entered (30 days)', D.act.grades) + srRow('Skills entered (30 days)', D.act.skills) : ''))}</div>` +
+      srCard('Timetable', srTable(['Day', 'Period', 'Class', 'Subject'], D.lessons.map(l => [esc(l.day), esc(l.period), esc(l.cls), esc(l.subject)]), 'No timetable lessons are assigned to this staff member.'));
+  }
+  if (tab === 'payroll') {
+    if (!canAccessPage('payroll')) return srCard('🔒 Restricted', '<div style="color:var(--muted)">You do not have access to payroll information.</div>');
+    return `<div class="sr2-grid">${srCard('💰 Pay & statutory', srRow('Basic salary', srMoney(e.salary)) + srRow('Transport', srMoney(e.transport)) + srRow('Housing', srMoney(e.housing)) + srRow('Other allowances', srMoney(e.otherAllow)) + srRow('SSNIT no.', esc(e.ssnit)) + srRow('TIN', esc(e.tin)) + srRow('Tier-2 scheme', esc(e.tier2Scheme)) + srRow('Exempt SSNIT', e.exemptSsnit ? 'Yes' : 'No') + srRow('Exempt Tier-2', e.exemptTier2 ? 'Yes' : 'No') + srRow('Bank', esc(e.bank)) + srRow('Account no.', esc(srMask(e.account))))}
+      ${srCard('Totals paid', srRow('Payroll runs', D.pay ? D.pay.lines.length : 0) + srRow('Gross paid', srMoney(D.pay ? D.pay.gross : 0)) + srRow('Net paid', srMoney(D.pay ? D.pay.net : 0)))}</div>` +
+      srCard('Payslip history', srTable(['Period', 'Gross', 'Net'], (D.pay ? D.pay.lines : []).map(x => [esc(x.period), srMoney(x.l.gross), srMoney(x.l.net)]), 'No payroll records.'));
+  }
+  return '';
+}
+
+function srSetTab(t) { window._srSel.tab = t; renderStaffRecords(); }
+function srOpen(id) { window._srSel.id = String(id); window._srSel.tab = 'overview'; renderStaffRecords(); const p = document.getElementById('page-staffrecords'); if (p) p.scrollTop = 0; }
+function srBack() { window._srSel.id = null; renderStaffRecords(); }
+function srPrint() { window._srPrinting = true; renderStaffRecords(); try { printReportSmart('sr2-print', { orientation: 'portrait', isolate: true }); } finally { setTimeout(function () { window._srPrinting = false; renderStaffRecords(); }, 1500); } }
+function srCsv() {
+  const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const withPay = canAccessPage('payroll');
+  const head = ['Staff ID', 'Name', 'Department', 'Role', 'Status', 'Contract', 'Gender', 'DOB', 'Qualification', 'Date joined', 'Phone', 'Email', 'Address', 'Emergency contact', 'Emergency phone', 'Username', 'Attendance rate %'].concat(withPay ? ['Basic salary', 'SSNIT', 'TIN', 'Bank'] : []);
+  const rows = (db.employees || []).filter(x => x).map(employeeWithHr).map(e => {
+    let rate = ''; try { rate = sperfStaffAttRate(e.id); } catch (_) {}
+    return [e.staffId || e.id, e.name, e.dept, e.role, e.status, e.hrContract || 'Permanent', e.hrGender, e.hrDob, e.hrQualification, e.hrDateJoined || e.hire, e.phone, e.email, e.hrAddress, e.hrEcName, e.hrEcPhone, e.username, rate == null ? '' : rate].concat(withPay ? [e.salary, e.ssnit, e.tin, e.bank] : []);
+  });
+  const csv = '﻿' + [head].concat(rows).map(r => r.map(q).join(',')).join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'staff-records.csv'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+function renderStaffRecords() {
+  ensurePage('staffrecords', 'sr2-inner');
+  const el = document.getElementById('sr2-inner'); if (!el) return;
+  const S = window._srSel;
+  const css = `<style>
+    .sr2-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:14px}
+    .sr2-card{background:var(--card,#fff);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;min-width:0}
+    .sr2-grid .sr2-card{margin-bottom:0}
+    .sr2-h{font-weight:700;margin-bottom:8px;font-size:13.5px}
+    .sr2-row{display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12.5px}
+    .sr2-k{width:140px;flex-shrink:0;color:var(--muted)} .sr2-v{min-width:0;word-break:break-word}
+    .sr2-t{width:100%;border-collapse:collapse;font-size:12px} .sr2-t th,.sr2-t td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--border)} .sr2-t th{color:var(--muted);font-weight:600;white-space:nowrap}
+    .sr2-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+    .sr2-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+    .sr2-item{border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer;background:var(--card,#fff);display:flex;gap:10px;align-items:center}
+    .sr2-item:hover{border-color:var(--primary,#1a6ed8)}
+    @media print{.sr2-grid{grid-template-columns:1fr 1fr}.sr2-card{break-inside:avoid}}
+  </style>`;
+  if (!S.id) {
+    const emps = (db.employees || []).filter(x => x && x.id != null).map(employeeWithHr);
+    const depts = [...new Set(emps.map(e => e.dept).filter(Boolean))].sort();
+    const q = (S.q || '').toLowerCase().trim();
+    const list = emps.filter(e => (!q || [e.name, e.staffId, e.role, e.dept, e.phone, e.email].some(v => String(v || '').toLowerCase().includes(q))) && (!S.dept || e.dept === S.dept) && (!S.status || (e.status || 'Active') === S.status))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    el.innerHTML = css + `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+      <div><h2 style="margin:0">🗃️ Staff Records</h2><div style="color:var(--muted);font-size:12px">Complete record of every staff member — personal, employment, attendance, leave, performance, training, teaching and payroll.</div></div>
+      <button class="btn btn-outline btn-sm" onclick="srCsv()">⬇ Export CSV</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <input id="sr2-q" class="form-control" style="max-width:260px" placeholder="Search name, ID, role, phone…" value="${esc(S.q)}" oninput="window._srSel.q=this.value;srFilterKeep()">
+        <select class="form-control" style="max-width:200px" onchange="window._srSel.dept=this.value;renderStaffRecords()"><option value="">All departments</option>${depts.map(d => `<option ${S.dept === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select>
+        <select class="form-control" style="max-width:160px" onchange="window._srSel.status=this.value;renderStaffRecords()"><option value="">All statuses</option>${['Active', 'Inactive', 'On Leave', 'Resigned', 'Terminated'].map(s => `<option ${S.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
+        <div style="align-self:center;color:var(--muted);font-size:12px">${list.length} of ${emps.length} staff</div></div>
+      <div class="sr2-list">${list.map(e => `<div class="sr2-item" onclick="srOpen('${esc(String(e.id))}')"><div class="staff-avatar" style="flex-shrink:0">${staffInitials(e.name)}</div><div style="min-width:0"><div style="font-weight:600">${esc(e.name)}</div><div style="font-size:11.5px;color:var(--muted)">${esc(e.role || '—')} · ${esc(e.dept || '—')}</div><div style="font-size:11px;color:var(--muted)">${esc(e.status || 'Active')}${e.phone ? ' · ' + esc(e.phone) : ''}</div></div></div>`).join('') || '<div style="color:var(--muted)">No staff match.</div>'}</div>`;
+    return;
+  }
+  let D = scGather(S.id);
+  if (!D) { S.id = null; return renderStaffRecords(); }
+  D = srGatherMore(D);
+  const e = D.e;
+  const tabs = [['overview', '👤 Overview'], ['attendance', '📅 Attendance'], ['leave', '🏖️ Leave'], ['performance', '⭐ Performance'], ['training', '🎓 Training'], ['teaching', '🍎 Teaching']];
+  if (canAccessPage('payroll')) tabs.push(['payroll', '💰 Payroll']);
+  if (!tabs.some(t => t[0] === S.tab)) S.tab = 'overview';
+  const rate = D.cal && D.cal.rate != null ? D.cal.rate + '%' : '—';
+  const kpi = (l, v) => `<div style="flex:1;min-width:110px;background:rgba(255,255,255,.14);border-radius:8px;padding:8px 10px"><div style="font-size:10.5px;opacity:.85">${l}</div><div style="font-size:17px;font-weight:700">${v}</div></div>`;
+  el.innerHTML = css + `<div class="spr-no-print" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <button class="btn btn-outline btn-sm" onclick="srBack()">← All staff</button>
+      <button class="btn btn-primary btn-sm" onclick="srPrint()">🖨️ Print record</button></div>
+    <div id="sr2-print">
+      <div style="background:linear-gradient(135deg,#1a3a6b,#2563b8);color:#fff;border-radius:12px;padding:16px;margin-bottom:14px">
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          <div class="staff-avatar" style="width:56px;height:56px;font-size:20px">${staffInitials(e.name)}</div>
+          <div style="flex:1;min-width:200px"><div style="font-size:20px;font-weight:700">${esc(e.name)}</div><div style="opacity:.9">${esc(e.role || '—')} · ${esc(e.dept || '—')} · ${esc(e.status || 'Active')}</div><div style="opacity:.8;font-size:12px">Staff ID ${esc(e.staffId || e.id)}${e.phone ? ' · ' + esc(e.phone) : ''}${e.email ? ' · ' + esc(e.email) : ''}</div></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">${kpi('Attendance', rate)}${kpi('Latest appraisal', D.appPcts.length ? Math.round(D.appPcts[D.appPcts.length - 1]) + '%' : '—')}${kpi('Leave balance', Math.max(0, D.leaveEnt - D.leaveUsed) + ' d')}${kpi('Trainings', D.trDone + '/' + D.trainings.length)}${kpi('Rank', D.rank ? '#' + D.rank.pos : '—')}</div>
+      </div>
+      <div class="sr2-tabs spr-no-print">${tabs.map(t => `<button class="btn btn-sm ${S.tab === t[0] ? 'btn-primary' : 'btn-outline'}" onclick="srSetTab('${t[0]}')">${t[1]}</button>`).join('')}</div>
+      ${window._srPrinting ? tabs.map(t => `<h3 style="margin:14px 0 6px">${t[1]}</h3>` + srTabHtml(D, t[0])).join('') : srTabHtml(D, S.tab)}
+    </div>`;
+}
+function srFilterKeep() { const p = document.getElementById('sr2-q'); const pos = p ? p.selectionStart : 0; renderStaffRecords(); const n = document.getElementById('sr2-q'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (_) {} } }
+
 function scNotes(D){
   const e = D.e, notes = [], imp = [], rec = [], str = [];
   const latest = D.appPcts.length ? D.appPcts[D.appPcts.length-1] : null;
@@ -49455,7 +49987,60 @@ function renderParentDatabase() {
 // Aggregates appraisals, attendance, training, and overdue reviews into
 // management-ready analytics (separate from the data-entry Appraisals page).
 
+// ── One attendance rule for ALL staff (teaching and non-teaching) ──
+// Expected days = Mon–Fri inside the Academic Calendar terms, minus holidays/breaks/closures,
+// between `from` and `to`, and not before the person joined. Present + Late = attended; every other
+// expected day is a "no clock-in". Rate = attended ÷ expected.
+function attCalendarTerms() { return (db.academicCalendar && db.academicCalendar.terms) || {}; }
+function attFirstTermStart() {
+  const t = attCalendarTerms();
+  return TERMS.map(k => t[k] && t[k].start).filter(Boolean).sort()[0] || '';
+}
+function attExpectedDays(emp, from, to) {
+  const terms = attCalendarTerms();
+  const joined = (emp && (emp.hrDateJoined || emp.hire || emp.hireDate || emp.dateJoined)) || '';
+  const days = [], seen = new Set();
+  let hasTerms = false;
+  TERMS.forEach(t => {
+    const td = terms[t]; if (!td || !td.start || !td.end) return;
+    hasTerms = true;
+    let a = td.start > from ? td.start : from; if (joined && joined > a) a = joined;
+    const b = td.end < to ? td.end : to;
+    if (a > b) return;
+    const cur = new Date(a + 'T00:00:00'), end = new Date(b + 'T00:00:00');
+    for (let g = 0; cur <= end && g < 400; cur.setDate(cur.getDate() + 1), g++) {
+      const ds = cur.toISOString().slice(0, 10), dow = cur.getDay();
+      if (dow === 0 || dow === 6 || seen.has(ds)) continue;
+      let off = false; try { off = !!getNonSchoolDayEvent(ds); } catch (e) {}
+      if (!off) { seen.add(ds); days.push(ds); }
+    }
+  });
+  if (!hasTerms) {   // no calendar set up → fall back to the days attendance was taken
+    Object.keys(db.staffAttendance || {}).sort().forEach(d => { if (d >= from && d <= to && (!joined || d >= joined)) days.push(d); });
+  }
+  return days;
+}
+function attSummary(emp, from, to) {
+  const days = attExpectedDays(emp, from, to);
+  let P = 0, L = 0;
+  days.forEach(d => {
+    const r = ((db.staffAttendance || {})[d] || {})[emp.id]; if (!r) return;
+    if (r.status === 'Late') L++;
+    else if (r.status === 'Present' || ((r.in || r.clockIn) && !r.status)) P++;
+  });
+  const exp = days.length, att = P + L;
+  return { exp, P, L, none: exp - att, att, rate: exp > 0 ? Math.round(att / exp * 1000) / 10 : null };
+}
+
 function sperfStaffAttRate(empId) {
+  try {
+    const emp = (db.employees || []).find(e => e && String(e.id) === String(empId));
+    const from = attFirstTermStart();
+    if (emp && from) { const r = attSummary(emp, from, today()); return r.rate; }
+  } catch (e) {}
+  return sperfStaffAttRateRecorded(empId);
+}
+function sperfStaffAttRateRecorded(empId) {
   const att = db.staffAttendance || {};
   let present = 0, total = 0;
   Object.keys(att).forEach(date => {
@@ -50482,7 +51067,7 @@ function renderStaffPerformanceReport() {
         <button class="btn btn-outline btn-sm" onclick="navigate('appraisals')">Open Appraisals</button>
         <button class="btn btn-outline btn-sm" onclick="navigate('teacherexternal')">External Assessments</button>
         <button class="btn btn-outline btn-sm" onclick="sperfExportCsv(window._sperfLastRows||[], window._sperfSel.term||'all')">⬇ CSV</button>
-        <button class="btn btn-primary btn-sm" onclick="printReportSmart('sperf-inner')">🖨 Print</button>
+        <button class="btn btn-primary btn-sm" onclick="printReportSmart('sperf-inner', { isolate: true, orientation: 'portrait' })">🖨 Print</button>
       </div>
     </div>
 
